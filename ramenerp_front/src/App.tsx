@@ -1,36 +1,23 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
-import "./App.css";
+// src/App.tsx
+import React from "react";
+import {Routes, Route } from "react-router-dom";
+import Layout from "./components/Layout";
+//import HomePage from "./pages/HomePage";
+import ProductPage from "./pages/ProductPage";
+import ItemRegisterPage from "./pages/ItemRegisterPage";
+import ItemListPage from "./pages/ItemListPage";
 
-function App() {
-  const [count, setCount] = useState(0);
-
+const App: React.FC = () =>  {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR <br />
-          건호의 테스트
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          {/*<Route index element={<HomePage />} />*/}
+          <Route path="product" element={<ProductPage />} />
+          <Route path="product/register" element={<ItemRegisterPage />} />
+          <Route path="product/list" element={<ItemListPage />} />
+        </Route>
+      </Routes>
   );
-}
+};
 
 export default App;

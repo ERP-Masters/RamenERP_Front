@@ -1,7 +1,20 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
+  "compilerOptions": {
+    "target": "ES6",                       // 컴파일 후 JS 타겟 버전
+    "module": "ESNext",                    // 모듈 시스템
+    "lib": ["dom", "dom.iterable", "esnext"], // 참조 라이브러리
+    "allowJs": true,                       // JS 파일 허용
+    "skipLibCheck": true,                  // 라이브러리 타입 검사 생략
+    "esModuleInterop": true,               // CommonJS 모듈 호환
+    "allowSyntheticDefaultImports": true,  // default import 허용
+    "strict": true,                        // 엄격 모드
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,             // JSON import 가능
+    "isolatedModules": true,
+    "noEmit": true,                        // JS 출력하지 않음 (빌드 시 별도)
+    "jsx": "react-jsx"                     // ← JSX 처리 방식 설정
+  },
+  "include": ["src"],                       // TS가 검사할 파일 경로
+  "exclude": ["node_modules", "build"]     // 제외할 폴더
 }
