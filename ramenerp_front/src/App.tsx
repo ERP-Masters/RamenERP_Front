@@ -7,6 +7,10 @@ import ItemRegisterPage from "./pages/ItemRegisterPage";
 import ItemListPage from "./pages/ItemListPage";
 import VendorPage from "./pages/VendorPage";
 import VendorRegisterCheck from "./pages/VendorRegisterCheck";
+import CategoryRegisterPage from "./pages/CategoryRegisterPage";
+import CategoryRegisterCheck from "./pages/CategoryRegisterCheck";
+import UnitRegisterPage from "./pages/UnitRegisterPage";
+import UnitRegisterCheck from "./pages/UnitRegisterCheck";
 
 const App: React.FC = () => {
   return (
@@ -19,6 +23,10 @@ const App: React.FC = () => {
         <Route path="vendor" element={<VendorPage />} />
         {/* 폼 직접 렌더링 금지, 페이지(체크) 컴포넌트로 연결 */}
         <Route path="vendor/register" element={<VendorRegisterCheck />} />
+        <Route path="category/register" element={<CategoryRegisterPage />} />
+        <Route path="category/register/check" element={<CategoryRegisterCheck />} />
+        <Route path="unit/register" element={<UnitRegisterPage />} />
+        <Route path="unit/register/check" element={<UnitRegisterCheck />} />
       </Route>
     </Routes>
   );
