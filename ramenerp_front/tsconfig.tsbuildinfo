@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/layout.tsx","./src/components/vendorregisterpageui.tsx","./src/pages/itemlistpage.tsx","./src/pages/itemregisterform.tsx","./src/pages/itemregisterpage.tsx","./src/pages/productpage.tsx","./src/pages/vendorpage.tsx","./src/pages/vendorregistercheck.tsx","./src/pages/vendorregisterform.tsx"],"version":"5.8.3"}
