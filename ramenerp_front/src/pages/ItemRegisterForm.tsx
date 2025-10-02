@@ -1,37 +1,40 @@
-// src/pages/ItemRegisterForm.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
-export interface ProductData {
-  item_id: string
+/** 옵션 {id, name} 기본 타입 */
+interface IdNameOption {
+  id: number;
   name: string;
-  category_id: string; // 폼 상태는 string 유지
+}
+
+/** 폼 입력 단계(문자열 유지) */
+interface ProductData {
+  item_id: string;
+  name: string;
+  category_id: string; // select 값은 string (전송 직전에 정수 변환)
   vendor_id: string;
   unit_id: string;
-  unit_price: string;  // 폼 단계에선 문자열
+  unit_price: string;  // 입력 단계는 문자열
   expiry_date: string; // yyyy-mm-dd
 }
 
-interface ItemRegisterFormProps {
-  onSubmit: (data: ProductData) => void;
+/** 서버 DTO (백엔드 DTO와 동일) */
+interface CreateItemDto {
+  item_id: string;
+  name: string;
+  category_id: number;
+  vendor_id: number;
+  unit_id: number;
+  unit_price: number;   // @IsInt()
+  expiry_date: string;  // @IsDateString()
 }
-
-const unit_options = ["팩", "통", "판(계란)", "KG", "BOX", "CAN"] as const;
-const category_options = [
-  { category_id: "C001", category_name: "육류" },
-  { category_id: "C002", category_name: "해산물" },
-  { category_id: "C003", category_name: "면류" },
-] as const;
-const vendor_options = [
-  { vendor_id: "V001", name: "CJ 제일제당" },
-  { vendor_id: "V002", name: "농협" },
-  { vendor_id: "V003", name: "지역 납품업체" },
-] as const;
 
 const input_style = { display: "block", marginBottom: 12 } as const;
 const label_style = { display: "block", marginTop: 8, marginBottom: 4 } as const;
-const error_style = { color: "crimson", fontSize: 12, marginTop: 4 } as const;
+const error_style = { color: "crimson", fontSize: 12, margin: "8px 0" } as const;
+const info_style = { color: "#2e7d32", fontSize: 12, margin: "8px 0" } as const;
 
-const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
+const ItemRegisterForm: React.FC = () => {
+  // 폼 상태
   const [form_data, set_form_data] = useState<ProductData>({
     item_id: "",
     name: "",
@@ -42,89 +45,197 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
     expiry_date: "",
   });
 
-  const [error_message, set_error_message] = useState<string>("");
+  // 옵션 상태
+  const [category_options, set_category_options] = useState<IdNameOption[]>([]);
+  const [vendor_options, set_vendor_options] = useState<IdNameOption[]>([]);
+  const [unit_options, set_unit_options] = useState<IdNameOption[]>([]);
+  const [is_loading_options, set_is_loading_options] = useState<boolean>(false);
+  const [load_error, set_load_error] = useState<string | null>(null);
 
+  // 제출 상태
+  const [is_submitting, set_is_submitting] = useState<boolean>(false);
+  const [error_message, set_error_message] = useState<string>("");
+  const [info_message, set_info_message] = useState<string>("");
+
+  // ───────────── 유틸 ─────────────
+  const to_int = (value: string): number => {
+    const n = Number(value);
+    if (!Number.isFinite(n) || !Number.isInteger(n)) {
+      throw new Error("정수 필드에 잘못된 값이 있습니다.");
+    }
+    return n;
+  };
+
+  const normalize_option = (raw: any, type: "category" | "unit" | "vendor"): IdNameOption => {
+    switch (type) {
+      case "category":
+        return { id: Number(raw.id ?? raw.category_id), name: String(raw.name ?? raw.category_name) };
+      case "unit":
+        return { id: Number(raw.id ?? raw.unit_id), name: String(raw.name ?? raw.unit_name ?? raw.code) };
+      case "vendor":
+        return { id: Number(raw.id ?? raw.vendor_id), name: String(raw.name ?? raw.vendor_name) };
+    }
+  };
+
+  const fetch_json = async <T,>(url: string, signal?: AbortSignal): Promise<T> => {
+    const res = await fetch(url, { signal, headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json() as Promise<T>;
+  };
+
+  const is_valid_date = (value: string): boolean => {
+    if (!value) return false;
+    const t = Date.parse(value);
+    return Number.isFinite(t);
+  };
+
+  const is_valid_form = (): boolean => {
+    if (!form_data.item_id.trim()) return false;
+    if (!form_data.category_id) return false;
+    if (!form_data.name.trim()) return false;
+    if (!form_data.unit_id) return false;
+    if (!form_data.vendor_id) return false;
+
+    // 정수 가격 (@IsInt)
+    const price_num = Number(form_data.unit_price);
+    if (!Number.isFinite(price_num) || !Number.isInteger(price_num) || price_num < 0) return false;
+
+    // 서버 DTO가 @IsNotEmpty() + @IsDateString() 이므로 필수
+    if (!form_data.expiry_date) return false;
+    if (!is_valid_date(form_data.expiry_date)) return false;
+
+    return true;
+  };
+
+  const to_create_dto = (data: ProductData): CreateItemDto => ({
+    item_id: data.item_id.trim(),
+    name: data.name.trim(),
+    category_id: to_int(data.category_id),
+    vendor_id: to_int(data.vendor_id),
+    unit_id: to_int(data.unit_id),
+    unit_price: to_int(data.unit_price),
+    // "YYYY-MM-DD" 그대로 전송 → @IsDateString 통과
+    expiry_date: data.expiry_date.trim(),
+  });
+
+  // ───────────── 옵션 로딩 ─────────────
+  useEffect(() => {
+    const ac = new AbortController();
+    const { signal } = ac;
+
+    async function load_all() {
+      set_is_loading_options(true);
+      set_load_error(null);
+      try {
+        const [cats, vendors, units] = await Promise.all([
+          fetch_json<any[]>("/api/category", signal),
+          fetch_json<any[]>("/api/vendors", signal),
+          fetch_json<any[]>("/api/units", signal),
+        ]);
+        set_category_options(cats.map((c) => normalize_option(c, "category")));
+        set_vendor_options(vendors.map((v) => normalize_option(v, "vendor")));
+        set_unit_options(units.map((u) => normalize_option(u, "unit")));
+      } catch (err: any) {
+        // AbortError는 무시 (React StrictMode, 언마운트 등)
+        if (err?.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
+        }
+        set_load_error(err?.message || "옵션 목록을 불러오지 못했습니다.");
+      } finally {
+        set_is_loading_options(false);
+      }
+    }
+
+    load_all();
+    return () => ac.abort();
+  }, []);
+
+  // ───────────── 이벤트 ─────────────
   const handle_change = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     set_form_data((prev) => ({ ...prev, [name]: value }));
   };
 
-  const is_valid_date = (value: string): boolean => {
-    if (!value) return false;
-    const timestamp = Date.parse(value);
-    return Number.isFinite(timestamp);
-  };
-
-  const is_valid_form = (): boolean => {
-    if (!form_data.category_id) return false;
-    if (!form_data.name.trim()) return false;
-    if (!form_data.unit_id) return false;
-
-    // 가격: 양의 숫자
-    const price_num = Number(form_data.unit_price);
-    if (!Number.isFinite(price_num) || price_num < 0) return false;
-
-    // 날짜: 형식 검증 (옵션필드면 비어있어도 통과)
-    if (form_data.expiry_date && !is_valid_date(form_data.expiry_date)) return false;
-
-    if (!form_data.vendor_id) return false;
-    return true;
-  };
-
-  const handle_submit = (e: React.FormEvent) => {
+  const handle_submit = async (e: React.FormEvent) => {
     e.preventDefault();
     set_error_message("");
+    set_info_message("");
 
-    // ⚠️ 전송 테스트 목적: ID 필드를 전부 "1"로 강제
-    //    (원래 로직은 아래 주석 참고)
-    const forced_ids = {
-      category_id: "1",
-      unit_id: "1",
-      vendor_id: "1",
-    };
-
-    // 🔧 트리밍 + 강제 ID 반영
     const trimmed: ProductData = {
       ...form_data,
-      ...forced_ids, // ← 여기서 카테고리/단위/거래처를 "1"로 덮어씀
       item_id: form_data.item_id.trim(),
       name: form_data.name.trim(),
       unit_price: form_data.unit_price.trim(),
       expiry_date: form_data.expiry_date.trim(),
-      // category_id: form_data.category_id.trim(), // ← 원래 로직 (주석처리)
-      // unit_id: form_data.unit_id.trim(),         // ← 원래 로직 (주석처리)
-      // vendor_id: form_data.vendor_id.trim(),     // ← 원래 로직 (주석처리)
+      category_id: form_data.category_id.trim(),
+      unit_id: form_data.unit_id.trim(),
+      vendor_id: form_data.vendor_id.trim(),
     };
 
-    // 상태에도 반영해 두면 유효성 검사에서 빈 값으로 걸리지 않음
-    set_form_data(trimmed);
-
-    // ✅ 강제값이 반영된 상태로 유효성 검사
     if (!is_valid_form()) {
-      set_error_message("필수 항목을 확인해주세요. (카테고리/품목명/단위/단가/거래처, 날짜 형식)");
+      set_error_message("필수 항목을 확인해주세요. (품목ID/카테고리/품목명/단위/단가/거래처/유통기한)");
       return;
     }
 
-    // ⚠️ 지금은 통신 확인만을 위해 onSubmit에 강제 ID가 들어간 payload를 전달
-    onSubmit(trimmed);
+    try {
+      set_is_submitting(true);
+      const payload = to_create_dto(trimmed);
 
-    /**
-     * 📌 참고: 실제 서버로 숫자를 보내려면(권장)
-     *  - 이 시점에서 문자열("1") → 숫자(1) 변환을 추가하고 fetch 하세요.
-     *  - 예)
-     *    const dto = {
-     *      ...trimmed,
-     *      category_id: Number(trimmed.category_id),
-     *      unit_id: Number(trimmed.unit_id),
-     *      vendor_id: Number(trimmed.vendor_id),
-     *      unit_price: Number(trimmed.unit_price),
-     *    };
-     *    await fetch("/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dto) });
-     */
+      const res = await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const ct = res.headers.get("content-type") || "";
+          if (ct.includes("application/json")) {
+            const j = await res.json();
+            msg = j?.message
+              ? Array.isArray(j.message) ? j.message.join(", ") : String(j.message)
+              : msg;
+          } else {
+            const t = await res.text();
+            if (t) msg = t;
+          }
+        } catch {}
+        throw new Error(msg);
+      }
+
+      set_info_message("품목 등록이 완료되었습니다.");
+      // 성공 후 초기화
+      set_form_data({
+        item_id: "",
+        name: "",
+        category_id: "",
+        vendor_id: "",
+        unit_id: "",
+        unit_price: "",
+        expiry_date: "",
+      });
+    } catch (err: any) {
+      set_error_message(err?.message || "등록 중 오류가 발생했습니다.");
+    } finally {
+      set_is_submitting(false);
+    }
   };
+
+  const is_select_disabled =
+    is_loading_options ||
+    !!load_error ||
+    category_options.length === 0 ||
+    vendor_options.length === 0 ||
+    unit_options.length === 0;
 
   return (
     <form onSubmit={handle_submit} noValidate>
+      {load_error && <div style={error_style}>목록 불러오기 오류: {load_error}</div>}
+      {is_loading_options && <div style={{ marginBottom: 8 }}>목록 불러오는 중…</div>}
+      {error_message && <div style={error_style}>{error_message}</div>}
+      {info_message && <div style={info_style}>{info_message}</div>}
+
       <label htmlFor="item_id" style={label_style}>품목ID</label>
       <input
         id="item_id"
@@ -144,12 +255,11 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
         onChange={handle_change}
         style={input_style}
         required
+        disabled={is_select_disabled}
       >
-        <option value="">선택</option>
+        <option value="">{is_loading_options ? "불러오는 중…" : "선택"}</option>
         {category_options.map((c) => (
-          <option key={c.category_id} value={c.category_id}>
-            {c.category_name}
-          </option>
+          <option key={c.id} value={String(c.id)}>{c.name}</option>
         ))}
       </select>
 
@@ -172,10 +282,11 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
         onChange={handle_change}
         style={input_style}
         required
+        disabled={is_select_disabled}
       >
-        <option value="">선택</option>
+        <option value="">{is_loading_options ? "불러오는 중…" : "선택"}</option>
         {unit_options.map((u) => (
-          <option key={u} value={u}>{u}</option>
+          <option key={u.id} value={String(u.id)}>{u.name}</option>
         ))}
       </select>
 
@@ -185,6 +296,7 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
         name="unit_price"
         type="number"
         inputMode="numeric"
+        step={1}
         min={0}
         value={form_data.unit_price}
         onChange={handle_change}
@@ -200,6 +312,7 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
         value={form_data.expiry_date}
         onChange={handle_change}
         style={input_style}
+        required
       />
 
       <label htmlFor="vendor_id" style={label_style}>거래처</label>
@@ -210,18 +323,17 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
         onChange={handle_change}
         style={input_style}
         required
+        disabled={is_select_disabled}
       >
-        <option value="">선택</option>
+        <option value="">{is_loading_options ? "불러오는 중…" : "선택"}</option>
         {vendor_options.map((v) => (
-          <option key={v.vendor_id} value={v.vendor_id}>
-            {v.name}
-          </option>
+          <option key={v.id} value={String(v.id)}>{v.name}</option>
         ))}
       </select>
 
-      {error_message && <div style={error_style}>{error_message}</div>}
-
-      <button type="submit">등록</button>
+      <button type="submit" disabled={is_submitting || is_select_disabled}>
+        {is_submitting ? "등록 중…" : "등록"}
+      </button>
     </form>
   );
 };
