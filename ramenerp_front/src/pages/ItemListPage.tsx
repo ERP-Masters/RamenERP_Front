@@ -117,7 +117,7 @@ const ItemListPage: React.FC = () => {
         // 2) 보조 사전: 카테고리/거래처/단위 목록 (이름 매핑용)
         const [cats_res, vendors_res, units_res] = await Promise.all([
           fetch("/api/category", { signal: controller.signal, headers: { Accept: "application/json" } }),
-          fetch("/api/vendors",  { signal: controller.signal, headers: { Accept: "application/json" } }),
+          fetch("/api/vendors/summary",  { signal: controller.signal, headers: { Accept: "application/json" } }),
           fetch("/api/units",    { signal: controller.signal, headers: { Accept: "application/json" } }),
         ]);
 
