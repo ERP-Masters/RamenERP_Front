@@ -12,13 +12,9 @@ export interface VendorRegisterPageUIProps {
   formData: VendorFormViewState;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 
-  // 연락처 3칸
-  phone1: string;
-  phone2: string;
-  phone3: string;
-  onPhone1Change: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onPhone2Change: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onPhone3Change: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  // ✅ 연락처 대신 이메일 1칸
+  contactEmail: string;
+  onContactEmailChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 
   // 주소 검색
   openAddressSearch: () => void;
@@ -35,12 +31,8 @@ const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
   const {
     formData,
     onChange,
-    phone1,
-    phone2,
-    phone3,
-    onPhone1Change,
-    onPhone2Change,
-    onPhone3Change,
+    contactEmail,
+    onContactEmailChange,
     openAddressSearch,
     detailRef,
     onSubmit,
@@ -48,12 +40,8 @@ const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
 
   const form_data = formData;
   const on_change = onChange;
-  const phone_1 = phone1;
-  const phone_2 = phone2;
-  const phone_3 = phone3;
-  const on_phone_1_change = onPhone1Change;
-  const on_phone_2_change = onPhone2Change;
-  const on_phone_3_change = onPhone3Change;
+  const contact_email = contactEmail;
+  const on_contact_email_change = onContactEmailChange;
   const open_address_search = openAddressSearch;
   const detail_ref = detailRef;
   const on_submit = onSubmit;
@@ -89,34 +77,18 @@ const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
         />
       </div>
 
-      {/* 2줄: 담당자 연락처 */}
+      {/* 2줄: 담당자 이메일 (전화번호 3칸 → 이메일 1칸) */}
       <div style={{ margin: "8px 0" }}>
-        <label style={{ marginRight: 8 }}>담당자 연락처</label>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-          <input
-            type="tel"
-            value={phone_1}
-            onChange={on_phone_1_change}
-            placeholder="000"
-            style={{ width: 60 }}
-          />
-          <span>-</span>
-          <input
-            type="tel"
-            value={phone_2}
-            onChange={on_phone_2_change}
-            placeholder="0000"
-            style={{ width: 70 }}
-          />
-          <span>-</span>
-          <input
-            type="tel"
-            value={phone_3}
-            onChange={on_phone_3_change}
-            placeholder="0000"
-            style={{ width: 70 }}
-          />
-        </div>
+        <label style={{ display: "block", marginBottom: 4 }}>담당자 이메일</label>
+        <input
+          type="email"
+          name="contact_email"
+          value={contact_email}
+          onChange={on_contact_email_change}
+          placeholder="example@company.com"
+          style={{ width: 240 }}
+          required
+        />
       </div>
 
       {/* 3줄: 도로명 주소 (라벨 옆에 검색 버튼, 인풋은 라벨 아래) */}
