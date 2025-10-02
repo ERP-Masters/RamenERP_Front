@@ -81,7 +81,7 @@ const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
       <div style={{ margin: "8px 0" }}>
         <label style={{ display: "block", marginBottom: 4 }}>담당자 이메일</label>
         <input
-          type="email"
+          type="text"
           name="contact_email"
           value={contact_email}
           onChange={on_contact_email_change}
