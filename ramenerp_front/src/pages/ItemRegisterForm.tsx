@@ -2,13 +2,13 @@
 import React, { useState } from "react";
 
 export interface ProductData {
-  item_id: String
+  item_id: string
   name: string;
-  category_id: string;
+  category_id: string; // 폼 상태는 string 유지
   vendor_id: string;
   unit_id: string;
-  unit_price: string;   // 폼 단계에선 문자열
-  expiry_date: string;  // yyyy-mm-dd
+  unit_price: string;  // 폼 단계에선 문자열
+  expiry_date: string; // yyyy-mm-dd
 }
 
 interface ItemRegisterFormProps {
@@ -37,7 +37,7 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
     name: "",
     category_id: "",
     vendor_id: "",
-    unit_id: "",       // ← 변경
+    unit_id: "",
     unit_price: "",
     expiry_date: "",
   });
@@ -75,29 +75,67 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
     e.preventDefault();
     set_error_message("");
 
-    // 트리밍
-    const trimmed: ProductData = {
-      ...form_data,
-      category_id: form_data.category_id.trim(),
-      name: form_data.name.trim(),
-      unit_id: form_data.unit_id.trim(),
-      unit_price: form_data.unit_price.trim(),
-      expiry_date: form_data.expiry_date.trim(),
-      vendor_id: form_data.vendor_id.trim(),
+    // ⚠️ 전송 테스트 목적: ID 필드를 전부 "1"로 강제
+    //    (원래 로직은 아래 주석 참고)
+    const forced_ids = {
+      category_id: "1",
+      unit_id: "1",
+      vendor_id: "1",
     };
 
+    // 🔧 트리밍 + 강제 ID 반영
+    const trimmed: ProductData = {
+      ...form_data,
+      ...forced_ids, // ← 여기서 카테고리/단위/거래처를 "1"로 덮어씀
+      item_id: form_data.item_id.trim(),
+      name: form_data.name.trim(),
+      unit_price: form_data.unit_price.trim(),
+      expiry_date: form_data.expiry_date.trim(),
+      // category_id: form_data.category_id.trim(), // ← 원래 로직 (주석처리)
+      // unit_id: form_data.unit_id.trim(),         // ← 원래 로직 (주석처리)
+      // vendor_id: form_data.vendor_id.trim(),     // ← 원래 로직 (주석처리)
+    };
+
+    // 상태에도 반영해 두면 유효성 검사에서 빈 값으로 걸리지 않음
     set_form_data(trimmed);
 
+    // ✅ 강제값이 반영된 상태로 유효성 검사
     if (!is_valid_form()) {
       set_error_message("필수 항목을 확인해주세요. (카테고리/품목명/단위/단가/거래처, 날짜 형식)");
       return;
     }
 
+    // ⚠️ 지금은 통신 확인만을 위해 onSubmit에 강제 ID가 들어간 payload를 전달
     onSubmit(trimmed);
+
+    /**
+     * 📌 참고: 실제 서버로 숫자를 보내려면(권장)
+     *  - 이 시점에서 문자열("1") → 숫자(1) 변환을 추가하고 fetch 하세요.
+     *  - 예)
+     *    const dto = {
+     *      ...trimmed,
+     *      category_id: Number(trimmed.category_id),
+     *      unit_id: Number(trimmed.unit_id),
+     *      vendor_id: Number(trimmed.vendor_id),
+     *      unit_price: Number(trimmed.unit_price),
+     *    };
+     *    await fetch("/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dto) });
+     */
   };
 
   return (
     <form onSubmit={handle_submit} noValidate>
+      <label htmlFor="item_id" style={label_style}>품목ID</label>
+      <input
+        id="item_id"
+        name="item_id"
+        type="text"
+        value={form_data.item_id}
+        onChange={handle_change}
+        style={input_style}
+        required
+      />
+
       <label htmlFor="category_id" style={label_style}>카테고리</label>
       <select
         id="category_id"
@@ -126,10 +164,10 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
         required
       />
 
-      <label htmlFor="unit" style={label_style}>단위</label>
+      <label htmlFor="unit_id" style={label_style}>단위</label>
       <select
-        id="unit"
-        name="unit"
+        id="unit_id"
+        name="unit_id"
         value={form_data.unit_id}
         onChange={handle_change}
         style={input_style}

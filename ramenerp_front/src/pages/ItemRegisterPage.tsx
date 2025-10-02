@@ -9,20 +9,27 @@ interface CreateProductDto {
   category_id: number;
   vendor_id: number;
   unit_id: number;
-  unit_price: number;       // 서버로는 숫자 전송
-  expiry_date?: string;     // ISO(YYYY-MM-DD 또는 YYYY-MM-DDT00:00:00Z 등)
+  unit_price: number;   // @IsInt
+  expiry_date?: string; // "YYYY-MM-DD" 허용
 }
 
-const to_create_dto = (data: ProductData): CreateProductDto => {
-  const unit_price_num = Number(data.unit_price);
+const to_int = (value: string): number => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) {
+    throw new Error("정수 필드에 잘못된 값이 있습니다.");
+  }
+  return n;
+};
 
+const to_create_dto = (data: ProductData): CreateProductDto => {
   return {
     item_id: data.item_id.trim(),
     name: data.name.trim(),
-    category_id: Number(data.category_id),
-    vendor_id: Number(data.vendor_id),
-    unit_id: Number(data.unit_id),
-    unit_price: Number.isFinite(unit_price_num) ? unit_price_num : 0,
+    category_id: to_int(data.category_id),
+    vendor_id: to_int(data.vendor_id),
+    unit_id: to_int(data.unit_id),
+    unit_price: to_int(data.unit_price),
+    // IsDateString은 "YYYY-MM-DD"도 통과. 값 없으면 undefined로 생략.
     expiry_date: data.expiry_date?.trim() || undefined,
   };
 };
@@ -40,14 +47,17 @@ const ItemRegisterPage: React.FC = () => {
     try {
       const payload = to_create_dto(data);
 
-      const res = await fetch("http://10.209.222.98:3000/items", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      // 개발 중 CORS 우회: Vite devServer proxy(/api -> 백엔드) 사용
+      const res = await fetch("/api/items", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", Accept: "application/json" },
+  body: JSON.stringify(payload),
+});
+
+console.log("request to", res.url, "status", res.status);
+const raw = await res.text(); // 404면 서버 메시지가 여기에 있을 수 있음
+console.log("response body:", raw);
+
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
