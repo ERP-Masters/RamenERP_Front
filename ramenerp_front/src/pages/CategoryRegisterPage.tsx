@@ -3,15 +3,15 @@ import { useNavigate } from "react-router-dom";
 
 // 대분류 Enum
 export enum MajorCategory {
-  MEAT = "육류",
-  SEAFOOD = "해산물",
-  NOODLES = "면류",
-  VEGETABLES = "채소류",
-  DAIRY = "유제품",
-  EGGS = "계란 류",
-  PROCESSED = "가공식품",
-  SAUCE = "소스/양념류",
-  BROTH_SOUP = "육수 베이스/스프류",
+  MEAT = "Meat",
+  SEAFOOD = "SeaFood",
+  NOODLES = "Noodle",
+  VEGETABLES = "Vegetable",
+  DAIRY = "Dairy",
+  EGGS = "Egss",
+  PROCESSED = "Processed",
+  SAUCE = "Sauce",
+  BROTH_SOUP = "Broth_Soup",
 }
 
 export interface CategoryData {
@@ -50,7 +50,7 @@ const CategoryRegisterPage: React.FC = () => {
     <div>
       <h1>카테고리 등록 페이지</h1>
       <form onSubmit={handle_submit}>
-        <label>대분류</label>
+        <label>group</label>
         <select value={major_category} onChange={handle_major_change}>
           {Object.values(MajorCategory).map((label) => (
             <option key={label} value={label}>
@@ -59,7 +59,7 @@ const CategoryRegisterPage: React.FC = () => {
           ))}
         </select>
 
-        <label style={{ marginTop: 8, display: "block" }}>카테고리 명</label>
+        <label style={{ marginTop: 8, display: "block" }}>category_name</label>
         <input
           type="text"
           name="category_name"
