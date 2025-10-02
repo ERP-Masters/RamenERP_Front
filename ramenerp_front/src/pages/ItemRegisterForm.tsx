@@ -1,3 +1,4 @@
+// src/pages/ItemRegisterForm.tsx
 import React, { useEffect, useState } from "react";
 
 /** 옵션 {id, name} 기본 타입 */
@@ -69,9 +70,9 @@ const ItemRegisterForm: React.FC = () => {
   const normalize_option = (raw: any, type: "category" | "unit" | "vendor"): IdNameOption => {
     switch (type) {
       case "category":
-        return { id: Number(raw.id ?? raw.category_id), name: String(raw.name ?? raw.category_name) };
+        return { id: Number(raw.id ?? raw.category_id), name: String(raw.group ??raw.name ?? raw.category_name) };
       case "unit":
-        return { id: Number(raw.id ?? raw.unit_id), name: String(raw.name ?? raw.unit_name ?? raw.code) };
+        return { id: Number(raw.id ?? raw.unit_id), name: String(raw.code ??raw.name ?? raw.unit_name ?? raw.code) };
       case "vendor":
         return { id: Number(raw.id ?? raw.vendor_id), name: String(raw.name ?? raw.vendor_name) };
     }
@@ -81,6 +82,15 @@ const ItemRegisterForm: React.FC = () => {
     const res = await fetch(url, { signal, headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json() as Promise<T>;
+  };
+
+  // 어떤 응답이 와도 배열로 변환: [], {items:[]}, {data:[]}, {results:[]}
+  const to_array = (raw: any): any[] => {
+    if (Array.isArray(raw)) return raw;
+    if (raw?.items && Array.isArray(raw.items)) return raw.items;
+    if (raw?.data && Array.isArray(raw.data)) return raw.data;
+    if (raw?.results && Array.isArray(raw.results)) return raw.results;
+    return [];
   };
 
   const is_valid_date = (value: string): boolean => {
@@ -127,14 +137,25 @@ const ItemRegisterForm: React.FC = () => {
       set_is_loading_options(true);
       set_load_error(null);
       try {
-        const [cats, vendors, units] = await Promise.all([
-          fetch_json<any[]>("/api/category", signal),
-          fetch_json<any[]>("/api/vendors", signal),
-          fetch_json<any[]>("/api/units", signal),
+        const [catsRaw, vendorsRaw, unitsRaw] = await Promise.all([
+          fetch_json<any>("/api/category", signal),
+          fetch_json<any>("/api/vendors", signal),
+          fetch_json<any>("/api/units", signal),
         ]);
-        set_category_options(cats.map((c) => normalize_option(c, "category")));
-        set_vendor_options(vendors.map((v) => normalize_option(v, "vendor")));
-        set_unit_options(units.map((u) => normalize_option(u, "unit")));
+
+        const cats = to_array(catsRaw)
+          .map((c) => normalize_option(c, "category"))
+          .filter((o) => Number.isFinite(o.id) && !!o.name);
+        const vendors = to_array(vendorsRaw)
+          .map((v) => normalize_option(v, "vendor"))
+          .filter((o) => Number.isFinite(o.id) && !!o.name);
+        const units = to_array(unitsRaw)
+          .map((u) => normalize_option(u, "unit"))
+          .filter((o) => Number.isFinite(o.id) && !!o.name);
+
+        set_category_options(cats);
+        set_vendor_options(vendors);
+        set_unit_options(units);
       } catch (err: any) {
         // AbortError는 무시 (React StrictMode, 언마운트 등)
         if (err?.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError")) {
@@ -222,12 +243,8 @@ const ItemRegisterForm: React.FC = () => {
     }
   };
 
-  const is_select_disabled =
-    is_loading_options ||
-    !!load_error ||
-    category_options.length === 0 ||
-    vendor_options.length === 0 ||
-    unit_options.length === 0;
+  // 로딩 중일 때만 비활성화. (실패/빈 배열이어도 입력은 가능, 유효성 검증이 막아줌)
+  const is_select_disabled = is_loading_options;
 
   return (
     <form onSubmit={handle_submit} noValidate>
@@ -257,7 +274,7 @@ const ItemRegisterForm: React.FC = () => {
         required
         disabled={is_select_disabled}
       >
-        <option value="">{is_loading_options ? "불러오는 중…" : "선택"}</option>
+        <option value="">{is_loading_options ? "불러오는 중…" : (category_options.length ? "선택" : "목록 없음")}</option>
         {category_options.map((c) => (
           <option key={c.id} value={String(c.id)}>{c.name}</option>
         ))}
@@ -284,7 +301,7 @@ const ItemRegisterForm: React.FC = () => {
         required
         disabled={is_select_disabled}
       >
-        <option value="">{is_loading_options ? "불러오는 중…" : "선택"}</option>
+        <option value="">{is_loading_options ? "불러오는 중…" : (unit_options.length ? "선택" : "목록 없음")}</option>
         {unit_options.map((u) => (
           <option key={u.id} value={String(u.id)}>{u.name}</option>
         ))}
@@ -325,7 +342,7 @@ const ItemRegisterForm: React.FC = () => {
         required
         disabled={is_select_disabled}
       >
-        <option value="">{is_loading_options ? "불러오는 중…" : "선택"}</option>
+        <option value="">{is_loading_options ? "불러오는 중…" : (vendor_options.length ? "선택" : "목록 없음")}</option>
         {vendor_options.map((v) => (
           <option key={v.id} value={String(v.id)}>{v.name}</option>
         ))}

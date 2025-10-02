@@ -1,9 +1,11 @@
 // src/pages/UnitRegisterPage.tsx
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const UnitRegisterPage: React.FC = () => {
   const [unit_code, set_unit_code] = useState<string>("");
   const [unit_name, set_unit_name] = useState<string>("");
+   const navigate_fn = useNavigate();
 
   const handle_change = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -12,22 +14,28 @@ const UnitRegisterPage: React.FC = () => {
   };
 
   const handle_submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  e.preventDefault();
+  navigate_fn("/unit/register/check", {
+    state: {
+      unit: {
+        code: unit_code.trim(),
+        name: unit_name.trim(),
+      },
+    },
+    replace: true,
+  });
+  // 원래처럼 초기화하고 싶으면 유지
+  set_unit_code("");
+  set_unit_name("");
+};
 
-    // API 연동은 추후에: 지금은 팝업만 표시
-    alert("단위 등록이 완료되었습니다.");
-
-    // 입력값 초기화 (원하면 유지해도 됨)
-    set_unit_code("");
-    set_unit_name("");
-  };
 
   return (
     <div>
       <h1>단위 등록</h1>
 
       <form onSubmit={handle_submit}>
-        <label style={{ marginRight: 8 }}>단위</label>
+        <label style={{ marginRight: 8 }}>code</label>
         <input
           type="text"
           name="unit_code"
@@ -38,7 +46,7 @@ const UnitRegisterPage: React.FC = () => {
           required
         />
 
-        <label style={{ marginRight: 8 }}>단위명</label>
+        <label style={{ marginRight: 8 }}>name</label>
         <input
           type="text"
           name="unit_name"
