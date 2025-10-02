@@ -15,7 +15,7 @@ const VendorPage: React.FC = () => {
         거래처 등록
       </button>
       <button onClick={() => navigate_fn("/vendor")}>
-        거래처 관리
+        거래처 조회
       </button>
     </div>
   );
