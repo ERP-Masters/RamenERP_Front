@@ -2,12 +2,13 @@
 import React, { useState } from "react";
 
 export interface ProductData {
-  category_id: string;
+  item_id: String
   name: string;
-  unit: string;
+  category_id: string;
+  vendor_id: string;
+  unit_id: string;
   unit_price: string;   // 폼 단계에선 문자열
   expiry_date: string;  // yyyy-mm-dd
-  vendor_id: string;
 }
 
 interface ItemRegisterFormProps {
@@ -32,12 +33,13 @@ const error_style = { color: "crimson", fontSize: 12, marginTop: 4 } as const;
 
 const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
   const [form_data, set_form_data] = useState<ProductData>({
-    category_id: "",
+    item_id: "",
     name: "",
-    unit: "",
+    category_id: "",
+    vendor_id: "",
+    unit_id: "",       // ← 변경
     unit_price: "",
     expiry_date: "",
-    vendor_id: "",
   });
 
   const [error_message, set_error_message] = useState<string>("");
@@ -56,7 +58,7 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
   const is_valid_form = (): boolean => {
     if (!form_data.category_id) return false;
     if (!form_data.name.trim()) return false;
-    if (!form_data.unit) return false;
+    if (!form_data.unit_id) return false;
 
     // 가격: 양의 숫자
     const price_num = Number(form_data.unit_price);
@@ -78,7 +80,7 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
       ...form_data,
       category_id: form_data.category_id.trim(),
       name: form_data.name.trim(),
-      unit: form_data.unit.trim(),
+      unit_id: form_data.unit_id.trim(),
       unit_price: form_data.unit_price.trim(),
       expiry_date: form_data.expiry_date.trim(),
       vendor_id: form_data.vendor_id.trim(),
@@ -128,7 +130,7 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
       <select
         id="unit"
         name="unit"
-        value={form_data.unit}
+        value={form_data.unit_id}
         onChange={handle_change}
         style={input_style}
         required

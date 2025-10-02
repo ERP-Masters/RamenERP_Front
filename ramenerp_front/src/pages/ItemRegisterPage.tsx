@@ -4,23 +4,26 @@ import { useNavigate } from "react-router-dom";
 import ItemRegisterForm, { ProductData } from "./ItemRegisterForm";
 
 interface CreateProductDto {
-  category_id: string;
+  item_id: string;
   name: string;
-  unit: string;
+  category_id: number;
+  vendor_id: number;
+  unit_id: number;
   unit_price: number;       // 서버로는 숫자 전송
   expiry_date?: string;     // ISO(YYYY-MM-DD 또는 YYYY-MM-DDT00:00:00Z 등)
-  vendor_id: string;
 }
 
 const to_create_dto = (data: ProductData): CreateProductDto => {
   const unit_price_num = Number(data.unit_price);
+
   return {
-    category_id: data.category_id.trim(),
+    item_id: data.item_id.trim(),
     name: data.name.trim(),
-    unit: data.unit.trim(),
+    category_id: Number(data.category_id),
+    vendor_id: Number(data.vendor_id),
+    unit_id: Number(data.unit_id),
     unit_price: Number.isFinite(unit_price_num) ? unit_price_num : 0,
     expiry_date: data.expiry_date?.trim() || undefined,
-    vendor_id: data.vendor_id.trim(),
   };
 };
 
@@ -36,9 +39,13 @@ const ItemRegisterPage: React.FC = () => {
 
     try {
       const payload = to_create_dto(data);
-      const res = await fetch("/api/products", {
+
+      const res = await fetch("http://10.209.222.98:3000/items", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(payload),
       });
 
@@ -47,7 +54,6 @@ const ItemRegisterPage: React.FC = () => {
         throw new Error(err?.message || `HTTP ${res.status}`);
       }
 
-      // 성공 처리
       alert("품목 등록이 완료되었습니다.");
       navigate("/product/list");
     } catch (e: any) {
@@ -60,7 +66,9 @@ const ItemRegisterPage: React.FC = () => {
   return (
     <div>
       <h1>품목 등록 페이지</h1>
-      {error_message && <div style={{ color: "crimson", marginBottom: 12 }}>{error_message}</div>}
+      {error_message && (
+        <div style={{ color: "crimson", marginBottom: 12 }}>{error_message}</div>
+      )}
       <ItemRegisterForm onSubmit={handle_submit} />
       <button
         type="button"

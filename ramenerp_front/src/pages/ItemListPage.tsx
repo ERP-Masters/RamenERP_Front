@@ -5,15 +5,15 @@ import React, { useEffect, useState } from "react";
 // 공용 타입은 src/types/product.ts 등으로 분리하는 걸 권장합니다.
 export interface ProductRow {
   id: number;
-  category_id: string;
+  category_id: string;      // UI 셀렉트와 맞추기 위해 문자열
   category_name?: string;
   name: string;
-  unit: string;            // 예: "KG", "EA"
-  unit_price: number;      // 숫자 보장
-  expiry_date?: string;    // ISO 문자열
-  vendor_id?: string;
+  unit_id: string;             // 예: "KG", "EA" (사람이 읽는 값)
+  unit_price: number;       // 숫자 보장
+  expiry_date?: string;     // ISO
+  vendor_id?: string;       // UI 셀렉트와 맞추기 위해 문자열
   vendor_name?: string;
-  is_active?: boolean;     // boolean이면 접두어는 is_
+  is_active?: boolean;
 }
 
 const table_style = { width: "100%", borderCollapse: "collapse" } as const;
@@ -100,7 +100,7 @@ const ItemListPage: React.FC = () => {
               <td style={th_td_style}>{p.category_id}</td>
               <td style={th_td_style}>{p.category_name ?? ""}</td>
               <td style={th_td_style}>{p.name}</td>
-              <td style={th_td_style}>{p.unit}</td>
+              <td style={th_td_style}>{p.unit_id}</td>
               <td style={th_td_style}>{format_currency(p.unit_price)}</td>
               <td style={th_td_style}>{format_date(p.expiry_date)}</td>
               <td style={th_td_style}>{p.vendor_name ?? ""}</td>
