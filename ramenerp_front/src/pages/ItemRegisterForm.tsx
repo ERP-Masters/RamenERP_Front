@@ -126,10 +126,10 @@ const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ onSubmit }) => {
         required
       />
 
-      <label htmlFor="unit" style={label_style}>단위</label>
+      <label htmlFor="unit_id" style={label_style}>단위</label>
       <select
-        id="unit"
-        name="unit"
+        id="unit_id"
+        name="unit_id"
         value={form_data.unit_id}
         onChange={handle_change}
         style={input_style}
