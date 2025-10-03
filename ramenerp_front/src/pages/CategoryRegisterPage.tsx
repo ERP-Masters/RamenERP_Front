@@ -1,17 +1,19 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import CategoryListPanel from "../components/CategoryListPanel";
+
 
 // 대분류 Enum
 export enum MajorCategory {
-  MEAT = "Meat",
-  SEAFOOD = "SeaFood",
-  NOODLES = "Noodle",
-  VEGETABLES = "Vegetable",
-  DAIRY = "Dairy",
-  EGGS = "Egss",
-  PROCESSED = "Processed",
-  SAUCE = "Sauce",
-  BROTH_SOUP = "Broth_Soup",
+  MEAT = "MEAT",
+  SEAFOOD = "SEAFOOD",
+  NOODLES = "NOODLES",
+  VEGETABLES = "VEGETABLES",
+  DAIRY = "DAIRY",
+  EGGS = "EGGS",
+  PROCESSED = "PROCESSED",
+  SAUCE = "SAUCE",
+  BROTH_SOUP = "BROTH_SOUP",
 }
 
 export interface CategoryData {
@@ -48,7 +50,7 @@ const CategoryRegisterPage: React.FC = () => {
 
   return (
     <div>
-      <h1>카테고리 등록 페이지</h1>
+      <h1>카테고리 관리 페이지</h1>
       <form onSubmit={handle_submit}>
         <label>group</label>
         <select value={major_category} onChange={handle_major_change}>
@@ -69,6 +71,7 @@ const CategoryRegisterPage: React.FC = () => {
         />
 
         <button type="submit" style={{ marginTop: 8 }}>등록</button>
+          <CategoryListPanel />
       </form>
     </div>
   );
