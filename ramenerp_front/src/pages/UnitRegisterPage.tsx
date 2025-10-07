@@ -1,6 +1,7 @@
 // src/pages/UnitRegisterPage.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import UnitListPanel from "../components/UnitListPanel";
 
 const UnitRegisterPage: React.FC = () => {
   const [unit_code, set_unit_code] = useState<string>("");
@@ -58,6 +59,7 @@ const UnitRegisterPage: React.FC = () => {
         />
 
         <button type="submit">등록</button>
+        <UnitListPanel/>
       </form>
     </div>
   );
