@@ -96,14 +96,26 @@ const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
         style={{
           margin: "8px 0",
           display: "grid",
-          gridTemplateColumns: "auto auto",
+          // ▼ 고정 너비 그리드로 버튼 위치/크기 안정화
+          gridTemplateColumns: "120px 160px",
           columnGap: 8,
-          rowGap: 4,
+          rowGap: 3,
           alignItems: "center",
         }}
       >
         <label style={{ gridColumn: "1 / 2" }}>도로명 주소</label>
-        <button type="button" onClick={open_address_search} style={{ gridColumn: "2 / 3" }}>
+        <button
+          type="button"
+          onClick={open_address_search}
+          style={{
+            gridColumn: "2 / 3",
+            width: 120,       // 버튼 너비 고정
+            height: 22,       // 버튼 높이 고정
+            fontSize: 14,     // 글자 크기 고정
+            boxSizing: "border-box",
+            justifySelf: "start", // 셀의 왼쪽 정렬
+          }}
+        >
           도로명 주소 검색
         </button>
 

@@ -1,7 +1,7 @@
+// src/pages/CategoryRegisterPage.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CategoryListPanel from "../components/CategoryListPanel";
-
 
 // 대분류 Enum
 export enum MajorCategory {
@@ -52,26 +52,41 @@ const CategoryRegisterPage: React.FC = () => {
     <div>
       <h1>카테고리 관리 페이지</h1>
       <form onSubmit={handle_submit}>
-        <label>group</label>
-        <select value={major_category} onChange={handle_major_change}>
-          {Object.values(MajorCategory).map((label) => (
-            <option key={label} value={label}>
-              {label}
-            </option>
-          ))}
-        </select>
+        {/* ✅ 가로 정렬: group 선택 → category_name 입력 → 등록 버튼 */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            marginBottom: 8,
+          }}
+        >
+          <label htmlFor="group" style={{ marginRight: 4 }}>group</label>
+          <select id="group" value={major_category} onChange={handle_major_change}>
+            {Object.values(MajorCategory).map((label) => (
+              <option key={label} value={label}>
+                {label}
+              </option>
+            ))}
+          </select>
 
-        <label style={{ marginTop: 8, display: "block" }}>category_name</label>
-        <input
-          type="text"
-          name="category_name"
-          value={category_name}
-          onChange={handle_name_change}
-          placeholder="예) 우삼겹, 냉장육, 건면 등"
-        />
+          <label htmlFor="category_name" style={{ marginLeft: 8, marginRight: 4 }}>category_name</label>
+          <input
+            id="category_name"
+            type="text"
+            name="category_name"
+            value={category_name}
+            onChange={handle_name_change}
+            placeholder="예) 우삼겹, 냉장육, 건면 등"
+            style={{ width: 240 }}
+          />
 
-        <button type="submit" style={{ marginTop: 8 }}>등록</button>
-          <CategoryListPanel />
+          <button type="submit" style={{ marginLeft: 8 }}>등록</button>
+        </div>
+
+        {/* 기존처럼 폼 아래에 목록 패널 표시 */}
+        <CategoryListPanel />
       </form>
     </div>
   );
