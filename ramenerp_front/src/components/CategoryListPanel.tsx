@@ -1,6 +1,10 @@
 // src/components/CategoryListPanel.tsx
 import React, { useEffect, useState } from "react";
-import CategoryEditPage, { CategoryEditTarget } from "./CategoryEditPage"; // ✅ 추가
+import CategoryEditPage, { CategoryEditTarget } from "./CategoryEditPage"; // ✅ 기존 유지
+
+// ✅ 추가: 삭제 모달 UI & 서비스
+import CategoryDeleteUI from "../components/CategoryDeleteUi";
+import { deleteCategoryWithAlerts } from "../pages/CategoryDeleteFunction";
 
 type ApiCategory = {
   category_id: number;
@@ -41,14 +45,14 @@ const to_row = (c: ApiCategory): CategoryRow => ({
   is_active: c.is_active ?? true,
 });
 
-// ✅ '수정' 버튼 스타일(추가)
+// ✅ '수정' 버튼 스타일(기존 유지)
 const edit_btn_style: React.CSSProperties = {
   marginLeft: 8,
   fontSize: 12,
   padding: "4px 8px",
 };
 
-// ✅ 이름 셀을 좌우 분할해 버튼 붙이기(추가)
+// ✅ 이름 셀을 좌우 분할해 버튼 붙이기(기존 유지)
 const name_cell_style: React.CSSProperties = {
   ...td_style,
   display: "flex",
@@ -62,9 +66,13 @@ const CategoryListPanel: React.FC = () => {
   const [is_loading, set_is_loading] = useState(false);
   const [error_message, set_error_message] = useState("");
 
-  // ✅ 수정 모달 상태(추가)
+  // ✅ 수정 모달 상태(기존 유지)
   const [edit_open, set_edit_open] = useState<boolean>(false);
   const [edit_target, set_edit_target] = useState<CategoryEditTarget | null>(null);
+
+  // ✅ 삭제 모달 상태(추가)
+  const [del_open, set_del_open] = useState<boolean>(false);
+  const [del_target, set_del_target] = useState<{ category_id: number; category_name: string } | null>(null);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -101,14 +109,12 @@ const CategoryListPanel: React.FC = () => {
     return () => ac.abort();
   }, []);
 
-  // ✅ 수정 열기/닫기/저장 핸들러(추가)
+  // ✅ 수정 열기/닫기/저장 핸들러(기존 유지)
   const open_edit = (r: CategoryRow) => {
     set_edit_target({ category_id: r.category_id, group: r.group, category_name: r.category_name });
     set_edit_open(true);
   };
-
   const close_edit = () => set_edit_open(false);
-
   const handle_saved = (updated: ApiCategory) => {
     set_rows((prev) =>
       prev.map((row) =>
@@ -119,9 +125,16 @@ const CategoryListPanel: React.FC = () => {
     );
   };
 
+  // ✅ 삭제 열기/닫기/확정 핸들러(추가)
+  const open_delete = (r: CategoryRow) => {
+    set_del_target({ category_id: r.category_id, category_name: r.category_name });
+    set_del_open(true);
+  };
+  const close_delete = () => set_del_open(false);
+
   return (
     <div style={panel_style}>
-      {/* 제목 문구 제거 */}
+      {/* 제목 문구 제거 (기존 유지) */}
       {is_loading && <div style={{ margin: "6px 0" }}>불러오는 중…</div>}
       {error_message && <div style={{ color: "crimson", margin: "6px 0" }}>{error_message}</div>}
 
@@ -138,12 +151,34 @@ const CategoryListPanel: React.FC = () => {
             <tr key={r.category_id} title={`${r.group} · ${r.category_name}`}>
               <td style={td_style}>{r.category_id}</td>
               <td style={td_style}>{r.group}</td>
-              {/* ✅ 이름 + '수정' 버튼을 한 셀에 배치 */}
+
+              {/* ✅ 이름 + '수정' + '삭제' 버튼을 한 셀에 배치 (기존 구조 유지 + 삭제만 추가) */}
               <td style={name_cell_style}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{r.category_name}</span>
-                <button type="button" style={edit_btn_style} onClick={() => open_edit(r)}>
-                  수정
-                </button>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <button type="button" style={edit_btn_style} onClick={() => open_edit(r)}>
+                    수정
+                  </button>
+
+                  {/* ✅ 삭제 버튼 추가: 수정 오른쪽에 살짝 띄워 배치 */}
+                  <button
+                    type="button"
+                    onClick={() => open_delete(r)}
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 12,
+                      padding: "4px 8px",
+                      background: "#ef4444",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                    }}
+                    title="삭제"
+                  >
+                    삭제
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
@@ -155,8 +190,22 @@ const CategoryListPanel: React.FC = () => {
         </tbody>
       </table>
 
-      {/* ✅ 모달 렌더링(추가) */}
+      {/* ✅ 수정 모달 (기존 유지) */}
       <CategoryEditPage open={edit_open} target={edit_target} onClose={close_edit} onSaved={handle_saved} />
+
+      {/* ✅ 삭제 모달 (추가) */}
+      <CategoryDeleteUI
+        open={del_open}
+        target={del_target}
+        onClose={close_delete}
+        onConfirm={async () => {
+          if (!del_target) return;
+          await deleteCategoryWithAlerts(del_target, (deletedId) => {
+            set_rows((prev) => prev.filter((c) => c.category_id !== deletedId));
+          });
+          set_del_open(false);
+        }}
+      />
     </div>
   );
 };
