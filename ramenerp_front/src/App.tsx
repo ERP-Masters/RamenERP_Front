@@ -12,6 +12,7 @@ import CategoryRegisterCheck from "./pages/CategoryRegisterCheck";
 import UnitRegisterPage from "./pages/UnitRegisterPage";
 import UnitRegisterCheck from "./pages/UnitRegisterCheck";
 import VendorListPage from "./pages/VendorListPage";
+import WareHouseRegister from "./pages/WarehouseRegister";
 
 const App: React.FC = () => {
   return (
@@ -29,6 +30,7 @@ const App: React.FC = () => {
         <Route path="unit/register" element={<UnitRegisterPage />} />
         <Route path="unit/register/check" element={<UnitRegisterCheck />} />
         <Route path="vendor/list" element={<VendorListPage />} />
+        <Route path="warehouse/register" element={<WareHouseRegister />} />
       </Route>
     </Routes>
   );

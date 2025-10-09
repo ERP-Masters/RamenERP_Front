@@ -24,7 +24,7 @@ const Layout: React.FC = React.memo(() => {
         <Link to="/vendor" style={link_style}>거래처 관리</Link>
         <Link to="/unit/register" style={link_style}>단위 관리</Link>
         <Link to="/category/register" style={link_style}>카테고리 관리</Link>
-        <Link to="/" style={link_style}>창고 관리</Link>
+        <Link to="/warehouse/register" style={link_style}>창고 관리</Link>
         {/* <Link to="/order">발주관리</Link> 나중에 추가 */}
       </header>
 
