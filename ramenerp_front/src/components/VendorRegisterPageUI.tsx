@@ -1,5 +1,5 @@
-// src/components/VendorRegisterPageUI.tsx
-import React from "react";
+import React, { useState } from "react";
+import VendorListPage from "../pages/VendorListPage";
 
 export interface VendorFormViewState {
   name: string;
@@ -12,22 +12,15 @@ export interface VendorRegisterPageUIProps {
   formData: VendorFormViewState;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 
-  // ✅ 연락처 대신 이메일 1칸
   contactEmail: string;
   onContactEmailChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 
-  // 주소 검색
   openAddressSearch: () => void;
-
-  // 상세주소 포커스 이동용
   detailRef: React.RefObject<HTMLInputElement | null>;
-
-  // 제출
   onSubmit: (e: React.FormEvent) => void;
 }
 
 const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
-  // ✅ 외부 prop 이름은 유지, 내부에서는 snake_case 별칭으로 사용
   const {
     formData,
     onChange,
@@ -39,114 +32,226 @@ const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
   } = props;
 
   const form_data = formData;
-  const on_change = onChange;
-  const contact_email = contactEmail;
-  const on_contact_email_change = onContactEmailChange;
-  const open_address_search = openAddressSearch;
-  const detail_ref = detailRef;
-  const on_submit = onSubmit;
+
+  // 숫자만 유지하도록 입력값 정제
+  const handle_contact_change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, "");
+    onContactEmailChange({
+      ...e,
+      target: { ...e.target, value: digits, name: "contact_email" },
+    } as any);
+  };
+
+  const [outerQuery, set_outerQuery] = useState("");
+
+  // ── 스타일 ─────────────────────────
+  const form_style: React.CSSProperties = {
+    fontSize: "clamp(12px, 1.05vw, 16px)",
+  };
+  const label_style: React.CSSProperties = { whiteSpace: "nowrap" };
+  const input_style: React.CSSProperties = {
+    width: "100%",
+    minWidth: 0,
+    padding: "6px 8px",
+    boxSizing: "border-box",
+  };
+
+  const row_top_style: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(180px, 1fr))",
+    gap: 12,
+    alignItems: "center",
+    marginBottom: 8,
+  };
+  const field_style: React.CSSProperties = {
+    display: "grid",
+    gridTemplateRows: "auto 1fr",
+    rowGap: 4,
+    minWidth: 0,
+  };
+
+  const row_addr_style: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "auto 140px minmax(260px, 1fr) minmax(220px, 1fr)",
+    columnGap: 12,
+    rowGap: 6,
+    alignItems: "center",
+    margin: "8px 0",
+  };
+
+  // 네모박스 외부 오른쪽 상단 컨트롤바
+  const outer_bar: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 18,
+    marginBottom: 6,
+  };
+  const outer_input: React.CSSProperties = {
+    padding: "6px 8px",
+    minWidth: 180,
+    boxSizing: "border-box",
+  };
+  const btn: React.CSSProperties = {
+    padding: "6px 10px",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    background: "#111827",
+    color: "#fff",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
+  const gray_btn: React.CSSProperties = { ...btn, background: "#6b7280" };
+
+  // 네모박스
+  const list_panel_style: React.CSSProperties = {
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 6,
+    height: "45vh",
+    overflowY: "auto",
+    overflowX: "hidden",
+    background: "#fafafa",
+    boxSizing: "border-box",
+  };
 
   return (
-    <form onSubmit={on_submit}>
-      {/* 1줄: 거래처명 / 담당자명 */}
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          flexWrap: "wrap",
-          marginBottom: 8,
-        }}
-      >
-        <label>거래처명</label>
-        <input
-          type="text"
-          name="name"
-          value={form_data.name}
-          onChange={on_change}
-          placeholder="예) OO식자재"
-        />
+    <>
+      <form onSubmit={onSubmit} style={form_style}>
+        {/* 1줄: 거래처명 / 담당자명 / 담당자 연락처 */}
+        <div style={row_top_style}>
+          <div style={field_style}>
+            <label style={label_style}>거래처명</label>
+            <input
+              type="text"
+              name="name"
+              value={form_data.name}
+              onChange={onChange}
+              placeholder="예) OO식자재"
+              style={input_style}
+            />
+          </div>
 
-        <label>담당자명</label>
-        <input
-          type="text"
-          name="contact_name"
-          value={form_data.contact_name}
-          onChange={on_change}
-          placeholder="예) 홍길동"
-        />
-      </div>
+          <div style={field_style}>
+            <label style={label_style}>담당자명</label>
+            <input
+              type="text"
+              name="contact_name"
+              value={form_data.contact_name}
+              onChange={onChange}
+              placeholder="예) 홍길동"
+              style={input_style}
+            />
+          </div>
 
-      {/* 2줄: 담당자 이메일 (전화번호 3칸 → 이메일 1칸) */}
-      <div style={{ margin: "8px 0" }}>
-        <label style={{ display: "block", marginBottom: 4 }}>담당자 이메일</label>
-        <input
-          type="text"
-          name="contact_email"
-          value={contact_email}
-          onChange={on_contact_email_change}
-          placeholder="example@company.com"
-          style={{ width: 240 }}
-          required
-        />
-      </div>
+          <div style={field_style}>
+            <label style={label_style}>담당자 연락처</label>
+            <input
+              type="text"
+              name="contact_email"
+              value={contactEmail}
+              onChange={handle_contact_change}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="숫자만 입력 (하이픈 없이)"
+              style={{ ...input_style, width: "100%" }}
+              maxLength={16}
+              required
+            />
+          </div>
+        </div>
 
-      {/* 3줄: 도로명 주소 (라벨 옆에 검색 버튼, 인풋은 라벨 아래) */}
-      <div
-        style={{
-          margin: "8px 0",
-          display: "grid",
-          // ▼ 고정 너비 그리드로 버튼 위치/크기 안정화
-          gridTemplateColumns: "120px 160px",
-          columnGap: 8,
-          rowGap: 3,
-          alignItems: "center",
-        }}
-      >
-        <label style={{ gridColumn: "1 / 2" }}>도로명 주소</label>
+        {/* 2줄: 도로명 주소(라벨) · 검색버튼 · 도로명주소 입력 · 상세주소 입력 */}
+        <div style={row_addr_style}>
+          <label style={label_style}>도로명 주소</label>
+
+          <button
+            type="button"
+            onClick={openAddressSearch}
+            style={{
+              width: 140,
+              height: 28,
+              fontSize: "clamp(12px, 1vw, 14px)",
+              boxSizing: "border-box",
+              cursor: "pointer",
+            }}
+          >
+            도로명 주소 검색
+          </button>
+
+          <input
+            type="text"
+            name="address_road"
+            value={form_data.address_road}
+            onChange={onChange}
+            placeholder="예) 서울특별시 강서구 방화대로50길 7"
+            readOnly
+            style={{ ...input_style, background: "#f4f4f4" }}
+            title="검색 버튼으로 자동 입력됩니다"
+          />
+
+          <input
+            ref={detailRef}
+            type="text"
+            name="address_detail"
+            value={form_data.address_detail}
+            onChange={onChange}
+            placeholder="예) 12층 1201호"
+            style={input_style}
+          />
+        </div>
+
+        <button type="submit">등록</button>
+      </form>
+
+      {/* ▶ 네모박스 바깥, 오른쪽 상단 컨트롤바 */}
+      <div style={outer_bar}>
         <button
           type="button"
-          onClick={open_address_search}
-          style={{
-            gridColumn: "2 / 3",
-            width: 120,       // 버튼 너비 고정
-            height: 22,       // 버튼 높이 고정
-            fontSize: 14,     // 글자 크기 고정
-            boxSizing: "border-box",
-            justifySelf: "start", // 셀의 왼쪽 정렬
-          }}
+          style={btn}
+          onClick={() => window.dispatchEvent(new CustomEvent("vendor:summary-open"))}
         >
-          도로명 주소 검색
+          거래처명 빠른 조회
         </button>
 
         <input
           type="text"
-          name="address_road"
-          value={form_data.address_road}
-          onChange={on_change}
-          placeholder="예) 서울특별시 강서구 방화대로50길 7"
-          readOnly
-          style={{ width: 420, background: "#f4f4f4", gridColumn: "1 / 2" }}
-          title="검색 버튼으로 자동 입력됩니다"
+          value={outerQuery}
+          onChange={(e) => set_outerQuery(e.target.value)}
+          placeholder="거래처명/담당자명"
+          style={outer_input}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              window.dispatchEvent(new CustomEvent("vendor:filter", { detail: { q: outerQuery } }));
+            }
+          }}
         />
+        <button
+          type="button"
+          style={btn}
+          onClick={() => window.dispatchEvent(new CustomEvent("vendor:filter", { detail: { q: outerQuery } }))}
+        >
+          검색
+        </button>
+        <button
+          type="button"
+          style={gray_btn}
+          onClick={() => {
+            set_outerQuery("");
+            window.dispatchEvent(new CustomEvent("vendor:filter-reset"));
+          }}
+        >
+          초기화
+        </button>
       </div>
 
-      {/* 4줄: 상세 주소 */}
-      <div style={{ margin: "8px 0" }}>
-        <label style={{ display: "block" }}>상세 주소</label>
-        <input
-          ref={detail_ref}
-          type="text"
-          name="address_detail"
-          value={form_data.address_detail}
-          onChange={on_change}
-          placeholder="예) 12층 1201호"
-          style={{ width: 420 }}
-        />
+      {/* ▼ 네모박스(조회 결과) */}
+      <div style={list_panel_style}>
+        <VendorListPage />
       </div>
-
-      <button type="submit">등록</button>
-    </form>
+    </>
   );
 };
 
