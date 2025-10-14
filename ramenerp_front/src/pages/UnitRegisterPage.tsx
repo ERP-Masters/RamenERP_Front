@@ -33,7 +33,7 @@ const UnitRegisterPage: React.FC = () => {
 
   return (
     <div>
-      <h1>단위 등록</h1>
+      <h1>단위 관리</h1>
 
       <form onSubmit={handle_submit}>
         <label style={{ marginRight: 8 }}>code</label>

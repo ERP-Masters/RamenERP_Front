@@ -50,7 +50,7 @@ const CategoryRegisterPage: React.FC = () => {
 
   return (
     <div>
-      <h1>카테고리 관리 페이지</h1>
+      <h1>카테고리 관리</h1>
       <form onSubmit={handle_submit}>
         {/* ✅ 가로 정렬: group 선택 → category_name 입력 → 등록 버튼 */}
         <div
