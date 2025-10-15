@@ -33,14 +33,15 @@ const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
 
   const form_data = formData;
 
-  // 숫자만 유지하도록 입력값 정제
   const handle_contact_change = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, "");
-    onContactEmailChange({
-      ...e,
-      target: { ...e.target, value: digits, name: "contact_email" },
-    } as any);
-  };
+  // 공백만 제거하고 그대로 전달 (이메일 문자는 모두 허용)
+  const value = e.target.value.replace(/\s/g, "");
+  onContactEmailChange({
+    ...e,
+    target: { ...e.target, value, name: "contact_email" },
+  } as any);
+};
+
 
   const [outerQuery, set_outerQuery] = useState("");
 
@@ -147,17 +148,17 @@ const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
           </div>
 
           <div style={field_style}>
-            <label style={label_style}>담당자 연락처</label>
+            <label style={label_style}>담당자 이메일</label>
             <input
-              type="text"
+              type="email"
               name="contact_email"
               value={contactEmail}
               onChange={handle_contact_change}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="숫자만 입력 (하이픈 없이)"
+              inputMode="email"
+              placeholder="예: ramen@company.com"
+              autoComplete="email"
               style={{ ...input_style, width: "100%" }}
-              maxLength={16}
+              maxLength={254}   // RFC 권장 상한(선택)
               required
             />
           </div>
