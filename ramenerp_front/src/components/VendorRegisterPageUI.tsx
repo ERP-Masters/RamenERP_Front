@@ -146,18 +146,16 @@ const VendorRegisterPageUI: React.FC<VendorRegisterPageUIProps> = (props) => {
             />
           </div>
 
-          <div style={field_style}>
-            <label style={label_style}>담당자 연락처</label>
-            <input
-              type="text"
+         <div style={field_style}>
+          <label style={label_style}>담당자 이메일</label>
+          <input
+              type="email"
               name="contact_email"
               value={contactEmail}
-              onChange={handle_contact_change}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="숫자만 입력 (하이픈 없이)"
+              onChange={onContactEmailChange}
+              placeholder="example@company.com"
+              autoComplete="email"
               style={{ ...input_style, width: "100%" }}
-              maxLength={16}
               required
             />
           </div>
