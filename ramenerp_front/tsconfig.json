@@ -6,7 +6,7 @@
 
     // 번들러(=Vite/SWC) 최적 해석기
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "Bundler", // ← 대소문자 정리
 
     // React 17+ JSX 변환
     "jsx": "react-jsx",
@@ -32,8 +32,8 @@
       "@/*": ["src/*"]
     },
 
-    // Vite 타입 자동 인식
-    "types": ["vite/client"]
+    // Vite + React 타입 전역 주입
+    "types": ["vite/client", "react", "react-dom"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "build", "dist"]

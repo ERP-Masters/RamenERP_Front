@@ -1,34 +1,18 @@
 // src/pages/ProductPage.tsx
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React from "react";
+import ItemListPage from "./ItemListPage";
 
-const button_style = { marginRight: "10px" } as const;
+const page_wrap_style = { padding: 16, maxWidth: 1200, margin: "0 auto" } as const;
+const title_style = { fontSize: 22, fontWeight: 800, marginBottom: 8 } as const;
 
 const ProductPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [is_navigating, set_is_navigating] = useState<boolean>(false);
-
-  const go_register = () => {
-    if (is_navigating) return;
-    set_is_navigating(true);
-    navigate("/product/register");
-  };
-
-  const go_list = () => {
-    if (is_navigating) return;
-    set_is_navigating(true);
-    navigate("/product/list");
-  };
-
   return (
     <div>
-      <h1>품목 관리</h1>
-      <button onClick={go_register} style={button_style} disabled={is_navigating}>
-        품목 등록
-      </button>
-      <button onClick={go_list} disabled={is_navigating}>
-        품목 조회
-      </button>
+      <div style={page_wrap_style}>
+        <h1 style={title_style}>품목 관리</h1>
+      </div>
+      {/* 리스트는 바로 표시 + 내부 제목은 숨김 */}
+      <ItemListPage hide_title />
     </div>
   );
 };

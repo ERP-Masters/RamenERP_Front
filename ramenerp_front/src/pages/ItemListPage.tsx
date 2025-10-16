@@ -1,5 +1,5 @@
-// src/pages/ItemListPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
+import ItemRegisterForm from "./ItemRegisterForm";
 
 export interface ProductRow {
   id?: number;
@@ -14,60 +14,74 @@ export interface ProductRow {
   vendor_id?: string;
   vendor_name?: string;
   is_active?: boolean;
+  /** 남은일수 (오늘 기준, 음수면 만료 지남) */
+  days_left?: number | null;
 }
+interface DraftRow extends Partial<ProductRow> { unit_code?: string; }
 
-// 편집 드래프트에 unit_code(표시용)를 추가로 허용
-interface DraftRow extends Partial<ProductRow> {
-  unit_code?: string;
-}
+type ItemListPageProps = {
+  hide_title?: boolean;
+};
 
-const table_style = { width: "100%", borderCollapse: "collapse" } as const;
-const th_td_style = {
-  borderBottom: "1px solid #ddd",
-  padding: "8px",
-  textAlign: "left",
-  whiteSpace: "nowrap",
+const ui_tok = {
+  border: "#e5e7eb",
+  zebra: "#fafafa",
+  radius: 10,
+  gap: 8,
+  text_muted: "#6b7280",
+  danger_text: "#c62828",
+  warn_text: "#ef6c00",
+  primary_bg: "#0ea5e9",
+  primary_border: "#0284c7",
+  primary_text: "#fff",
 } as const;
-const th_td_right_style = { ...th_td_style, textAlign: "right" } as const;
-const empty_cell_style = { textAlign: "center", padding: "16px" } as const;
 
-function format_currency(value: number) {
-  return new Intl.NumberFormat("ko-KR").format(value);
-}
+const page_style = { padding: 16, maxWidth: 1200, margin: "0 auto" } as const;
+const title_style = { fontSize: 22, fontWeight: 800, marginBottom: 8 } as const;
 
+const control_bar_style = {
+  display: "flex", gap: ui_tok.gap, alignItems: "center", marginBottom: 12, flexWrap: "wrap" as const,
+} as const;
+const control_select_style = { padding: 8, minWidth: 160, borderRadius: 8, border: `1px solid ${ui_tok.border}` } as const;
+const control_input_style = { padding: 8, width: 120, borderRadius: 8, border: `1px solid ${ui_tok.border}` } as const;
+const clear_btn_style = {
+  marginLeft: "auto", padding: "8px 12px", border: `1px solid ${ui_tok.border}`, borderRadius: 8, background: "transparent", cursor: "pointer",
+} as const;
+
+const table_wrap_style = { overflowX: "auto", border: `1px solid ${ui_tok.border}`, borderRadius: ui_tok.radius } as const;
+const table_style = { width: "100%", borderCollapse: "separate" as const, borderSpacing: 0 } as const;
+
+const th_style = {
+  position: "sticky" as const, top: 0, background: "#f8fafc",
+  borderBottom: `1px solid ${ui_tok.border}`, padding: "10px 8px",
+  textAlign: "left" as const, whiteSpace: "nowrap" as const, fontSize: 13, fontWeight: 700,
+} as const;
+const td_style = {
+  borderBottom: `1px solid ${ui_tok.border}`, padding: "9px 8px",
+  textAlign: "left" as const, whiteSpace: "nowrap" as const, fontSize: 14,
+} as const;
+const td_right_style = { ...td_style, textAlign: "right" as const };
+
+function format_currency(value: number) { return new Intl.NumberFormat("ko-KR").format(value); }
 function format_date_to_yyyy_mm_dd(iso?: string) {
   if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
+  const d = new Date(iso); if (Number.isNaN(d.getTime())) return iso;
+  const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, "0"); const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 
-/** 서버 아이템 → 화면용 정규화 (flatten/nested 모두 대응) */
+/** 서버 아이템 → 화면용 정규화 */
 function normalize_item(raw: any): ProductRow {
   const id = raw.id ?? raw.item_pk ?? undefined;
-
-  const item_id = String(
-    raw.item_id ?? raw.code ?? raw.sku ?? (typeof id !== "undefined" ? id : "")
-  );
-
+  const item_id = String(raw.item_id ?? raw.code ?? raw.sku ?? (typeof id !== "undefined" ? id : ""));
   const category_id_num = raw.category_id ?? raw.category?.id ?? raw.category?.category_id;
   const vendor_id_num = raw.vendor_id ?? raw.vendor?.id ?? raw.vendor?.vendor_id;
   const unit_id_num = raw.unit_id ?? raw.unit?.id ?? raw.unit?.unit_id;
-
-  const unit_price_num =
-    typeof raw.unit_price === "string" ? Number(raw.unit_price) : Number(raw.unit_price);
-
+  const unit_price_num = typeof raw.unit_price === "string" ? Number(raw.unit_price) : Number(raw.unit_price);
   const expiry_date = raw.expiry_date ?? raw.expiration_date ?? undefined;
-
-  const category_name_guess =
-    raw.category_name ?? raw.category?.name ?? raw.category?.category_name;
-  const vendor_name_guess =
-    raw.vendor_name ?? raw.vendor?.name ?? raw.vendor?.vendor_name;
-  const unit_name_guess =
-    raw.unit_name ?? raw.unit?.name ?? raw.unit?.unit_name ?? raw.unit?.code;
+  const category_name_guess = raw.category_name ?? raw.category?.name ?? raw.category?.category_name;
+  const vendor_name_guess = raw.vendor_name ?? raw.vendor?.name ?? raw.vendor?.vendor_name;
+  const unit_name_guess = raw.unit_name ?? raw.unit?.name ?? raw.unit?.unit_name ?? raw.unit?.code;
 
   return {
     id,
@@ -85,26 +99,21 @@ function normalize_item(raw: any): ProductRow {
   };
 }
 
-/** 공용: {id,name}[] 어떤 키여도 유연하게 맵으로 변환 */
+/** 공용 맵 변환 */
 function to_name_map(arr: any[], id_keys: string[], name_keys: string[]) {
   const map = new Map<string, string>();
   for (const r of arr ?? []) {
     const id_raw = id_keys.map((k) => r?.[k]).find((v) => v !== undefined && v !== null);
     const name_raw = name_keys.map((k) => r?.[k]).find((v) => v !== undefined && v !== null);
-    if (id_raw !== undefined && name_raw !== undefined) {
-      map.set(String(id_raw), String(name_raw));
-    }
+    if (id_raw !== undefined && name_raw !== undefined) map.set(String(id_raw), String(name_raw));
   }
   return map;
 }
 
-/** 거래처 아이템 조회: 1순위 /items?vendor=, 2순위 /vendors/:id/items, 3순위 /vendors/:id */
+/** 거래처 아이템 조회 */
 async function fetch_vendor_items(vendor_id: string, signal?: AbortSignal): Promise<any[]> {
   const try_items_query = async (key: string) => {
-    const res = await fetch(`/api/items?${key}=${encodeURIComponent(vendor_id)}`, {
-      signal,
-      headers: { Accept: "application/json" },
-    });
+    const res = await fetch(`/api/items?${key}=${encodeURIComponent(vendor_id)}`, { signal, headers: { Accept: "application/json" } });
     if (res.ok) {
       const body = await res.json().catch(() => null);
       if (Array.isArray(body)) return body;
@@ -112,45 +121,26 @@ async function fetch_vendor_items(vendor_id: string, signal?: AbortSignal): Prom
     }
     return null;
   };
-
+  try { for (const key of ["vendor", "vendor_id", "vendorId"]) { const arr = await try_items_query(key); if (arr) return arr; } } catch (_) {}
   try {
-    for (const key of ["vendor", "vendor_id", "vendorId"]) {
-      const arr = await try_items_query(key);
-      if (arr) return arr;
+    const r1 = await fetch(`/api/vendors/${encodeURIComponent(vendor_id)}/items`, { signal, headers: { Accept: "application/json" } });
+    if (r1.ok) { const j1 = await r1.json().catch(() => null); if (Array.isArray(j1)) return j1; if (j1 && Array.isArray(j1.items)) return j1.items; }
+  } catch (_) {}
+  try {
+    const r2 = await fetch(`/api/vendors/${encodeURIComponent(vendor_id)}`, { signal, headers: { Accept: "application/json" } });
+    if (r2.ok) {
+      const j2 = await r2.json().catch(() => null);
+      if (!j2) return [];
+      if (Array.isArray(j2)) return j2;
+      if (Array.isArray(j2.items)) return j2.items;
+      if (Array.isArray(j2.items_list)) return j2.items_list;
+      if (Array.isArray(j2.data?.items)) return j2.data.items;
     }
   } catch (_) {}
-
-  try {
-    const res1 = await fetch(`/api/vendors/${encodeURIComponent(vendor_id)}/items`, {
-      signal,
-      headers: { Accept: "application/json" },
-    });
-    if (res1.ok) {
-      const body1 = await res1.json().catch(() => null);
-      if (Array.isArray(body1)) return body1;
-      if (body1 && Array.isArray(body1.items)) return body1.items;
-    }
-  } catch (_) {}
-
-  try {
-    const res2 = await fetch(`/api/vendors/${encodeURIComponent(vendor_id)}`, {
-      signal,
-      headers: { Accept: "application/json" },
-    });
-    if (res2.ok) {
-      const body2 = await res2.json().catch(() => null);
-      if (!body2) return [];
-      if (Array.isArray(body2)) return body2;
-      if (Array.isArray(body2.items)) return body2.items;
-      if (Array.isArray(body2.items_list)) return body2.items_list;
-      if (Array.isArray(body2.data?.items)) return body2.data.items;
-    }
-  } catch (_) {}
-
   return [];
 }
 
-/** 유통기한 n일 이내 품목 조회 (여러 엔드포인트 대응) */
+/** 유통기한 n일 이내 품목 */
 async function fetch_expiring_items(n: number, signal?: AbortSignal): Promise<any[]> {
   const try_json = async (path: string) => {
     const r = await fetch(path, { signal, headers: { Accept: "application/json" } });
@@ -160,224 +150,138 @@ async function fetch_expiring_items(n: number, signal?: AbortSignal): Promise<an
     if (body && Array.isArray(body.items)) return body.items;
     return null;
   };
-
   const paths = [
     `/api/items/expiring/${encodeURIComponent(n)}`,
     `/api/expiring/${encodeURIComponent(n)}`,
     `/api/items?expiring=${encodeURIComponent(n)}`,
   ];
-
-  for (const p of paths) {
-    try {
-      const arr = await try_json(p);
-      if (arr) return arr;
-    } catch (_) {}
-  }
+  for (const p of paths) { try { const arr = await try_json(p); if (arr) return arr; } catch (_) {} }
   return [];
 }
 
-/* ===== 유통기한 배지 유틸 ===== */
+/* ===== 남은일수 계산 ===== */
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
 function calc_days_left(iso?: string): number | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const today = new Date();
-  // 날짜 기준 비교(시분초 차이 제거)
-  d.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
+  const d = new Date(iso); if (Number.isNaN(d.getTime())) return null;
+  const today = new Date(); d.setHours(0,0,0,0); today.setHours(0,0,0,0);
   return Math.ceil((d.getTime() - today.getTime()) / MS_PER_DAY);
 }
+function render_days_left_text(
+  days: number | null | undefined,
+  warn_days: number
+): React.ReactNode {
 
-function get_expiry_badge(
-  iso?: string,
-  warn_days?: number
-): { text: string | null; style: React.CSSProperties | null } {
-  const days_left = calc_days_left(iso);
-  if (days_left === null) return { text: null, style: null };
-
-  const warn = Number(warn_days) > 0 ? Number(warn_days) : 7;
-
-  // 만료됨
-  if (days_left < 0) {
-    return {
-      text: `만료 D+${Math.abs(days_left)}`,
-      style: {
-        marginLeft: 8,
-        padding: "2px 6px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 700,
-        background: "#eee",
-        color: "#555",
-      },
-    };
-  }
-
-  // 임박(경고 임계 이내) → 빨강
-  if (days_left <= warn) {
-    return {
-      text: `D-${days_left}`,
-      style: {
-        marginLeft: 8,
-        padding: "2px 6px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 700,
-        background: "#ffebee",
-        color: "#c62828",
-      },
-    };
-  }
-
-  // 30일 이내 → 주의(주황)
-  if (days_left <= 30) {
-    return {
-      text: `D-${days_left}`,
-      style: {
-        marginLeft: 8,
-        padding: "2px 6px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 700,
-        background: "#fff3e0",
-        color: "#ef6c00",
-      },
-    };
-  }
-
-  return { text: null, style: null };
+  if (days === null || days === undefined) return <span>-</span>;
+  if (days < 0) return <span style={{ color: "#555", fontWeight: 700 }}>D+{Math.abs(days)}</span>;
+  if (days <= warn_days) return <span style={{ color: ui_tok.danger_text, fontWeight: 800 }}>D-{days}</span>;
+  return <span style={{ color: ui_tok.warn_text, fontWeight: 700 }}>D-{days}</span>;
 }
 
-const ItemListPage: React.FC = () => {
+const action_btn_style = {
+  padding: "6px 10px", borderRadius: 8, border: `1px solid ${ui_tok.border}`, background: "#fff", cursor: "pointer",
+} as const;
+
+const overlay_style: React.CSSProperties = {
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
+  display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9998,
+};
+const modal_style: React.CSSProperties = {
+  width: "min(720px, 94vw)", maxHeight: "90vh", overflowY: "auto",
+  background: "#fff", border: `1px solid ${ui_tok.border}`, borderRadius: 12,
+  boxShadow: "0 10px 30px rgba(0,0,0,0.2)", padding: 16,
+};
+const fab_style: React.CSSProperties = {
+  position: "fixed", right: 24, bottom: 24, zIndex: 9999,
+  borderRadius: 999, padding: "12px 16px",
+  background: ui_tok.primary_bg, border: `1px solid ${ui_tok.primary_border}`,
+  color: ui_tok.primary_text, fontWeight: 800, cursor: "pointer",
+};
+
+const ItemListPage: React.FC<ItemListPageProps> = ({ hide_title = false }) => {
   const [products, set_products] = useState<ProductRow[]>([]);
   const [is_loading, set_is_loading] = useState<boolean>(false);
   const [error_message, set_error_message] = useState<string>("");
 
-  // 필터 상태
   const [selected_category_id, set_selected_category_id] = useState<string>("");
   const [selected_vendor_id, set_selected_vendor_id] = useState<string>("");
-  const [expiring_days, set_expiring_days] = useState<string>(""); // ""=해제, "7"=7일 이내
+  const [expiring_days, set_expiring_days] = useState<string>("");
 
-  // 셀렉트 옵션
-  const [category_options, set_category_options] = useState<Array<{ id: string; name: string }>>(
-    []
-  );
+  const [category_options, set_category_options] = useState<Array<{ id: string; name: string }>>([]);
   const [vendor_options, set_vendor_options] = useState<Array<{ id: string; name: string }>>([]);
-  // 단위 옵션(code 표시)
-  const [unit_options, set_unit_options] = useState<
-    Array<{ id: string; code: string; name: string }>
-  >([]);
+  const [unit_options, set_unit_options] = useState<Array<{ id: string; code: string; name: string }>>([]);
 
-  // code 조회용 맵
   const unit_code_by_id = useMemo(() => {
     const m = new Map<string, string>();
     for (const u of unit_options) m.set(u.id, u.code);
     return m;
   }, [unit_options]);
 
-  // 삭제 처리 상태
   const [is_deleting_id, set_is_deleting_id] = useState<string | null>(null);
-
-  // === 편집 관련 상태 ===
   const [editing_id, set_editing_id] = useState<string | null>(null);
   const [is_saving, set_is_saving] = useState<boolean>(false);
   const [draft_row, set_draft_row] = useState<DraftRow>({});
 
+  const [is_register_open, set_is_register_open] = useState<boolean>(false);
+  const [reload_key, set_reload_key] = useState<number>(0);
+  const reload_list = () => set_reload_key((k) => k + 1);
+
   useEffect(() => {
     const controller = new AbortController();
-
-    const fetch_all = async () => {
+    (async () => {
       set_is_loading(true);
       set_error_message("");
-
       try {
-        // 1) 아이템 목록(서버 필터 적용)
         let items_arr: any[] = [];
-
         const has_expiring = expiring_days.trim() !== "" && Number(expiring_days) > 0;
 
         if (has_expiring) {
           const n = Number(expiring_days);
-
-          // (선호) 서버가 동시 필터 지원: /items?expiring=n&vendor=..&category=..
-          const build_combined_url = () => {
-            const params = new URLSearchParams();
-            params.set("expiring", String(n));
-            if (selected_vendor_id) params.set("vendor", selected_vendor_id);
-            if (selected_category_id) params.set("category", selected_category_id);
-            return `/api/items?${params.toString()}`;
-          };
-
+          const params = new URLSearchParams();
+          params.set("expiring", String(n));
+          if (selected_vendor_id) params.set("vendor", selected_vendor_id);
+          if (selected_category_id) params.set("category", selected_category_id);
           try {
-            const combined = await fetch(build_combined_url(), {
-              signal: controller.signal,
-              headers: { Accept: "application/json" },
-            });
+            const combined = await fetch(`/api/items?${params.toString()}`, { signal: controller.signal, headers: { Accept: "application/json" } });
             if (combined.ok) {
               const j = await combined.json().catch(() => null);
               items_arr = Array.isArray(j) ? j : j?.items ?? [];
             }
           } catch (_) {}
-
-          // 미지원/실패 시: /expiring/n 결과에 클라에서 거래처/카테고리 필터 적용
           if (!Array.isArray(items_arr) || items_arr.length === 0) {
             const raw = await fetch_expiring_items(n, controller.signal);
             items_arr = raw.filter((r: any) => {
               const ok_vendor = selected_vendor_id
-                ? String(r.vendor_id ?? r.vendor?.id ?? r.vendor?.vendor_id ?? "") ===
-                  String(selected_vendor_id)
+                ? String(r.vendor_id ?? r.vendor?.id ?? r.vendor?.vendor_id ?? "") === String(selected_vendor_id)
                 : true;
               const ok_category = selected_category_id
-                ? String(r.category_id ?? r.category?.id ?? r.category?.category_id ?? "") ===
-                  String(selected_category_id)
+                ? String(r.category_id ?? r.category?.id ?? r.category?.category_id ?? "") === String(selected_category_id)
                 : true;
               return ok_vendor && ok_category;
             });
           }
         } else if (selected_vendor_id && !selected_category_id) {
-          // 거래처만 선택
           items_arr = await fetch_vendor_items(selected_vendor_id, controller.signal);
         } else if (selected_vendor_id && selected_category_id) {
-          // 거래처 + 카테고리 동시
           const vendor_items = await fetch_vendor_items(selected_vendor_id, controller.signal);
           items_arr = vendor_items.filter((r: any) => {
             const cat = r.category_id ?? r.category?.id ?? r.category?.category_id;
             return String(cat ?? "") === String(selected_category_id);
           });
         } else {
-          // 카테고리만 선택 or 전체
-          const url = selected_category_id
-            ? `/api/items?category=${encodeURIComponent(selected_category_id)}`
-            : `/api/items`;
-          const items_res = await fetch(url, {
-            signal: controller.signal,
-            headers: { Accept: "application/json" },
-          });
-          if (!items_res.ok) {
-            throw new Error(`HTTP ${items_res.status}: ${await items_res.text()}`);
-          }
-          const items_raw = await items_res.json();
-          items_arr = Array.isArray(items_raw) ? items_raw : items_raw.items ?? [];
+          const url = selected_category_id ? `/api/items?category=${encodeURIComponent(selected_category_id)}` : `/api/items`;
+          const res = await fetch(url, { signal: controller.signal, headers: { Accept: "application/json" } });
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+          const raw = await res.json();
+          items_arr = Array.isArray(raw) ? raw : raw.items ?? [];
         }
 
         const normalized_items = items_arr.map(normalize_item);
 
-        // 2) 보조 사전: 카테고리/거래처/단위
         const [cats_res, vendors_res, units_res] = await Promise.all([
-          fetch("/api/category", {
-            signal: controller.signal,
-            headers: { Accept: "application/json" },
-          }),
-          fetch("/api/vendors/summary", {
-            signal: controller.signal,
-            headers: { Accept: "application/json" },
-          }),
-          fetch("/api/units", {
-            signal: controller.signal,
-            headers: { Accept: "application/json" },
-          }),
+          fetch("/api/category", { signal: controller.signal, headers: { Accept: "application/json" } }),
+          fetch("/api/vendors/summary", { signal: controller.signal, headers: { Accept: "application/json" } }),
+          fetch("/api/units", { signal: controller.signal, headers: { Accept: "application/json" } }),
         ]);
 
         const cats = cats_res.ok ? await cats_res.json() : [];
@@ -387,59 +291,54 @@ const ItemListPage: React.FC = () => {
         const cat_name_map = to_name_map(cats, ["id", "category_id"], ["name", "category_name"]);
         const vendor_name_map = to_name_map(vendors, ["id", "vendor_id"], ["name", "vendor_name"]);
 
-        // 옵션 채우기: 카테고리/거래처
         set_category_options(
-          Array.from(cat_name_map.entries())
-            .map(([id, name]) => ({ id, name }))
+          Array.from(cat_name_map.entries()).map(([id, name]) => ({ id, name }))
             .sort((a, b) => a.name.localeCompare(b.name, "ko"))
         );
         set_vendor_options(
-          Array.from(vendor_name_map.entries())
-            .map(([id, name]) => ({ id, name }))
+          Array.from(vendor_name_map.entries()).map(([id, name]) => ({ id, name }))
             .sort((a, b) => a.name.localeCompare(b.name, "ko"))
         );
 
-        // 단위 옵션(id, code, name)
         const units_arr = Array.isArray(units) ? units : units.items ?? [];
-        const unit_opts = (units_arr as any[])
-          .map((u) => {
-            const id = String(u.id ?? u.unit_id ?? "");
-            const code = String(u.code ?? u.unit_code ?? u.name ?? "");
-            const name = String(u.name ?? u.unit_name ?? u.code ?? "");
-            return { id, code, name };
-          })
-          .filter((u) => u.id && u.code);
+        const unit_opts = (units_arr as any[]).map((u) => {
+          const id = String(u.id ?? u.unit_id ?? "");
+          const code = String(u.code ?? u.unit_code ?? u.name ?? "");
+          const name = String(u.name ?? u.unit_name ?? u.code ?? "");
+          return { id, code, name };
+        }).filter((u) => u.id && u.code);
         set_unit_options(unit_opts);
 
-        // 3) 이름 하이드레이션
         const hydrated = normalized_items.map((it) => ({
           ...it,
-          category_name:
-            it.category_name ?? (it.category_id ? cat_name_map.get(it.category_id) : undefined),
-          vendor_name:
-            it.vendor_name ?? (it.vendor_id ? vendor_name_map.get(it.vendor_id) : undefined),
-          // unit_name은 code 표시를 우선하므로 뷰에서 code 매핑으로 먼저 보여줌
-        }));
+          category_name: it.category_name ?? (it.category_id ? cat_name_map.get(it.category_id) : undefined),
+          vendor_name: it.vendor_name ?? (it.vendor_id ? vendor_name_map.get(it.vendor_id ?? "") : undefined),
+        }))
+        /** 남은일수 계산 주입 */
+        .map((it) => ({ ...it, days_left: calc_days_left(it.expiry_date) }));
 
         set_products(hydrated);
       } catch (err: any) {
-        if (err?.name !== "AbortError") {
-          set_error_message(err?.message || "목록 조회 중 오류가 발생했습니다.");
-        }
+        if (err?.name !== "AbortError") set_error_message(err?.message || "목록 조회 중 오류가 발생했습니다.");
       } finally {
         set_is_loading(false);
       }
-    };
-
-    fetch_all();
+    })();
     return () => controller.abort();
-    // ✅ 선택 변경/유통기한 변경 시마다 서버 재조회
-  }, [selected_category_id, selected_vendor_id, expiring_days]);
+  }, [selected_category_id, selected_vendor_id, expiring_days, reload_key]);
 
-  // (선택) 추가적인 클라 검색이 필요하다면 여기서 useMemo로 한 번 더 거르면 됨.
-  const visible_products = useMemo(() => products, [products]);
+  // ItemListPage.tsx
+const visible_products = useMemo(() => {
+  const n = Number(expiring_days);
+  if (!Number.isFinite(n) || n <= 0) return products;
+  return products.filter((p) => {
+    const dl = p.days_left ?? calc_days_left(p.expiry_date);
+    // D≤n: 만료(음수) 포함해서 n일 이하만 노출
+    return dl !== null && dl <= n;
+  });
+}, [products, expiring_days]);
 
-  // 삭제
+
   const handle_delete = async (item_id: string) => {
     if (!item_id) return;
     const is_ok = window.confirm(`품목(ID: ${item_id})을 삭제할까요?`);
@@ -447,24 +346,10 @@ const ItemListPage: React.FC = () => {
 
     set_is_deleting_id(item_id);
     try {
-      // 기본: DELETE /api/items/:item_id
-      const res = await fetch(`/api/items/${encodeURIComponent(item_id)}`, {
-        method: "DELETE",
-        headers: { Accept: "application/json" },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`삭제 실패 (HTTP ${res.status}) ${text}`);
-      }
-
-      // 낙관적 업데이트
+      const res = await fetch(`/api/items/${encodeURIComponent(item_id)}`, { method: "DELETE", headers: { Accept: "application/json" } });
+      if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`삭제 실패 (HTTP ${res.status}) ${text}`); }
       set_products((prev) => prev.filter((p) => p.item_id !== item_id));
-      // 편집 중이었다면 종료
-      if (editing_id === item_id) {
-        set_editing_id(null);
-        set_draft_row({});
-      }
+      if (editing_id === item_id) { set_editing_id(null); set_draft_row({}); }
     } catch (e: any) {
       alert(e?.message || "삭제 중 오류가 발생했습니다.");
     } finally {
@@ -472,96 +357,59 @@ const ItemListPage: React.FC = () => {
     }
   };
 
-  // === 편집 로직 ===
   const start_edit = (row: ProductRow) => {
     const unit_code = row.unit_id ? unit_code_by_id.get(row.unit_id) ?? "" : "";
-
     set_editing_id(row.item_id);
     set_draft_row({
-      item_id: row.item_id,
-      name: row.name,
-      category_id: row.category_id,
-      unit_id: row.unit_id,
-      unit_code, // 표시/선택용
-      unit_price: row.unit_price,
-      expiry_date: row.expiry_date || "",
-      vendor_id: row.vendor_id ?? "",
+      item_id: row.item_id, name: row.name, category_id: row.category_id, unit_id: row.unit_id,
+      unit_code, unit_price: row.unit_price, expiry_date: row.expiry_date || "", vendor_id: row.vendor_id ?? "",
     });
   };
-
-  const cancel_edit = () => {
-    set_editing_id(null);
-    set_draft_row({});
-  };
-
-  const handle_draft_change = (field: keyof DraftRow, value: string | number) => {
-    set_draft_row((prev) => ({ ...prev, [field]: value }));
-  };
-
+  const cancel_edit = () => { set_editing_id(null); set_draft_row({}); };
+  const handle_draft_change = (field: keyof DraftRow, value: string | number) => { set_draft_row((prev) => ({ ...prev, [field]: value })); };
   const handle_unit_code_change = (code: string) => {
     const found = unit_options.find((u) => u.code === code);
-    set_draft_row((prev) => ({
-      ...prev,
-      unit_code: code,
-      unit_id: found ? found.id : "",
-    }));
+    set_draft_row((prev) => ({ ...prev, unit_code: code, unit_id: found ? found.id : "" }));
   };
 
   const save_edit = async () => {
     if (!editing_id) return;
-    // 서버 페이로드(숫자 필드 정리)
     const payload: any = {
       item_id: editing_id,
       name: String(draft_row.name ?? ""),
       category_id: draft_row.category_id ? Number(draft_row.category_id) : undefined,
       unit_id: draft_row.unit_id ? Number(draft_row.unit_id) : undefined,
-      unit_price:
-        typeof draft_row.unit_price === "number"
-          ? draft_row.unit_price
-          : Number(draft_row.unit_price ?? 0),
-      expiry_date: draft_row.expiry_date || null, // 빈값이면 null로 보냄(백엔드 정책에 맞게 조정)
+      unit_price: typeof draft_row.unit_price === "number" ? draft_row.unit_price : Number(draft_row.unit_price ?? 0),
+      expiry_date: draft_row.expiry_date || null,
       vendor_id: draft_row.vendor_id ? Number(draft_row.vendor_id) : undefined,
     };
 
     set_is_saving(true);
     try {
-      // 기본: PUT /api/items/:item_id
       const res = await fetch(`/api/items/${encodeURIComponent(editing_id)}`, {
-        method: "PUT",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+        method: "PUT", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`수정 실패 (HTTP ${res.status}) ${text}`);
-      }
-
+      if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`수정 실패 (HTTP ${res.status}) ${text}`); }
       await res.json().catch(() => null);
 
-      // 낙관적 업데이트
       set_products((prev) =>
         prev.map((p) => {
           if (p.item_id !== editing_id) return p;
-
           const next: ProductRow = {
             ...p,
             name: String(payload.name ?? p.name),
-            category_id:
-              payload.category_id !== undefined ? String(payload.category_id) : p.category_id,
+            category_id: payload.category_id !== undefined ? String(payload.category_id) : p.category_id,
             unit_id: payload.unit_id !== undefined ? String(payload.unit_id) : p.unit_id,
             unit_price: Number.isFinite(payload.unit_price) ? payload.unit_price : p.unit_price,
             expiry_date: payload.expiry_date ?? p.expiry_date,
             vendor_id: payload.vendor_id !== undefined ? String(payload.vendor_id) : p.vendor_id,
           };
-
           const cat = category_options.find((o) => o.id === next.category_id);
           const ven = vendor_options.find((o) => o.id === (next.vendor_id ?? ""));
           next.category_name = cat?.name ?? p.category_name;
           next.vendor_name = ven?.name ?? p.vendor_name;
+          // 남은일수 재계산
+          next.days_left = calc_days_left(next.expiry_date);
           return next;
         })
       );
@@ -575,144 +423,88 @@ const ItemListPage: React.FC = () => {
     }
   };
 
+  // 경고 기준 (필터 입력값이 있으면 사용, 없으면 7일)
+  const warn_threshold = Number(expiring_days) > 0 ? Number(expiring_days) : 7;
+
   return (
-    <div style={{ padding: 16 }}>
-      <h1 style={{ marginBottom: 12 }}>품목 조회 페이지</h1>
+    <div style={page_style}>
+      {!hide_title && <h1 style={title_style}>품목 조회</h1>}
 
-      {/* 컨트롤 바: 필터 */}
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          marginBottom: 12,
-          flexWrap: "wrap",
-        }}
-      >
+      {/* 필터 바 */}
+      <div style={control_bar_style}>
         <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span>카테고리</span>
-          <select
-            value={selected_category_id}
-            onChange={(e) => set_selected_category_id(e.target.value)}
-            style={{ padding: 8, minWidth: 160 }}
-          >
+          <span style={{ color: ui_tok.text_muted }}>카테고리</span>
+          <select value={selected_category_id} onChange={(e) => set_selected_category_id(e.target.value)} style={control_select_style}>
             <option value="">전체</option>
-            {category_options.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name}
-              </option>
-            ))}
+            {category_options.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
           </select>
         </label>
 
         <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span>거래처</span>
-          <select
-            value={selected_vendor_id}
-            onChange={(e) => set_selected_vendor_id(e.target.value)}
-            style={{ padding: 8, minWidth: 160 }}
-          >
+          <span style={{ color: ui_tok.text_muted }}>거래처</span>
+          <select value={selected_vendor_id} onChange={(e) => set_selected_vendor_id(e.target.value)} style={control_select_style}>
             <option value="">전체</option>
-            {vendor_options.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name}
-              </option>
-            ))}
+            {vendor_options.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
           </select>
         </label>
 
         <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span>유통기한 ≤ (일)</span>
-          <input
-            type="number"
-            min={1}
-            placeholder="예: 7"
-            value={expiring_days}
-            onChange={(e) => set_expiring_days(e.target.value)}
-            style={{ padding: 8, width: 100 }}
-          />
+          <span style={{ color: ui_tok.text_muted }}>유통기한 ≤ (일)</span>
+          <input type="number" min={1} placeholder="예: 7" value={expiring_days} onChange={(e) => set_expiring_days(e.target.value)} style={control_input_style} />
         </label>
 
         {(selected_category_id || selected_vendor_id || expiring_days) && (
           <button
-            onClick={() => {
-              set_selected_category_id("");
-              set_selected_vendor_id("");
-              set_expiring_days("");
-            }}
-            style={{ marginLeft: "auto", padding: "8px 12px" }}
+            onClick={() => { set_selected_category_id(""); set_selected_vendor_id(""); set_expiring_days(""); }}
+            style={clear_btn_style}
           >
             필터 초기화
           </button>
         )}
       </div>
 
-      {is_loading && <div style={{ margin: "8px 0" }}>불러오는 중…</div>}
-      {error_message && (
-        <div style={{ color: "crimson", margin: "8px 0" }}>{error_message}</div>
-      )}
+      {/* 메인 테이블: 유통기한 옆 새 열 '남은일수' 추가 */}
+      {is_loading && <div style={{ color: ui_tok.text_muted, marginBottom: 8 }}>불러오는 중…</div>}
+      {error_message && <div style={{ color: "#c62828", marginBottom: 8 }}>{error_message}</div>}
 
-      <div style={{ overflowX: "auto" }}>
+      <div style={table_wrap_style}>
         <table style={table_style}>
           <thead>
             <tr>
-              <th style={th_td_style}>품목ID</th>
-              <th style={th_td_style}>카테고리ID</th>
-              <th style={th_td_style}>카테고리명</th>
-              <th style={th_td_style}>품목명</th>
-              <th style={th_td_style}>단위</th>
-              <th style={th_td_style}>단가(원)</th>
-              <th style={th_td_style}>유통기한</th>
-              <th style={th_td_style}>거래처명</th>
-              <th style={th_td_right_style}>관리</th>
+              <th style={th_style}>품목ID</th>
+              <th style={th_style}>카테고리ID</th>
+              <th style={th_style}>카테고리명</th>
+              <th style={th_style}>품목명</th>
+              <th style={th_style}>단위</th>
+              <th style={th_style}>단가(원)</th>
+              <th style={th_style}>유통기한</th>
+              <th style={th_style}>남은일수</th> {/* ✔ 새 컬럼 */}
+              <th style={th_style}>거래처명</th>
+              <th style={{ ...th_style, textAlign: "right" as const }}>관리</th>
             </tr>
           </thead>
           <tbody>
-            {visible_products.map((p) => {
+            {visible_products.map((p, idx) => {
               const is_edit_row = editing_id === p.item_id;
+              const row_bg: React.CSSProperties | undefined = idx % 2 === 1 ? { background: ui_tok.zebra } : undefined;
 
               if (!is_edit_row) {
-                // 일반 표시 행
-                const badge = get_expiry_badge(
-                  p.expiry_date,
-                  Number(expiring_days) > 0 ? Number(expiring_days) : 7
-                );
-
                 return (
-                  <tr key={p.id ?? p.item_id}>
-                    <td style={th_td_style}>{p.item_id}</td>
-                    <td style={th_td_style}>{p.category_id}</td>
-                    <td style={th_td_style}>{p.category_name ?? ""}</td>
-                    <td style={th_td_style}>{p.name}</td>
-                    <td style={th_td_style}>
-                      {(p.unit_id && unit_code_by_id.get(p.unit_id)) ??
-                        p.unit_name ??
-                        p.unit_id}
+                  <tr key={p.id ?? p.item_id} style={row_bg}>
+                    <td style={td_style}>{p.item_id}</td>
+                    <td style={td_style}>{p.category_id}</td>
+                    <td style={td_style}>{p.category_name ?? ""}</td>
+                    <td style={td_style}>{p.name}</td>
+                    <td style={td_style}>{(p.unit_id && unit_code_by_id.get(p.unit_id)) ?? p.unit_name ?? p.unit_id}</td>
+                    <td style={td_style}>{format_currency(p.unit_price)}</td>
+                    <td style={td_style}>{p.expiry_date ?? ""}</td>
+                    <td style={{ ...td_style, textAlign: "right" as const }}>
+                      {render_days_left_text(p.days_left ?? calc_days_left(p.expiry_date), warn_threshold)}
                     </td>
-                    <td style={th_td_style}>{format_currency(p.unit_price)}</td>
-                    <td style={th_td_style}>
-                      <span>{p.expiry_date ?? ""}</span>
-                      {badge.text ? <span style={badge.style || undefined}>{badge.text}</span> : null}
-                    </td>
-                    <td style={th_td_style}>{p.vendor_name ?? ""}</td>
-                    <td style={th_td_right_style}>
-                      {/* 수정(왼쪽) */}
-                      <button
-                        onClick={() => start_edit(p)}
-                        disabled={Boolean(is_deleting_id)}
-                        style={{ padding: "6px 10px", marginRight: 6 }}
-                        title="수정"
-                      >
-                        수정
-                      </button>
-
-                      {/* 삭제(오른쪽) */}
-                      <button
-                        onClick={() => handle_delete(p.item_id)}
-                        disabled={is_deleting_id === p.item_id}
-                        style={{ padding: "6px 10px" }}
-                        title="삭제"
-                      >
+                    <td style={td_style}>{p.vendor_name ?? ""}</td>
+                    <td style={td_right_style}>
+                      <button onClick={() => start_edit(p)} disabled={Boolean(is_deleting_id)} style={{ ...action_btn_style, marginRight: 6 }} title="수정">수정</button>
+                      <button onClick={() => handle_delete(p.item_id)} disabled={is_deleting_id === p.item_id} style={action_btn_style} title="삭제">
                         {is_deleting_id === p.item_id ? "삭제 중..." : "삭제"}
                       </button>
                     </td>
@@ -720,122 +512,97 @@ const ItemListPage: React.FC = () => {
                 );
               }
 
-              // 편집 행
+              // 편집행: 날짜 입력 변경 시 오른쪽 남은일수 즉시 반영
+              const draft_days_left = calc_days_left(String(draft_row.expiry_date ?? ""));
               return (
-                <tr key={p.id ?? p.item_id}>
-                  <td style={th_td_style}>{p.item_id}</td>
-
-                  <td style={th_td_style}>
-                    <select
-                      value={String(draft_row.category_id ?? "")}
-                      onChange={(e) => handle_draft_change("category_id", e.target.value)}
-                      style={{ padding: 6, minWidth: 120 }}
-                    >
+                <tr key={p.id ?? p.item_id} style={row_bg}>
+                  <td style={td_style}>{p.item_id}</td>
+                  <td style={td_style}>
+                    <select value={String(draft_row.category_id ?? "")} onChange={(e) => handle_draft_change("category_id", e.target.value)} style={{ padding: 6, minWidth: 120, borderRadius: 8, border: `1px solid ${ui_tok.border}` }}>
                       <option value="">선택</option>
-                      {category_options.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.name}
-                        </option>
-                      ))}
+                      {category_options.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
                     </select>
                   </td>
-
-                  <td style={th_td_style}>
-                    {category_options.find((o) => o.id === String(draft_row.category_id ?? ""))?.name ??
-                      ""}
+                  <td style={td_style}>
+                    {category_options.find((o) => o.id === String(draft_row.category_id ?? ""))?.name ?? ""}
                   </td>
-
-                  <td style={th_td_style}>
-                    <input
-                      type="text"
-                      value={String(draft_row.name ?? "")}
-                      onChange={(e) => handle_draft_change("name", e.target.value)}
-                      style={{ padding: 6, minWidth: 160, width: 220 }}
-                    />
+                  <td style={td_style}>
+                    <input type="text" value={String(draft_row.name ?? "")} onChange={(e) => handle_draft_change("name", e.target.value)} style={{ padding: 6, minWidth: 160, width: 220, borderRadius: 8, border: `1px solid ${ui_tok.border}` }} />
                   </td>
-
-                  {/* 단위: code 드롭다운 */}
-                  <td style={th_td_style}>
-                    <select
-                      value={String(draft_row.unit_code ?? "")}
-                      onChange={(e) => handle_unit_code_change(e.target.value)}
-                      style={{ padding: 6, minWidth: 120 }}
-                    >
+                  <td style={td_style}>
+                    <select value={String(draft_row.unit_code ?? "")} onChange={(e) => handle_unit_code_change(e.target.value)} style={{ padding: 6, minWidth: 120, borderRadius: 8, border: `1px solid ${ui_tok.border}` }}>
                       <option value="">선택</option>
-                      {unit_options.map((u) => (
-                        <option key={u.id} value={u.code}>
-                          {u.code} ({u.name})
-                        </option>
-                      ))}
+                      {unit_options.map((u) => (<option key={u.id} value={u.code}>{u.code} ({u.name})</option>))}
                     </select>
                   </td>
-
-                  <td style={th_td_style}>
-                    <input
-                      type="number"
-                      value={String(draft_row.unit_price ?? 0)}
-                      onChange={(e) => handle_draft_change("unit_price", e.target.value)}
-                      style={{ padding: 6, width: 120, textAlign: "right" }}
-                      min={0}
-                    />
+                  <td style={td_style}>
+                    <input type="number" value={String(draft_row.unit_price ?? 0)} onChange={(e) => handle_draft_change("unit_price", e.target.value)} style={{ padding: 6, width: 120, textAlign: "right", borderRadius: 8, border: `1px solid ${ui_tok.border}` }} min={0} />
                   </td>
-
-                  <td style={th_td_style}>
-                    <input
-                      type="date"
-                      value={String(draft_row.expiry_date ?? "")}
-                      onChange={(e) => handle_draft_change("expiry_date", e.target.value)}
-                      style={{ padding: 6 }}
-                    />
+                  <td style={td_style}>
+                    <input type="date" value={String(draft_row.expiry_date ?? "")} onChange={(e) => handle_draft_change("expiry_date", e.target.value)} style={{ padding: 6, borderRadius: 8, border: `1px solid ${ui_tok.border}` }} />
                   </td>
-
-                  <td style={th_td_style}>
-                    <select
-                      value={String(draft_row.vendor_id ?? "")}
-                      onChange={(e) => handle_draft_change("vendor_id", e.target.value)}
-                      style={{ padding: 6, minWidth: 140 }}
-                    >
+                  <td style={{ ...td_style, textAlign: "right" as const }}>
+                    {render_days_left_text(draft_days_left, warn_threshold)}
+                  </td>
+                  <td style={td_style}>
+                    <select value={String(draft_row.vendor_id ?? "")} onChange={(e) => handle_draft_change("vendor_id", e.target.value)} style={{ padding: 6, minWidth: 140, borderRadius: 8, border: `1px solid ${ui_tok.border}` }}>
                       <option value="">선택</option>
-                      {vendor_options.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.name}
-                        </option>
-                      ))}
+                      {vendor_options.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
                     </select>
                   </td>
-
-                  <td style={th_td_right_style}>
-                    <button
-                      onClick={save_edit}
-                      disabled={is_saving}
-                      style={{ padding: "6px 10px", marginRight: 6 }}
-                      title="저장"
-                    >
+                  <td style={td_right_style}>
+                    <button onClick={save_edit} disabled={is_saving} style={{ ...action_btn_style, marginRight: 6 }} title="저장">
                       {is_saving ? "저장 중..." : "저장"}
                     </button>
-                    <button
-                      onClick={cancel_edit}
-                      disabled={is_saving}
-                      style={{ padding: "6px 10px" }}
-                      title="취소"
-                    >
-                      취소
-                    </button>
+                    <button onClick={cancel_edit} disabled={is_saving} style={action_btn_style} title="취소">취소</button>
                   </td>
                 </tr>
               );
             })}
 
             {visible_products.length === 0 && !is_loading && !error_message && (
-              <tr>
-                <td colSpan={9} style={empty_cell_style}>
-                  등록된 품목이 없습니다.
-                </td>
-              </tr>
+              <tr><td colSpan={10} style={{ textAlign: "center", padding: 18, color: ui_tok.text_muted }}>등록된 품목이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* 우하단 신규 품목 등록 버튼 */}
+      <button
+        type="button"
+        style={fab_style}
+        onClick={() => set_is_register_open(true)}
+        title="신규 품목 등록"
+        aria-label="신규 품목 등록"
+      >
+        신규 품목 등록
+      </button>
+
+      {/* 등록 모달 */}
+      {is_register_open && (
+        <div style={overlay_style} onClick={() => set_is_register_open(false)}>
+          <div style={modal_style} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>품목 등록</h2>
+              <button
+                type="button"
+                onClick={() => set_is_register_open(false)}
+                style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${ui_tok.border}`, background: "#fff", cursor: "pointer" }}
+                title="닫기"
+              >
+                닫기
+              </button>
+            </div>
+            <ItemRegisterForm
+              on_success={() => {
+                set_is_register_open(false);
+                reload_list();
+              }}
+              on_cancel={() => set_is_register_open(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
