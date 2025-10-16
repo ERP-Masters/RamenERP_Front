@@ -259,7 +259,7 @@ const VendorListPage: React.FC = () => {
                     style={icon_btn_style}
                     onClick={() => openDelete(v)}
                     title="삭제"
-                    aria-label="삭제"
+                    aria-label="미사용"
                   >
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                       <path d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z" stroke="#ef4444" strokeWidth="1.5" />
