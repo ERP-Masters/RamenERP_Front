@@ -32,7 +32,6 @@ export const sidebar_menu: MenuGroup[] = [
     id: "vendors",
     label: "거래처관리",
     children: [
-      { id: "vendors-reg", label: "거래처 등록", path: "/vendor/register" },
       { id: "vendors-list", label: "거래처 리스트", path: "/vendor/list" },
       // 필요 시: { id: "vendors-inactive", label: "미사용 거래처", path: "/vendors/inactive" },
     ],

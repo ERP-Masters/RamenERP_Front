@@ -1,93 +1,73 @@
-// src/pages/VendorRegisterCheck.tsx
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import VendorRegisterForm, { VendorData } from "./VendorRegisterForm";
-
-interface CreateVendorDto {
-  name: string;     // 거래처명
-  manager: string;  // 담당자명
-  contact: string;  // 담당자 이메일
-  address: string;  // 평문 주소 (도롬명+상세)
+// src/utils/VendorRegisterCheck.tsx
+export interface VendorSubmitInput {
+  name: string;           // 거래처명
+  contact_name: string;   // 담당자명
+  contact_email: string;  // 담당자 이메일
+  address_road: string;   // 도로명
+  address_detail: string; // 상세주소
 }
 
-interface VendorResponse {
-  vendor_id: number; // 자동 증가
-  name: string;
-  manager: string;
-  contact: string;
-  address: string;
+export interface VendorSubmitOptions {
+  /** 기본: '/api/vendors' */
+  endpoint?: string;
+  /** 기본: true (성공/실패 alert 팝업 표시) */
+  showAlert?: boolean;
+  /** 성공 시 후속 동작(모달 닫기 등) */
+  onSuccess?: (responseJson: any) => void;
+  /** 실패 시 후속 동작(로그 등) */
+  onError?: (error: Error) => void;
 }
 
-const VendorRegisterPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [vendors, set_vendors] = useState<VendorData[]>([]);
-  const [error_message, set_error_message] = useState<string>("");
+/**
+ * 벤더 등록 POST + (옵션) 팝업 표시
+ * - 성공 시 'vendor:created' 커스텀 이벤트를 디스패치하여 기존 목록 갱신 흐름을 그대로 사용.
+ */
+export async function submitVendor(
+  input: VendorSubmitInput,
+  opts: VendorSubmitOptions = {}
+): Promise<{ ok: true; data: any } | { ok: false; error: Error }> {
+  const {
+    endpoint = "/api/vendors",
+    showAlert = true,
+    onSuccess,
+    onError,
+  } = opts;
 
-  const handleSubmit = async (data: VendorData) => {
-    // 기존 동작 유지
-    set_error_message("");
-
-    // CreateVendorDto 매핑
-    const payload: CreateVendorDto = {
-      name: data.name.trim(),
-      manager: data.contact_name.trim(),
-      contact: data.contact_email.trim(),
-      address: (data.address_road || "").trim(), // VendorRegisterForm에서 합쳐 전달됨
-    };
-
-    try {
-      const res = await fetch("/api/vendors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const raw_text = await res.text();
-      if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try {
-          const err_json = JSON.parse(raw_text);
-          msg = err_json?.message || msg;
-        } catch {}
-        throw new Error(msg);
-      }
-
-      let saved: VendorResponse;
-      try {
-        saved = JSON.parse(raw_text) as VendorResponse;
-      } catch {
-        throw new Error("서버 응답을 파싱할 수 없습니다.");
-      }
-
-      // 기존 로컬 상태 적재 로직 유지
-      set_vendors(prev => [
-        ...prev,
-        {
-          name: saved.name,
-          contact_name: payload.manager,
-          contact_email: payload.contact,
-          address_road: saved.address,
-          address_detail: "",
-        },
-      ]);
-
-      // ✅ 추가: 등록 직후 조회 패널에게 새로고침 신호
-      window.dispatchEvent(new CustomEvent("vendor:created", { detail: { id: saved.vendor_id } }));
-
-      alert(`거래처 등록이 완료되었습니다. (ID: ${saved.vendor_id})`);
-      navigate("/vendor/register"); // 기존 경로 유지
-    } catch (e: any) {
-      set_error_message(e?.message || "등록 중 오류가 발생했습니다.");
-      alert(error_message || e?.message || "등록 중 오류가 발생했습니다.");
-    }
+  // 백엔드 명세에 맞춘 payload
+  const payload = {
+    name: (input.name || "").trim(),
+    manager: (input.contact_name || "").trim(),
+    contact: (input.contact_email || "").trim(),
+    address: `${(input.address_road || "").trim()} ${(input.address_detail || "").trim()}`.trim(),
   };
 
-  return (
-    <div>
-      <h1>거래처 관리</h1>
-      <VendorRegisterForm onSubmit={handleSubmit} />
-    </div>
-  );
-};
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-export default VendorRegisterPage;
+    const raw = await res.text();
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { msg = JSON.parse(raw)?.message || msg; } catch {}
+      throw new Error(msg);
+    }
+
+    const json = raw ? JSON.parse(raw) : null;
+
+    // ✅ 기존 리스트 페이지가 듣고 있는 이벤트(목록 재조회) 유지
+    window.dispatchEvent(new CustomEvent("vendor:created"));
+
+    if (showAlert) alert("등록이 완료되었습니다!");
+
+    onSuccess?.(json);
+    return { ok: true, data: json };
+  } catch (err: any) {
+    if (showAlert) alert("등록이 실패하였습니다.");
+    const error = err instanceof Error ? err : new Error(String(err));
+    onError?.(error);
+    return { ok: false, error };
+  }
+}
