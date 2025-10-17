@@ -6,7 +6,8 @@ import Layout from "./components/Layout";
 // 페이지들
 import ProductPage from "./pages/ProductPage";
 import ItemListPage from "./pages/ItemListPage";
-import VendorRegisterCheck from "./pages/VendorRegisterCheck";
+// ✅ 유틸을 써야 할 때만 (경로: utils)
+import VendorRegisterPage from "./pages/VendorRegisterPage";
 import CategoryRegisterPage from "./pages/CategoryRegisterPage";
 import CategoryRegisterCheck from "./pages/CategoryRegisterCheck";
 import UnitRegisterPage from "./pages/UnitRegisterPage";
@@ -27,7 +28,7 @@ const App: React.FC = () => {
         <Route path="product/list" element={<ItemListPage />} />
 
         {/* 등록/체크 페이지 라우트 */}
-        <Route path="vendor/register" element={<VendorRegisterCheck />} />
+        <Route path="vendor/register" element={<VendorRegisterPage />} />
         <Route path="vendor/list" element={<VendorListPage />} />
 
         <Route path="category/register" element={<CategoryRegisterPage />} />

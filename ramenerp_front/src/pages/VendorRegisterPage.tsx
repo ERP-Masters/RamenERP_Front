@@ -1,25 +1,15 @@
-import React from "react";
+// src/pages/VendorRegisterPage.tsx
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { submitVendor } from "./VendorRegisterCheck";
 
-export interface VendorFormViewState {
+type VendorFormViewState = {
   name: string;
   contact_name: string;
   address_road: string;
   address_detail: string;
-}
+};
 
-export interface VendorRegisterFormUIProps {
-  form_data: VendorFormViewState;
-  on_change: (e: React.ChangeEvent<HTMLInputElement>) => void;
-
-  contact_email: string;
-  on_contact_email_change: (e: React.ChangeEvent<HTMLInputElement>) => void;
-
-  open_address_search: () => void;
-  detail_ref: React.RefObject<HTMLInputElement>;
-  on_submit: (e: React.FormEvent) => void;
-}
-
-/* ===== UI 토큰(리스트와 동일 톤) ===== */
 const ui_tok = {
   border: "#e6e8ec",
   label: "#6b7280",
@@ -33,7 +23,6 @@ const ui_tok = {
 const form_style: React.CSSProperties = { fontSize: "clamp(12px, 1.05vw, 16px)" };
 const label_style: React.CSSProperties = { whiteSpace: "nowrap", color: ui_tok.label, fontWeight: 600 };
 
-/* 컨트롤 공통 높이 40px */
 const input_base: React.CSSProperties = {
   width: "100%",
   minWidth: 0,
@@ -45,13 +34,12 @@ const input_base: React.CSSProperties = {
   outline: "none",
   background: "#fff",
 };
-
 const input_style: React.CSSProperties = { ...input_base };
 const readonly_style: React.CSSProperties = { ...input_base, background: "#f4f6f8" };
 
 const row_top_style: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(240px, 1fr))",
+  gridTemplateColumns: "repeat(3, minmax(270px, 1fr))",
   gap: 12,
   alignItems: "center",
   marginBottom: 10,
@@ -62,7 +50,6 @@ const field_style: React.CSSProperties = {
   rowGap: 6,
   minWidth: 0,
 };
-
 const row_addr_style: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "auto 160px minmax(320px, 1fr) minmax(260px, 1fr)",
@@ -91,30 +78,90 @@ const submit_btn_style: React.CSSProperties = {
   fontWeight: 700,
   cursor: "pointer",
 };
+const cancel_btn_style: React.CSSProperties = {
+  height: 42,
+  padding: "0 14px",
+  borderRadius: ui_tok.radius,
+  border: `1px solid ${ui_tok.border}`,
+  background: "#fff",
+  color: ui_tok.text,
+  fontWeight: 700,
+  cursor: "pointer",
+  marginLeft: 8,
+};
 
-const VendorRegisterPageUI: React.FC<VendorRegisterFormUIProps> = (props) => {
-  const {
-    form_data,
-    on_change,
-    contact_email,
-    on_contact_email_change,
-    open_address_search,
-    detail_ref,
-    on_submit,
-  } = props;
+const VendorRegisterPage: React.FC = () => {
+  const navigate = useNavigate();
 
-  // 이메일 입력: 공백만 제거해서 전달 (로직 그대로)
-  const handle_contact_change = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\s/g, "");
-    on_contact_email_change({
-      ...e,
-      target: { ...e.target, value, name: "contact_email" },
-    } as any);
+  const [form_data, set_form_data] = useState<VendorFormViewState>({
+    name: "",
+    contact_name: "",
+    address_road: "",
+    address_detail: "",
+  });
+  const [contact_email, set_contact_email] = useState("");
+  const detail_ref = useRef<HTMLInputElement>(null);
+
+  // 다음 우편번호 스크립트 로드(선택)
+  useEffect(() => {
+    if ((window as any).daum?.Postcode) return;
+    const s = document.createElement("script");
+    s.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    s.async = true;
+    document.body.appendChild(s);
+  }, []);
+
+  const on_change: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    const { name, value } = e.target;
+    set_form_data((prev) => ({ ...prev, [name as keyof VendorFormViewState]: value }));
+  };
+  const on_contact_email_change: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    set_contact_email(e.target.value.replace(/\s/g, ""));
+  };
+
+  const open_address_search = () => {
+    const d: any = (window as any).daum;
+    if (d?.Postcode) {
+      new d.Postcode({
+        oncomplete: (data: any) => {
+          const road = data.roadAddress || "";
+          set_form_data((prev) => ({ ...prev, address_road: road }));
+          setTimeout(() => detail_ref.current?.focus(), 0);
+        },
+      }).open();
+    } else {
+      alert("주소 검색 로딩 중입니다. 잠시 후 다시 시도해 주세요.");
+    }
+  };
+
+  const on_submit: React.FormEventHandler = async (e) => {
+    e.preventDefault();
+    const res = await submitVendor({
+      name: form_data.name,
+      contact_name: form_data.contact_name,
+      contact_email,
+      address_road: form_data.address_road,
+      address_detail: form_data.address_detail,
+    });
+    if (res.ok) {
+      // 리스트 페이지가 듣는 이벤트는 submitVendor에서 이미 발생(vendor:created)
+      // 라우팅으로 열린 경우엔 뒤로가기 시도
+      window.dispatchEvent(new Event("vendor:register:cancel"));
+    }
+  };
+
+  const on_cancel_click = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // 리스트 페이지의 모달 닫기용 신호
+    window.dispatchEvent(new Event("vendor:register:cancel"));
+    // 라우팅으로 열렸다면 뒤로가기 시도(옵션)
+    if (window.history.length > 1) {
+      try { navigate(-1); } catch {}
+    }
   };
 
   return (
     <form onSubmit={on_submit} style={form_style}>
-      {/* 1줄: 거래처명 / 담당자명 / 담당자 이메일 */}
       <div style={row_top_style}>
         <div style={field_style}>
           <label style={label_style}>거래처명</label>
@@ -150,7 +197,7 @@ const VendorRegisterPageUI: React.FC<VendorRegisterFormUIProps> = (props) => {
             type="email"
             name="contact_email"
             value={contact_email}
-            onChange={handle_contact_change}
+            onChange={on_contact_email_change}
             inputMode="email"
             placeholder="예: ramen@company.com"
             autoComplete="email"
@@ -163,16 +210,10 @@ const VendorRegisterPageUI: React.FC<VendorRegisterFormUIProps> = (props) => {
         </div>
       </div>
 
-      {/* 2줄: 도로명 주소 라벨/버튼/입력/상세주소 */}
       <div style={row_addr_style}>
         <label style={label_style}>도로명 주소</label>
 
-        <button
-          type="button"
-          onClick={open_address_search}
-          style={small_btn_style}
-          title="도로명 주소 검색"
-        >
+        <button type="button" onClick={open_address_search} style={small_btn_style} title="도로명 주소 검색">
           도로명 주소 검색
         </button>
 
@@ -199,9 +240,11 @@ const VendorRegisterPageUI: React.FC<VendorRegisterFormUIProps> = (props) => {
         />
       </div>
 
-      <button type="submit" style={submit_btn_style}>등록</button>
+      <div>
+        <button type="submit" style={submit_btn_style}>등록</button>
+      </div>
     </form>
   );
 };
 
-export default VendorRegisterPageUI;
+export default VendorRegisterPage;

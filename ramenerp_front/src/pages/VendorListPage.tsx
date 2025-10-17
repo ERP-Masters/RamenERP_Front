@@ -1,5 +1,6 @@
 // src/pages/VendorListPage.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import VendorSummarySearch from "../components/VendorSummarySearch";
 import VendorSearchBar from "../components/VendorSearchBar";
 import {
@@ -12,14 +13,9 @@ import {
   deleteVendorById,
   type VendorDeleteTarget,
 } from "./VendorDeleteFunction";
-import VendorRegisterPageUI, {
-  type VendorFormViewState,
-} from "../components/VendorRegisterPageUI";
+// ✅ 추가: 모달로 띄울 등록 페이지 컴포넌트
+import VendorRegisterPage from "./VendorRegisterPage";
 
-// ✅ 추가: 등록 POST + 팝업 유틸
-import { submitVendor } from "./VendorRegisterCheck";
-
-/* ===== 타입 ===== */
 interface ApiVendor {
   vendor_id: number;
   name: string;
@@ -37,7 +33,6 @@ interface VendorRow {
   is_active?: boolean;
 }
 
-/* ===== UI 토큰 ===== */
 const ui_tok = {
   bg_page: "#f6f7f9",
   surface: "#ffffff",
@@ -54,7 +49,6 @@ const ui_tok = {
   primary_text: "#ffffff",
 } as const;
 
-/* ===== 레이아웃 스타일 ===== */
 const page_wrap_style: React.CSSProperties = {
   background: ui_tok.bg_page,
   minHeight: "100%",
@@ -86,7 +80,6 @@ const top_controls_style: React.CSSProperties = {
   justifyContent: "flex-start",
 };
 
-/* 버튼들 */
 const quick_btn_style: React.CSSProperties = {
   height: 35,
   padding: "0 12px",
@@ -110,7 +103,6 @@ const create_btn_style: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-/* 테이블 */
 const table_card_style: React.CSSProperties = {
   border: `1px solid ${ui_tok.border}`,
   borderRadius: ui_tok.radius,
@@ -150,7 +142,6 @@ const icon_bar_style: React.CSSProperties = { display: "inline-flex", alignItems
 const icon_btn_style: React.CSSProperties = { background: "transparent", border: "none", padding: 4, cursor: "pointer", lineHeight: 0 };
 const empty_cell_style = { textAlign: "center", padding: 24, color: ui_tok.label } as const;
 
-/* ===== 유틸 ===== */
 const to_vendor_row = (v: ApiVendor): VendorRow => ({
   vendor_id: v.vendor_id,
   name: v.name?.trim() ?? "",
@@ -160,76 +151,27 @@ const to_vendor_row = (v: ApiVendor): VendorRow => ({
   is_active: v.is_active ?? true,
 });
 
-/* ===== 컴포넌트 ===== */
 const VendorListPage: React.FC = () => {
+  const navigate = useNavigate();
+
   const [vendors, set_vendors] = useState<VendorRow[]>([]);
   const [is_loading, set_is_loading] = useState(false);
   const [error_message, set_error_message] = useState("");
 
-  // 검색바 입력값
   const [nameQuery, set_nameQuery] = useState("");
   const [managerQuery, set_managerQuery] = useState("");
-  // 실제 필터링용 값
   const [submitted, set_submitted] = useState<{ name: string; manager: string }>({ name: "", manager: "" });
 
   const [summaryOpen, set_summaryOpen] = useState(false);
 
-  // 수정/삭제 모달
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<VendorEditTarget | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<VendorDeleteTarget | null>(null);
 
-  /* ===== 신규 등록 모달 (UI만 추가) ===== */
+  // ✅ 추가: 등록 모달 열림 상태
   const [is_register_open, set_is_register_open] = useState(false);
-  const [form_data, set_form_data] = useState<VendorFormViewState>({
-    name: "",
-    contact_name: "",
-    address_road: "",
-    address_detail: "",
-  });
-  const [contact_email, set_contact_email] = useState("");
-  const detail_ref = useRef<HTMLInputElement>(null!); // 상세주소 포커스
 
-  const on_change: React.ChangeEventHandler<HTMLInputElement> = (e) => {
-    const { name, value } = e.target;
-    set_form_data((prev: any) => ({ ...prev, [name as keyof VendorFormViewState]: value }));
-  };
-  const on_contact_email_change: React.ChangeEventHandler<HTMLInputElement> = (e) => {
-    set_contact_email(e.target.value);
-  };
-  const open_address_search = () => {
-    // 주소 검색 UI 트리거(프로젝트 기존 흐름 유지)
-    window.dispatchEvent(new CustomEvent("address:open"));
-    setTimeout(() => detail_ref.current?.focus(), 0);
-  };
-
-  // ✅ 등록 버튼 클릭 시: 유틸을 사용해 POST + 팝업 + 목록갱신
-  const on_submit: React.FormEventHandler = async (e) => {
-    e.preventDefault();
-    await submitVendor(
-      {
-        name: form_data.name,
-        contact_name: form_data.contact_name,
-        contact_email,
-        address_road: form_data.address_road,
-        address_detail: form_data.address_detail,
-      },
-      {
-        onSuccess: () => {
-          // 모달 닫고 폼 리셋 (기존 흐름 보존 + 후처리만 추가)
-          set_is_register_open(false);
-          set_form_data({ name: "", contact_name: "", address_road: "", address_detail: "" });
-          set_contact_email("");
-        },
-        onError: () => {
-          // 추가적으로 할 게 있으면 여기에 (로깅 등)
-        },
-      }
-    );
-  };
-
-  /* ===== 데이터 로딩 & 이벤트 바인딩 ===== */
   useEffect(() => {
     const controller = new AbortController();
 
@@ -287,6 +229,18 @@ const VendorListPage: React.FC = () => {
     };
   }, []);
 
+  // ✅ 추가: 등록 성공/취소 시 모달 닫기
+  useEffect(() => {
+    const closeOnCreated = () => set_is_register_open(false);
+    const closeOnCancel = () => set_is_register_open(false);
+    window.addEventListener("vendor:created", closeOnCreated);
+    window.addEventListener("vendor:register:cancel", closeOnCancel);
+    return () => {
+      window.removeEventListener("vendor:created", closeOnCreated);
+      window.removeEventListener("vendor:register:cancel", closeOnCancel);
+    };
+  }, []);
+
   const filtered = useMemo(() => {
     const nq = (submitted.name || "").trim().toLowerCase();
     const mq = (submitted.manager || "").trim().toLowerCase();
@@ -301,7 +255,6 @@ const VendorListPage: React.FC = () => {
     });
   }, [vendors, submitted]);
 
-  // 수정/삭제
   const openEdit = (row: VendorRow) => {
     setEditTarget({ vendor_id: row.vendor_id, name: row.name, manager: row.manager, contact: row.contact, address: row.address });
     setEditOpen(true);
@@ -322,7 +275,6 @@ const VendorListPage: React.FC = () => {
   };
   const closeDelete = () => setDeleteOpen(false);
 
-  // 검색바 버튼
   const handle_search_click = () => set_submitted({ name: nameQuery, manager: managerQuery });
   const handle_reset_click = () => {
     set_nameQuery("");
@@ -332,49 +284,13 @@ const VendorListPage: React.FC = () => {
 
   const open_summary_modal = () => set_summaryOpen(true);
 
-  /* ===== 모달 스타일 (등록) ===== */
-  const overlay_style: React.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.35)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 9998,
-  };
-  const modal_style: React.CSSProperties = {
-    width: "min(720px, 94vw)",
-    maxHeight: "90vh",
-    overflowY: "auto",
-    background: "#fff",
-    border: `1px solid ${ui_tok.border}`,
-    borderRadius: 12,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-    padding: 16,
-  };
-  const topbar_style: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  };
-  const close_btn_style: React.CSSProperties = {
-    padding: "6px 10px",
-    borderRadius: 8,
-    border: `1px solid ${ui_tok.border}`,
-    background: "#fff",
-    cursor: "pointer",
-  };
-
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        {/* 상단: 제목 + 좌우 나뉜 컨트롤바 */}
         <div style={controls_block_style}>
           <div style={controls_title_style}>거래처 조회</div>
 
           <div style={top_row_style}>
-            {/* 왼쪽: 빠른 조회 + 검색바 */}
             <div style={top_controls_style}>
               <button type="button" style={quick_btn_style} onClick={open_summary_modal}>
                 거래처명 빠른 조회
@@ -390,7 +306,7 @@ const VendorListPage: React.FC = () => {
               />
             </div>
 
-            {/* 오른쪽: 신규 거래처 등록 버튼 */}
+            {/* ✅ 변경: 신규 거래처 등록 → 모달 오픈 */}
             <button
               type="button"
               style={create_btn_style}
@@ -404,7 +320,6 @@ const VendorListPage: React.FC = () => {
         {is_loading && <div style={{ margin: "8px 0", color: ui_tok.label }}>불러오는 중…</div>}
         {error_message && <div style={{ color: "#c62828", margin: "8px 0" }}>{error_message}</div>}
 
-        {/* 목록 */}
         <div style={table_card_style}>
           <div style={table_wrap_style}>
             <table style={table_style}>
@@ -476,7 +391,7 @@ const VendorListPage: React.FC = () => {
           </div>
         </div>
 
-        {/* (기존) 모달들 */}
+        {/* 기존 모달/요약/수정/삭제 로직은 그대로 유지 */}
         <VendorSummarySearch open={summaryOpen} onClose={() => set_summaryOpen(false)} />
         <VendorEditUi
           open={editOpen}
@@ -503,31 +418,52 @@ const VendorListPage: React.FC = () => {
               await deleteVendorById(deleteTarget.vendor_id);
               set_vendors((prev) => prev.filter((v) => v.vendor_id !== deleteTarget.vendor_id));
               alert("삭제가 완료되었습니다.");
-              closeDelete();
             } catch (e: any) {
               alert(e?.message || "삭제에 실패했습니다.");
             }
           }}
         />
 
-        {/* 신규 거래처 등록 모달 (UI만 추가, 기존 흐름 보존) */}
+        {/* ✅ 추가: 등록 모달 */}
         {is_register_open && (
-          <div style={overlay_style} onClick={() => set_is_register_open(false)}>
-            <div style={modal_style} onClick={(e) => e.stopPropagation()}>
-              <div style={topbar_style}>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.35)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9998,
+            }}
+            onClick={() => set_is_register_open(false)}
+          >
+            <div
+              style={{
+                width: "min(900px, 94vw)",
+                maxHeight: "90vh",
+                overflowY: "auto",
+                background: "#fff",
+                border: `1px solid ${ui_tok.border}`,
+                borderRadius: 12,
+                boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+                padding: 16,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>거래처 등록</h2>
-                <button type="button" style={close_btn_style} onClick={() => set_is_register_open(false)}>닫기</button>
+                <button
+                  type="button"
+                  style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${ui_tok.border}`, background: "#fff", cursor: "pointer" }}
+                  onClick={() => set_is_register_open(false)}
+                >
+                  닫기
+                </button>
               </div>
 
-              <VendorRegisterPageUI
-                form_data={form_data}
-                on_change={on_change}
-                contact_email={contact_email}
-                on_contact_email_change={on_contact_email_change}
-                open_address_search={open_address_search}
-                detail_ref={detail_ref}
-                on_submit={on_submit}
-              />
+              {/* 프롭스 없이 바로 사용 */}
+              <VendorRegisterPage />
             </div>
           </div>
         )}
