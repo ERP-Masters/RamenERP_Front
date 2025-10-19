@@ -9,11 +9,12 @@ import ItemListPage from "./pages/ItemListPage";
 // ✅ 유틸을 써야 할 때만 (경로: utils)
 import VendorRegisterPage from "./pages/VendorRegisterPage";
 import CategoryRegisterPage from "./pages/CategoryRegisterPage";
-import CategoryRegisterCheck from "./pages/CategoryRegisterCheck";
+import CategoryListPanel from "./components/CategoryListPanel";
 import UnitRegisterPage from "./pages/UnitRegisterPage";
-import UnitRegisterCheck from "./pages/UnitRegisterCheck";
+import UnitListPanel from "./components/UnitListPanel";
 import VendorListPage from "./pages/VendorListPage";
-import WareHouseRegister from "./pages/WarehouseRegister";
+import WarehouseRegister from "./pages/WarehouseRegister";
+import WarehouseListPanel from "./components/WarehouseListPanel";
 
 const App: React.FC = () => {
   return (
@@ -32,12 +33,13 @@ const App: React.FC = () => {
         <Route path="vendor/list" element={<VendorListPage />} />
 
         <Route path="category/register" element={<CategoryRegisterPage />} />
-        <Route path="category/register/check" element={<CategoryRegisterCheck />} />
+        <Route path="category/list" element={<CategoryListPanel />} />
 
         <Route path="unit/register" element={<UnitRegisterPage />} />
-        <Route path="unit/register/check" element={<UnitRegisterCheck />} />
+        <Route path="unit/list/" element={<UnitListPanel />} />
 
-        <Route path="warehouse/register" element={<WareHouseRegister />} />
+        <Route path="warehouse/register" element={<WarehouseRegister />} />
+        <Route path="warehouse/list" element={<WarehouseListPanel />} />
 
         {/* 404 → /product (선택) */}
         <Route path="*" element={<Navigate to="/product" replace />} />

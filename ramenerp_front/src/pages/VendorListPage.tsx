@@ -103,12 +103,18 @@ const create_btn_style: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+// ⬇️⬇️⬇️ 여기만 UI 수정 (높이 고정 + 내부 스크롤)
 const table_card_style: React.CSSProperties = {
   border: `1px solid ${ui_tok.border}`,
   borderRadius: ui_tok.radius,
   background: ui_tok.surface,
-  overflow: "hidden",
+  // 원래 overflow: "hidden"이었음 → X축만 숨기고 Y축은 스크롤
+  overflowX: "hidden",
+  overflowY: "auto",
+  maxHeight: "60vh", // 카드 높이 고정(필요시 50~70vh로 조절 가능)
 };
+// ⬆️⬆️⬆️ UI 수정 끝
+
 const table_wrap_style = { overflowX: "auto" } as const;
 const table_style = { width: "100%", borderCollapse: "separate" as const, borderSpacing: 0 } as const;
 
