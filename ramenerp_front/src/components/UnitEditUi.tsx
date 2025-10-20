@@ -14,10 +14,11 @@ type Props = {
   onSubmit: (data: UnitEditTarget) => void | Promise<void>;
 };
 
+/* ===== CategoryEditPage와 동일한 톤으로 UI만 정렬 ===== */
 const overlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.4)",
+  background: "rgba(0,0,0,0.35)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -29,32 +30,34 @@ const modalStyle: React.CSSProperties = {
   maxWidth: "90vw",
   background: "#fff",
   borderRadius: 10,
-  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+  boxShadow: "0 12px 32px rgba(0,0,0,.25)",
   padding: 16,
+  boxSizing: "border-box",
 };
 
 const headerStyle: React.CSSProperties = {
   fontWeight: 700,
   fontSize: 16,
-  marginBottom: 10,
+  marginBottom: 12,
 };
 
-const rowStyle: React.CSSProperties = {
-  marginBottom: 10,
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
+/* 필드 한 세트(라벨 윗줄 + 컨트롤 아랫줄) */
+const fieldWrap: React.CSSProperties = {
+  display: "grid",
+  gridTemplateRows: "auto auto",
+  rowGap: 6,
+  marginBottom: 12,
 };
-
-const labelStyle: React.CSSProperties = { width: 70, textAlign: "right" };
-const inputStyle: React.CSSProperties = { flex: 1, padding: "6px 8px" };
+const labelBlock: React.CSSProperties = { fontWeight: 600, whiteSpace: "nowrap" };
+const controlBlock: React.CSSProperties = { width: "100%", padding: "6px 8px", boxSizing: "border-box" };
 
 const footerStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-end",
   gap: 8,
-  marginTop: 8,
+  marginTop: 6,
 };
+/* ===================================================== */
 
 const UnitEditUI: React.FC<Props> = ({ open, target, onClose, onSubmit }) => {
   const [code, setCode] = useState("");
@@ -89,15 +92,12 @@ const UnitEditUI: React.FC<Props> = ({ open, target, onClose, onSubmit }) => {
       <div style={modalStyle}>
         <div style={headerStyle}>단위 수정</div>
 
-        <div style={rowStyle}>
-          <span style={labelStyle}>Unit_ID</span>
-          <input style={{ ...inputStyle, background: "#f3f4f6" }} value={target.unit_id} readOnly />
-        </div>
+        {/* Unit_ID 표시는 숨김(오토 인크리먼트/읽기 전용) */}
 
-        <div style={rowStyle}>
-          <span style={labelStyle}>code</span>
+        <div style={fieldWrap}>
+          <label style={labelBlock}>code</label>
           <input
-            style={inputStyle}
+            style={controlBlock}
             value={code}
             onChange={(e) => setCode(e.target.value)}
             onKeyDown={onKeyDown}
@@ -105,10 +105,10 @@ const UnitEditUI: React.FC<Props> = ({ open, target, onClose, onSubmit }) => {
           />
         </div>
 
-        <div style={rowStyle}>
-          <span style={labelStyle}>name</span>
+        <div style={fieldWrap}>
+          <label style={labelBlock}>name</label>
           <input
-            style={inputStyle}
+            style={controlBlock}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={onKeyDown}
@@ -127,7 +127,7 @@ const UnitEditUI: React.FC<Props> = ({ open, target, onClose, onSubmit }) => {
           <button
             type="button"
             onClick={doSubmit}
-            style={{ padding: "6px 10px", borderRadius: 6, background: "#2563eb", color: "#fff" }}
+            style={{ padding: "6px 10px", borderRadius: 6, background: "#111827", color: "#fff" }}
           >
             저장
           </button>

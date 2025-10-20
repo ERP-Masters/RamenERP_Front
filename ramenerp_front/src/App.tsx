@@ -15,6 +15,8 @@ import UnitListPanel from "./components/UnitListPanel";
 import VendorListPage from "./pages/VendorListPage";
 import WarehouseRegister from "./pages/WarehouseRegister";
 import WarehouseListPanel from "./components/WarehouseListPanel";
+import BranchListPage from "./pages/BranchListPage";
+import BranchRegisterPage from "./pages/BranchRegisterPage";
 
 const App: React.FC = () => {
   return (
@@ -40,6 +42,10 @@ const App: React.FC = () => {
 
         <Route path="warehouse/register" element={<WarehouseRegister />} />
         <Route path="warehouse/list" element={<WarehouseListPanel />} />
+
+        <Route path="branch/register" element={<BranchRegisterPage />} />
+        <Route path="branch/list" element={<BranchListPage />} />
+
 
         {/* 404 → /product (선택) */}
         <Route path="*" element={<Navigate to="/product" replace />} />

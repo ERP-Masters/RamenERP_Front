@@ -8,11 +8,11 @@ import {
   putVendor,
   type VendorEditTarget,
 } from "./VendorEditFunction";
-import {
-  VendorDeleteUi,
-  deleteVendorById,
-  type VendorDeleteTarget,
-} from "./VendorDeleteFunction";
+
+// ✅ 변경: 기능은 여기서, UI는 컴포넌트에서
+import { deleteVendorById, type VendorDeleteTarget } from "./VendorDeleteFunction";
+import VendorNotUsedUi from "../components/VendorNotUsedUi";
+
 // ✅ 추가: 모달로 띄울 등록 페이지 컴포넌트
 import VendorRegisterPage from "./VendorRegisterPage";
 
@@ -108,10 +108,9 @@ const table_card_style: React.CSSProperties = {
   border: `1px solid ${ui_tok.border}`,
   borderRadius: ui_tok.radius,
   background: ui_tok.surface,
-  // 원래 overflow: "hidden"이었음 → X축만 숨기고 Y축은 스크롤
   overflowX: "hidden",
   overflowY: "auto",
-  maxHeight: "60vh", // 카드 높이 고정(필요시 50~70vh로 조절 가능)
+  maxHeight: "60vh",
 };
 // ⬆️⬆️⬆️ UI 수정 끝
 
@@ -414,7 +413,9 @@ const VendorListPage: React.FC = () => {
             }
           }}
         />
-        <VendorDeleteUi
+
+        {/* ✅ 변경: 삭제 UI 컴포넌트 교체 */}
+        <VendorNotUsedUi
           open={deleteOpen}
           target={deleteTarget}
           onClose={closeDelete}

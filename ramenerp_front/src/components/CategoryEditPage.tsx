@@ -33,6 +33,7 @@ const GROUP_OPTIONS = [
   "BROTH_SOUP",
 ] as const;
 
+/* ===== (UI만 통일) ===== */
 const overlay_style: React.CSSProperties = {
   position: "fixed",
   inset: 0,
@@ -44,20 +45,39 @@ const overlay_style: React.CSSProperties = {
 };
 
 const modal_style: React.CSSProperties = {
-  width: 360,
+  width: 420,
   background: "#fff",
-  borderRadius: 8,
-  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+  borderRadius: 10,
+  boxShadow: "0 12px 32px rgba(0,0,0,.25)",
   padding: 16,
   boxSizing: "border-box",
 };
 
-const row_style: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  marginBottom: 10,
+const field_wrap: React.CSSProperties = {
+  display: "grid",
+  gridTemplateRows: "auto auto",
+  rowGap: 6,
+  marginBottom: 12,
 };
+
+const label_block: React.CSSProperties = {
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+};
+
+const control_block: React.CSSProperties = {
+  width: "100%",
+  padding: "6px 8px",
+  boxSizing: "border-box",
+};
+
+const actions_row: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  justifyContent: "flex-end",
+  marginTop: 6,
+};
+/* ======================= */
 
 const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) => {
   const [group, set_group] = useState<string>("");
@@ -75,7 +95,7 @@ const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) =
 
   if (!open || !target) return null;
 
-  // ⬇️ 버튼 기반 저장 (부모 폼과 충돌 방지)
+  // 저장 로직(그대로 유지)
   const handle_save = async () => {
     if (!group || !category_name.trim()) {
       set_error("그룹/카테고리명을 확인해주세요.");
@@ -87,13 +107,13 @@ const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) =
       set_error("");
 
       const res = await fetch(`/api/category/${target.category_id}`, {
-  method: "PUT",
-  headers: { "Content-Type": "application/json", Accept: "application/json" },
-  body: JSON.stringify({
-    group,
-    category_name: category_name.trim(),
-  }),
-});
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          group,
+          category_name: category_name.trim(),
+        }),
+      });
 
       const raw = await res.text();
       if (!res.ok) {
@@ -105,7 +125,6 @@ const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) =
         throw new Error(msg);
       }
 
-      // 응답이 비어있어도 안전 합성
       const updated: ApiCategory =
         raw ? JSON.parse(raw) : { category_id: target.category_id, group, category_name: category_name.trim() };
 
@@ -118,10 +137,10 @@ const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) =
     }
   };
 
-  // Enter로도 저장하고 싶으면 인풋에 onKeyDown 추가 (옵션)
+  // Enter 시 저장 (그대로 유지)
   const on_input_keydown: React.KeyboardEventHandler<HTMLInputElement | HTMLSelectElement> = (e) => {
     if (e.key === "Enter") {
-      e.preventDefault(); // 부모 폼으로 올라가지 않게
+      e.preventDefault();
       e.stopPropagation();
       handle_save();
     }
@@ -130,54 +149,59 @@ const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) =
   return (
     <div style={overlay_style} onClick={onClose}>
       <div style={modal_style} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ margin: "0 0 10px 0" }}>카테고리 수정</h3>
+        <h3 style={{ margin: "0 0 12px 0" }}>카테고리 수정</h3>
 
-        {/* ⬇️ 폼 대신 일반 div */}
-        <div>
-          <div style={row_style}>
-            <label style={{ width: 90 }}>category_id</label>
-            <div>{target.category_id}</div>
-          </div>
+        {/* ⬇️ category_id 표시는 제거하고 세로 스택형 배치 */}
+        <div style={field_wrap}>
+          <label style={label_block}>group</label>
+          <select
+            value={group}
+            onChange={(e) => set_group(e.target.value)}
+            onKeyDown={on_input_keydown}
+            style={control_block}
+          >
+            <option value="">선택</option>
+            {GROUP_OPTIONS.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          <div style={row_style}>
-            <label style={{ width: 90 }}>group</label>
-            <select
-              value={group}
-              onChange={(e) => set_group(e.target.value)}
-              onKeyDown={on_input_keydown}
-              style={{ flex: 1 }}
-            >
-              <option value="">선택</option>
-              {GROUP_OPTIONS.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div style={field_wrap}>
+          <label style={label_block}>category_name</label>
+          <input
+            type="text"
+            value={category_name}
+            onChange={(e) => set_category_name(e.target.value)}
+            onKeyDown={on_input_keydown}
+            style={control_block}
+            placeholder="예) 우삼겹"
+          />
+        </div>
 
-          <div style={row_style}>
-            <label style={{ width: 90 }}>category_name</label>
-            <input
-              type="text"
-              value={category_name}
-              onChange={(e) => set_category_name(e.target.value)}
-              onKeyDown={on_input_keydown}
-              style={{ flex: 1 }}
-              placeholder="예) 우삼겹"
-            />
-          </div>
+        {error && <div style={{ color: "crimson", fontSize: 12, marginBottom: 8 }}>{error}</div>}
 
-          {error && <div style={{ color: "crimson", fontSize: 12, marginBottom: 8 }}>{error}</div>}
-
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button type="button" onClick={onClose} disabled={submitting}>
-              취소
-            </button>
-            <button type="button" onClick={handle_save} disabled={submitting}>
-              {submitting ? "저장 중…" : "저장"}
-            </button>
-          </div>
+        <div style={actions_row}>
+          <button type="button" onClick={onClose} disabled={submitting}>
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={handle_save}
+            disabled={submitting}
+            style={{
+              background: "#111827",
+              color: "#fff",
+              border: "none",
+              padding: "6px 12px",
+              borderRadius: 6,
+              opacity: submitting ? 0.7 : 1,
+            }}
+          >
+            {submitting ? "저장 중…" : "저장"}
+          </button>
         </div>
       </div>
     </div>

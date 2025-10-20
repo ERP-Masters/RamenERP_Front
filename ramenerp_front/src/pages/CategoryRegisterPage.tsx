@@ -70,16 +70,7 @@ const submit_btn_style: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const helper_row_style: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  marginTop: 4,
-  fontSize: 12,
-};
-const byte_text_style: React.CSSProperties = { color: ui_tok.label };
-const byte_text_over_style: React.CSSProperties = { color: ui_tok.danger, fontWeight: 700 };
-
+// ▶ 바이트 길이 계산 유틸 (검증용으로만 사용)
 const byteLen = (s: string) => new TextEncoder().encode(s).length;
 
 const CategoryRegisterPage: React.FC = () => {
@@ -87,8 +78,8 @@ const CategoryRegisterPage: React.FC = () => {
   const [category_name, set_category_name] = useState<string>("");
   const [is_submitting, set_is_submitting] = useState(false);
 
-  const nameBytes = useMemo(() => byteLen(category_name), [category_name]);
-  const nameTooLong = nameBytes > NAME_MAX_BYTES;
+  // ▶ 숫자 표시 없이 내부적으로만 초과 여부 계산
+  const nameTooLong = useMemo(() => byteLen(category_name) > NAME_MAX_BYTES, [category_name]);
 
   const handle_submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +91,7 @@ const CategoryRegisterPage: React.FC = () => {
       return;
     }
     if (byteLen(trimmed) > NAME_MAX_BYTES) {
-      alert(`카테고리명은 최대 ${NAME_MAX_BYTES}바이트까지 입력 가능합니다.\n(현재: ${byteLen(trimmed)}바이트)`);
+      alert(`카테고리명은 최대 ${NAME_MAX_BYTES}바이트까지 입력 가능합니다.`);
       return;
     }
 
@@ -132,11 +123,9 @@ const CategoryRegisterPage: React.FC = () => {
       alert("등록이 완료되었습니다.");
       set_category_name("");
 
-      // ✅ 리스트 패널이 듣는 이벤트만 발행(모달 닫기 + 목록 새로고침)
+      // 목록 새로고침 + 모달 닫기 (메인 화면 유지)
       window.dispatchEvent(new Event("category:created"));
       window.dispatchEvent(new Event("category:register:cancel"));
-
-      // ❌ 라우팅/뒤로가기 호출 없음 (메인 화면 유지)
     } catch (e: any) {
       alert(`등록에 실패하였습니다. ${e?.message || ""}`);
     } finally {
@@ -173,12 +162,6 @@ const CategoryRegisterPage: React.FC = () => {
             }}
             required
           />
-          <div style={helper_row_style}>
-            <span style={nameTooLong ? byte_text_over_style : byte_text_style}>
-              바이트: {nameBytes} / {NAME_MAX_BYTES}
-            </span>
-            {nameTooLong && <span style={byte_text_over_style}>최대 바이트를 초과했습니다.</span>}
-          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center" }}>
