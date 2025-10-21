@@ -13,6 +13,7 @@ import CategoryListPanel from "./components/CategoryListPanel";
 import UnitRegisterPage from "./pages/UnitRegisterPage";
 import UnitListPanel from "./components/UnitListPanel";
 import VendorListPage from "./pages/VendorListPage";
+import VendorOrderListPage from "@/pages/VendorOrderListPage";
 import WarehouseRegister from "./pages/WarehouseRegister";
 import WarehouseListPanel from "./components/WarehouseListPanel";
 import BranchListPage from "./pages/BranchListPage";
@@ -33,6 +34,8 @@ const App: React.FC = () => {
         {/* 등록/체크 페이지 라우트 */}
         <Route path="vendor/register" element={<VendorRegisterPage />} />
         <Route path="vendor/list" element={<VendorListPage />} />
+        <Route path="/vendor-orders" element={<VendorOrderListPage />} />
+
 
         <Route path="category/register" element={<CategoryRegisterPage />} />
         <Route path="category/list" element={<CategoryListPanel />} />

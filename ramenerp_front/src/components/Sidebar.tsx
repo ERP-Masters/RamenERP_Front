@@ -154,7 +154,9 @@ const Sidebar: React.FC<SidebarProps> = ({ is_open, set_is_open, mode = "overlay
           }}
         >
           {group.children.map((item) => {
-            const is_active = pathname === item.path;
+            // src/components/Sidebar.tsx (render_group 내부)
+            const is_active = pathname === item.path || pathname.startsWith(item.path + "/");
+            ;
             return (
               <NavLink
                 key={item.id}
