@@ -1,7 +1,11 @@
 // src/pages/CategoryRegisterCheck.tsx
 import React, { useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import type { CategoryData } from "./CategoryRegisterPage";
+
+type CategoryData = {
+  major_category: string;
+  category_name: string;
+};
 
 const CategoryRegisterCheck: React.FC = () => {
   const navigate_fn = useNavigate();
