@@ -1,5 +1,8 @@
+// src/pages/ItemListPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import ItemRegisterForm from "./ItemRegisterForm";
+
+export type UseStateEnum = "USED" | "NOTUSED";
 
 export interface ProductRow {
   id?: number;
@@ -14,6 +17,7 @@ export interface ProductRow {
   vendor_id?: string;
   vendor_name?: string;
   is_active?: boolean;
+  isused?: UseStateEnum;            // ✅ 상태 필드 추가
   /** 남은일수 (오늘 기준, 음수면 만료 지남) */
   days_left?: number | null;
 }
@@ -70,6 +74,20 @@ function format_date_to_yyyy_mm_dd(iso?: string) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/** 문자열/불리언/숫자 → "USED"|"NOTUSED" 로 정규화 */
+function normalize_use_state(v: any): UseStateEnum | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v === "string") {
+    const s = v.toUpperCase();
+    if (s === "USED" || s === "NOTUSED") return s;
+    if (s === "TRUE" || s === "1") return "USED";
+    if (s === "FALSE" || s === "0") return "NOTUSED";
+  }
+  if (typeof v === "boolean") return v ? "USED" : "NOTUSED";
+  if (typeof v === "number") return v ? "USED" : "NOTUSED";
+  return undefined;
+}
+
 /** 서버 아이템 → 화면용 정규화 */
 function normalize_item(raw: any): ProductRow {
   const id = raw.id ?? raw.item_pk ?? undefined;
@@ -82,6 +100,7 @@ function normalize_item(raw: any): ProductRow {
   const category_name_guess = raw.category_name ?? raw.category?.name ?? raw.category?.category_name;
   const vendor_name_guess = raw.vendor_name ?? raw.vendor?.name ?? raw.vendor?.vendor_name;
   const unit_name_guess = raw.unit_name ?? raw.unit?.name ?? raw.unit?.unit_name ?? raw.unit?.code;
+  const isused = normalize_use_state(raw.isused ?? raw.is_used ?? raw.used ?? raw.is_active);
 
   return {
     id,
@@ -96,6 +115,7 @@ function normalize_item(raw: any): ProductRow {
     vendor_id: vendor_id_num !== undefined ? String(vendor_id_num) : undefined,
     vendor_name: vendor_name_guess,
     is_active: typeof raw.is_active === "boolean" ? raw.is_active : undefined,
+    isused,
   };
 }
 
@@ -171,7 +191,6 @@ function render_days_left_text(
   days: number | null | undefined,
   warn_days: number
 ): React.ReactNode {
-
   if (days === null || days === undefined) return <span>-</span>;
   if (days < 0) return <span style={{ color: "#555", fontWeight: 700 }}>D+{Math.abs(days)}</span>;
   if (days <= warn_days) return <span style={{ color: ui_tok.danger_text, fontWeight: 800 }}>D-{days}</span>;
@@ -206,6 +225,7 @@ const ItemListPage: React.FC<ItemListPageProps> = ({ hide_title = false }) => {
   const [selected_category_id, set_selected_category_id] = useState<string>("");
   const [selected_vendor_id, set_selected_vendor_id] = useState<string>("");
   const [expiring_days, set_expiring_days] = useState<string>("");
+  const [selected_use_state, set_selected_use_state] = useState<"" | UseStateEnum>(""); // ✅ 상태 필터
 
   const [category_options, set_category_options] = useState<Array<{ id: string; name: string }>>([]);
   const [vendor_options, set_vendor_options] = useState<Array<{ id: string; name: string }>>([]);
@@ -217,7 +237,6 @@ const ItemListPage: React.FC<ItemListPageProps> = ({ hide_title = false }) => {
     return m;
   }, [unit_options]);
 
-  const [is_deleting_id, set_is_deleting_id] = useState<string | null>(null);
   const [editing_id, set_editing_id] = useState<string | null>(null);
   const [is_saving, set_is_saving] = useState<boolean>(false);
   const [draft_row, set_draft_row] = useState<DraftRow>({});
@@ -327,35 +346,25 @@ const ItemListPage: React.FC<ItemListPageProps> = ({ hide_title = false }) => {
     return () => controller.abort();
   }, [selected_category_id, selected_vendor_id, expiring_days, reload_key]);
 
-  // ItemListPage.tsx
-const visible_products = useMemo(() => {
-  const n = Number(expiring_days);
-  if (!Number.isFinite(n) || n <= 0) return products;
-  return products.filter((p) => {
-    const dl = p.days_left ?? calc_days_left(p.expiry_date);
-    // D≤n: 만료(음수) 포함해서 n일 이하만 노출
-    return dl !== null && dl <= n;
-  });
-}, [products, expiring_days]);
+  /** 상태/유통기한 필터 반영한 표시용 목록 */
+  const visible_products = useMemo(() => {
+    let list = products;
 
-
-  const handle_delete = async (item_id: string) => {
-    if (!item_id) return;
-    const is_ok = window.confirm(`품목(ID: ${item_id})을 삭제할까요?`);
-    if (!is_ok) return;
-
-    set_is_deleting_id(item_id);
-    try {
-      const res = await fetch(`/api/items/${encodeURIComponent(item_id)}`, { method: "DELETE", headers: { Accept: "application/json" } });
-      if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`삭제 실패 (HTTP ${res.status}) ${text}`); }
-      set_products((prev) => prev.filter((p) => p.item_id !== item_id));
-      if (editing_id === item_id) { set_editing_id(null); set_draft_row({}); }
-    } catch (e: any) {
-      alert(e?.message || "삭제 중 오류가 발생했습니다.");
-    } finally {
-      set_is_deleting_id(null);
+    // 사용/미사용 필터
+    if (selected_use_state) {
+      list = list.filter((p) => (p.isused ?? "USED") === selected_use_state);
     }
-  };
+
+    // 유통기한 필터
+    const n = Number(expiring_days);
+    if (Number.isFinite(n) && n > 0) {
+      list = list.filter((p) => {
+        const dl = p.days_left ?? calc_days_left(p.expiry_date);
+        return dl !== null && dl <= n;
+      });
+    }
+    return list;
+  }, [products, selected_use_state, expiring_days]);
 
   const start_edit = (row: ProductRow) => {
     const unit_code = row.unit_id ? unit_code_by_id.get(row.unit_id) ?? "" : "";
@@ -382,6 +391,7 @@ const visible_products = useMemo(() => {
       unit_price: typeof draft_row.unit_price === "number" ? draft_row.unit_price : Number(draft_row.unit_price ?? 0),
       expiry_date: draft_row.expiry_date || null,
       vendor_id: draft_row.vendor_id ? Number(draft_row.vendor_id) : undefined,
+      // isused는 일반 수정에서 그대로 둠
     };
 
     set_is_saving(true);
@@ -408,18 +418,44 @@ const visible_products = useMemo(() => {
           const ven = vendor_options.find((o) => o.id === (next.vendor_id ?? ""));
           next.category_name = cat?.name ?? p.category_name;
           next.vendor_name = ven?.name ?? p.vendor_name;
-          // 남은일수 재계산
           next.days_left = calc_days_left(next.expiry_date);
           return next;
         })
       );
 
       set_editing_id(null);
-      set_draft_row({});
+      set_draft_row({ });
     } catch (e: any) {
       alert(e?.message || "수정 중 오류가 발생했습니다.");
     } finally {
       set_is_saving(false);
+    }
+  };
+
+  /** ✅ 미사용 처리 */
+  const handle_mark_unused = async (item_id: string) => {
+    if (!item_id) return;
+    const is_ok = window.confirm(`품목(ID: ${item_id})을 '미사용'으로 변경할까요?`);
+    if (!is_ok) return;
+
+    try {
+      const res = await fetch(`/api/items/${encodeURIComponent(item_id)}`, {
+        method: "PUT",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ isused: "NOTUSED" }), // 백엔드 DTO에 맞춰 전송
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`미사용 처리 실패 (HTTP ${res.status}) ${text}`);
+      }
+      await res.json().catch(() => null);
+
+      // 상태만 갱신 (필터가 '미사용'이면 이 리스트로 자연스럽게 보임)
+      set_products((prev) =>
+        prev.map((p) => (p.item_id === item_id ? { ...p, isused: "NOTUSED" } : p))
+      );
+    } catch (e: any) {
+      alert(e?.message || "미사용 처리 중 오류가 발생했습니다.");
     }
   };
 
@@ -449,13 +485,26 @@ const visible_products = useMemo(() => {
         </label>
 
         <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: ui_tok.text_muted }}>사용상태</span>
+          <select
+            value={selected_use_state}
+            onChange={(e) => set_selected_use_state(e.target.value as UseStateEnum | "")}
+            style={control_select_style}
+          >
+            <option value="">전체</option>
+            <option value="USED">사용</option>
+            <option value="NOTUSED">미사용</option> {/* ← 이걸 고르면 '미사용 품목 리스트' */}
+          </select>
+        </label>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ color: ui_tok.text_muted }}>유통기한 ≤ (일)</span>
           <input type="number" min={1} placeholder="예: 7" value={expiring_days} onChange={(e) => set_expiring_days(e.target.value)} style={control_input_style} />
         </label>
 
-        {(selected_category_id || selected_vendor_id || expiring_days) && (
+        {(selected_category_id || selected_vendor_id || expiring_days || selected_use_state) && (
           <button
-            onClick={() => { set_selected_category_id(""); set_selected_vendor_id(""); set_expiring_days(""); }}
+            onClick={() => { set_selected_category_id(""); set_selected_vendor_id(""); set_expiring_days(""); set_selected_use_state(""); }}
             style={clear_btn_style}
           >
             필터 초기화
@@ -463,7 +512,7 @@ const visible_products = useMemo(() => {
         )}
       </div>
 
-      {/* 메인 테이블: 유통기한 옆 새 열 '남은일수' 추가 */}
+      {/* 메인 테이블 */}
       {is_loading && <div style={{ color: ui_tok.text_muted, marginBottom: 8 }}>불러오는 중…</div>}
       {error_message && <div style={{ color: "#c62828", marginBottom: 8 }}>{error_message}</div>}
 
@@ -478,7 +527,7 @@ const visible_products = useMemo(() => {
               <th style={th_style}>단위</th>
               <th style={th_style}>단가(원)</th>
               <th style={th_style}>유통기한</th>
-              <th style={th_style}>남은일수</th> {/* ✔ 새 컬럼 */}
+              <th style={th_style}>남은일수</th>
               <th style={th_style}>거래처명</th>
               <th style={{ ...th_style, textAlign: "right" as const }}>관리</th>
             </tr>
@@ -489,12 +538,16 @@ const visible_products = useMemo(() => {
               const row_bg: React.CSSProperties | undefined = idx % 2 === 1 ? { background: ui_tok.zebra } : undefined;
 
               if (!is_edit_row) {
+                const is_unused = (p.isused ?? "USED") === "NOTUSED";
                 return (
                   <tr key={p.id ?? p.item_id} style={row_bg}>
                     <td style={td_style}>{p.item_id}</td>
                     <td style={td_style}>{p.category_id}</td>
                     <td style={td_style}>{p.category_name ?? ""}</td>
-                    <td style={td_style}>{p.name}</td>
+                    <td style={td_style}>
+                      {p.name}
+                      {is_unused && <span style={{ marginLeft: 6, fontSize: 12, color: ui_tok.text_muted }}>(미사용)</span>}
+                    </td>
                     <td style={td_style}>{(p.unit_id && unit_code_by_id.get(p.unit_id)) ?? p.unit_name ?? p.unit_id}</td>
                     <td style={td_style}>{format_currency(p.unit_price)}</td>
                     <td style={td_style}>{p.expiry_date ?? ""}</td>
@@ -503,16 +556,25 @@ const visible_products = useMemo(() => {
                     </td>
                     <td style={td_style}>{p.vendor_name ?? ""}</td>
                     <td style={td_right_style}>
-                      <button onClick={() => start_edit(p)} disabled={Boolean(is_deleting_id)} style={{ ...action_btn_style, marginRight: 6 }} title="수정">수정</button>
-                      <button onClick={() => handle_delete(p.item_id)} disabled={is_deleting_id === p.item_id} style={action_btn_style} title="삭제">
-                        {is_deleting_id === p.item_id ? "삭제 중..." : "삭제"}
+                      <button onClick={() => start_edit(p)} style={{ ...action_btn_style, marginRight: 6 }} title="수정" disabled={is_unused}>
+                        수정
                       </button>
+                      {/* ❌ 삭제 버튼 제거, ✅ 미사용 버튼 추가 (USED일 때만 노출) */}
+                      {!is_unused && (
+                        <button
+                          onClick={() => void handle_mark_unused(p.item_id)}
+                          style={{ ...action_btn_style }}
+                          title="미사용 처리"
+                        >
+                          미사용
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
               }
 
-              // 편집행: 날짜 입력 변경 시 오른쪽 남은일수 즉시 반영
+              // 편집행
               const draft_days_left = calc_days_left(String(draft_row.expiry_date ?? ""));
               return (
                 <tr key={p.id ?? p.item_id} style={row_bg}>
@@ -561,7 +623,7 @@ const visible_products = useMemo(() => {
             })}
 
             {visible_products.length === 0 && !is_loading && !error_message && (
-              <tr><td colSpan={10} style={{ textAlign: "center", padding: 18, color: ui_tok.text_muted }}>등록된 품목이 없습니다.</td></tr>
+              <tr><td colSpan={10} style={{ textAlign: "center", padding: 18, color: ui_tok.text_muted }}>해당 조건의 품목이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
@@ -587,10 +649,10 @@ const visible_products = useMemo(() => {
               <button
                 type="button"
                 onClick={() => set_is_register_open(false)}
-                style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${ui_tok.border}`, background: "#fff", cursor: "pointer" }}
-                title="닫기"
+                style={{ borderRadius: 8, border: `1px solid ${ui_tok.border}`, background: "#fff", cursor: "pointer", padding: "6px 10px" }}
+                aria-label="close"
               >
-                닫기
+                ×
               </button>
             </div>
             <ItemRegisterForm
@@ -600,6 +662,7 @@ const visible_products = useMemo(() => {
               }}
               on_cancel={() => set_is_register_open(false)}
             />
+
           </div>
         </div>
       )}

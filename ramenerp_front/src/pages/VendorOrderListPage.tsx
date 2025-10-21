@@ -1,211 +1,255 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  fetch_vendor_order_list,
-  fetch_vendor_order_by_vendor,
-  fetch_vendor_order_by_status,
-} from "@/api/vendor_orders";
-import type { VendorOrder } from "@/types/vendor_order";
+// src/pages/VendorOrderListPage.tsx
+import React from "react";
+import VendorOrderCreateForm from "@/pages/VendorOrderCreateForm";
 
-const container_style: React.CSSProperties = { padding: 24 };
-const toolbar_style: React.CSSProperties = {
-  display: "flex", alignItems: "center", gap: 12, marginBottom: 14,
-};
-const btn_style: React.CSSProperties = {
-  padding: "8px 12px", border: "1px solid #d0d7de", borderRadius: 8, background: "#fff", cursor: "pointer",
-};
-const btn_primary_style: React.CSSProperties = {
-  ...btn_style, background: "#1976d2", color: "#fff", borderColor: "#1976d2",
-};
-const input_style: React.CSSProperties = {
-  width: 260, padding: "8px 10px", border: "1px solid #d0d7de", borderRadius: 8, background: "#fff",
-};
-const select_style = input_style;
+/* ===== 타입 ===== */
+type OrderStatus =
+  | "PENDING"
+  | "SUBMITTED"
+  | "APPROVED"
+  | "PARTIALLY_RECEIVED"
+  | "RECEIVED"
+  | "CANCELED"
+  | (string & {});
 
-const panel_style: React.CSSProperties = {
-  border: "1px solid #e6e6e6", borderRadius: 12, background: "#fff",
+type VendorOrderRow = {
+  id?: number;
+  vendor_order_id: string;
+  vendor_id: number;
+  item_id: string;
+  quantity: number;
+  status: OrderStatus;
+  created_at?: string;
 };
-const table_style: React.CSSProperties = {
-  width: "100%", borderCollapse: "collapse",
-};
-const th_style: React.CSSProperties = {
-  textAlign: "left", padding: "12px", borderBottom: "1px solid #eee", color: "#4b5563",
-  fontWeight: 600, background: "#fafafa",
-};
-const td_style: React.CSSProperties = { padding: "12px", borderBottom: "1px solid #f2f2f2" };
 
+type VendorOption = { id: number; name: string };
+
+/* ===== 유틸 ===== */
+function build_headers(method: string, extra?: HeadersInit): Headers {
+  const m = (method || "GET").toUpperCase();
+  const h = new Headers();
+  h.set("Accept", "application/json");
+  if (m !== "GET" && m !== "HEAD") h.set("Content-Type", "application/json");
+  if (extra) new Headers(extra).forEach((v, k) => { if (v != null) h.set(k, v); });
+  return h;
+}
+async function http_json<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, { ...init, headers: build_headers(init?.method || "GET", init?.headers) });
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
+    try { const j = text ? JSON.parse(text) : null; throw new Error(j?.message || j?.error || text || `HTTP ${res.status}`); }
+    catch { throw new Error(text || `HTTP ${res.status}`); }
+  }
+  if (!text) return undefined as unknown as T;
+  try { return JSON.parse(text) as T; } catch { throw new Error("서버가 JSON이 아닌 응답을 반환했습니다."); }
+}
+const fmt_date = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+};
+
+/* ===== 스타일 ===== */
+const ui = {
+  border: "#e5e7eb",
+  zebra: "#fafafa",
+  head_bg: "#f8fafc",
+  radius: 10,
+  muted: "#6b7280",
+  primary_bg: "#0ea5e9",
+  primary_bd: "#0284c7",
+  primary_tx: "#fff",
+} as const;
+
+const page_style: React.CSSProperties = { padding: 16, maxWidth: 1200, margin: "0 auto" };
+const title_style: React.CSSProperties = { fontSize: 22, fontWeight: 800, marginBottom: 8 };
+const bar: React.CSSProperties = { display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" as const };
+const select_style: React.CSSProperties = { padding: 8, minWidth: 160, borderRadius: 8, border: `1px solid ${ui.border}` };
+const input_style: React.CSSProperties = { padding: 8, width: 180, borderRadius: 8, border: `1px solid ${ui.border}` };
+const ghost_btn: React.CSSProperties = { padding: "8px 12px", borderRadius: 8, border: `1px solid ${ui.border}`, background: "#fff", cursor: "pointer" };
+const primary_btn: React.CSSProperties = { padding: "8px 12px", borderRadius: 8, border: `1px solid ${ui.primary_bd}`, background: ui.primary_bg, color: ui.primary_tx, cursor: "pointer" };
+const table_wrap: React.CSSProperties = { overflowX: "auto", border: `1px solid ${ui.border}`, borderRadius: ui.radius };
+const table_style: React.CSSProperties = { width: "100%", borderCollapse: "separate", borderSpacing: 0 };
+const th_style: React.CSSProperties = { position: "sticky", top: 0, background: ui.head_bg, borderBottom: `1px solid ${ui.border}`, padding: "10px 8px", textAlign: "left", whiteSpace: "nowrap", fontSize: 13, fontWeight: 700 };
+const td_style: React.CSSProperties = { borderBottom: `1px solid ${ui.border}`, padding: "9px 8px", textAlign: "left", whiteSpace: "nowrap", fontSize: 14 };
+const td_right: React.CSSProperties = { ...td_style, textAlign: "right" as const };
+const overlay_style: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
+const modal_style: React.CSSProperties = { width: "min(720px, 94vw)", maxHeight: "90vh", overflowY: "auto", background: "#fff", border: `1px solid ${ui.border}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", padding: 16 };
+
+/* ===== 페이지 ===== */
 const VendorOrderListPage: React.FC = () => {
-  const [rows, set_rows] = useState<VendorOrder[]>([]);
-  const [is_loading, set_is_loading] = useState<boolean>(false);
-  const [error_message, set_error_message] = useState<string>("");
+  const [rows, set_rows] = React.useState<VendorOrderRow[]>([]);
+  const [vendors, set_vendors] = React.useState<VendorOption[]>([]);
+  const [is_loading, set_is_loading] = React.useState(false);
+  const [error, set_error] = React.useState("");
 
-  // 검색/필터
-  const [vendor_keyword, set_vendor_keyword] = useState<string>("");
-  const [status, set_status] = useState<string>("");
-  const [po_code, set_po_code] = useState<string>("");
+  // 필터
+  const [status_filter, set_status_filter] = React.useState<OrderStatus | "">("");
+  const [vendor_filter, set_vendor_filter] = React.useState<string>("");
+  const [item_query, set_item_query] = React.useState<string>("");
 
-  // 목록 로드
-  const load_list = async () => {
-    set_is_loading(true);
-    set_error_message("");
+  // 신규 등록 모달
+  const [is_create_open, set_is_create_open] = React.useState(false);
+
+  const vendor_name_by_id = React.useMemo(() => {
+    const m = new Map<number, string>();
+    for (const v of vendors) m.set(v.id, v.name);
+    return m;
+  }, [vendors]);
+
+  const load_options = React.useCallback(async () => {
     try {
-      let data: VendorOrder[] = [];
-      // 백엔드 라우터에 맞춰 우선순위 분기 (status 단독, vendor_id 단독, 그 외엔 query)
-      if (status && !vendor_keyword) {
-        data = await fetch_vendor_order_by_status(status);
-      } else {
-        // 간단히 /vendorOrder?status=&vendor_id=&po_code= 로 합치는 방식(백엔드가 지원 안 하면 무시됨)
-        data = await fetch_vendor_order_list({
-          status: status || undefined,
-          // vendor_keyword는 실제로는 이름 검색이므로, 우선 전체를 받아 테이블에서 클라이언트 필터링
-          vendor_id: undefined,
-        });
-      }
-      // 클라이언트 사이드 보조 필터(이름·코드)
-      const filtered = data.filter((r) => {
-        const ok_name = vendor_keyword
-          ? (r.vendor_name ?? "").toLowerCase().includes(vendor_keyword.toLowerCase())
-          : true;
-        const ok_code = po_code ? (r.po_code ?? "").includes(po_code) : true;
-        return ok_name && ok_code;
-      });
-      set_rows(filtered);
-    } catch (e: unknown) {
-      set_error_message((e as Error).message || "목록 조회 실패");
+      const v = await http_json<VendorOption[]>("/api/vendors/options", { method: "GET" });
+      set_vendors(Array.isArray(v) ? v : []);
+    } catch (e: any) {
+      console.warn("vendors load failed:", e?.message);
+    }
+  }, []);
+
+  const load_list = React.useCallback(async () => {
+    set_is_loading(true);
+    set_error("");
+    try {
+      const q = new URLSearchParams();
+      if (status_filter) q.set("status", String(status_filter));
+      if (vendor_filter) q.set("vendor_id", vendor_filter);
+      if (item_query) q.set("item_id", item_query.trim());
+
+      const url = `/api/vendorOrder${q.toString() ? `?${q.toString()}` : ""}`;
+      const res = await http_json<any>(url, { method: "GET" });
+
+      const list: any[] = Array.isArray(res) ? res : (res?.items ?? []);
+      const normalized: VendorOrderRow[] = list.map((r) => ({
+        id: r.id ?? r.vendor_order_pk ?? undefined,
+        vendor_order_id: String(r.vendor_order_id ?? r.code ?? r.order_code ?? ""),
+        vendor_id: Number(r.vendor_id ?? r.vendor?.id ?? r.vendor_pk ?? 0),
+        item_id: String(r.item_id ?? r.item?.item_id ?? r.item_code ?? ""),
+        quantity: Number(r.quantity ?? r.qty ?? 0),
+        status: String(r.status ?? "SUBMITTED") as OrderStatus,
+        created_at: r.created_at ?? r.createdAt ?? r.created_date ?? undefined,
+      }));
+
+      set_rows(normalized);
+    } catch (e: any) {
+      set_error(e?.message || "목록 조회 실패");
     } finally {
       set_is_loading(false);
     }
-  };
+  }, [status_filter, vendor_filter, item_query]);
 
-  useEffect(() => {
-    void load_list();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  React.useEffect(() => { void load_options(); }, [load_options]);
+  React.useEffect(() => { void load_list(); }, [load_list]);
 
-  const has_filter = useMemo(
-    () => !!vendor_keyword || !!status || !!po_code,
-    [vendor_keyword, status, po_code]
-  );
+  const filtered_rows = React.useMemo(() => {
+    return rows.filter((r) => {
+      const ok_status = !status_filter || r.status === status_filter;
+      const ok_vendor = !vendor_filter || String(r.vendor_id) === vendor_filter;
+      const ok_item = !item_query || r.item_id.toLowerCase().includes(item_query.toLowerCase());
+      return ok_status && ok_vendor && ok_item;
+    });
+  }, [rows, status_filter, vendor_filter, item_query]);
 
   return (
-    <div style={container_style}>
-      <h2 style={{ marginTop: 0, marginBottom: 16 }}>발주 조회</h2>
+    <div style={page_style}>
+      <h1 style={title_style}>발주 내역</h1>
 
-      {/* 상단 툴바: “거래처명 빠른 조회” 느낌을 맞춤 */}
-      <div style={toolbar_style}>
-        <button
-          style={btn_style}
-          onClick={() => {
-            const elem = document.getElementById("vendor_kw") as HTMLInputElement | null;
-            elem?.focus();
-          }}
-        >
-          거래처명 빠른 조회
-        </button>
-
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <label style={{ color: "#374151" }}>거래처명</label>
-          <input
-            id="vendor_kw"
-            style={input_style}
-            placeholder="예) CJ 식품"
-            value={vendor_keyword}
-            onChange={(e) => set_vendor_keyword(e.target.value)}
-          />
-        </div>
-
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <label style={{ color: "#374151" }}>상태</label>
-          <select
-            style={select_style}
-            value={status}
-            onChange={(e) => set_status(e.target.value)}
-          >
+      {/* 컨트롤 바 */}
+      <div style={bar}>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: ui.muted }}>상태</span>
+          <select value={status_filter} onChange={(e) => set_status_filter(e.target.value as OrderStatus | "")} style={select_style}>
             <option value="">전체</option>
-            <option value="DRAFT">DRAFT</option>
+            <option value="PENDING">PENDING</option>
             <option value="SUBMITTED">SUBMITTED</option>
             <option value="APPROVED">APPROVED</option>
             <option value="PARTIALLY_RECEIVED">PARTIALLY_RECEIVED</option>
             <option value="RECEIVED">RECEIVED</option>
             <option value="CANCELED">CANCELED</option>
           </select>
-        </div>
+        </label>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <label style={{ color: "#374151" }}>발주코드</label>
-          <input
-            style={input_style}
-            placeholder="예) PO-2025-001"
-            value={po_code}
-            onChange={(e) => set_po_code(e.target.value)}
-          />
-        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: ui.muted }}>거래처</span>
+          <select value={vendor_filter} onChange={(e) => set_vendor_filter(e.target.value)} style={select_style}>
+            <option value="">전체</option>
+            {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        </label>
 
-        <button style={btn_primary_style} onClick={() => void load_list()} disabled={is_loading}>
-          검색
-        </button>
-        <button
-          style={btn_style}
-          onClick={() => {
-            set_vendor_keyword("");
-            set_status("");
-            set_po_code("");
-            void load_list();
-          }}
-          disabled={is_loading || !has_filter}
-        >
-          초기화
-        </button>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: ui.muted }}>품목ID</span>
+          <input value={item_query} onChange={(e) => set_item_query(e.target.value)} placeholder="예: ITEM_001" style={input_style} />
+        </label>
 
-        <div style={{ marginLeft: "auto" }}>
-          <a href="/vendor-orders/new" style={{ ...btn_primary_style, textDecoration: "none" }}>
-            신규 발주 등록
-          </a>
-        </div>
+        <button onClick={() => void load_list()} style={ghost_btn}>새로고침</button>
+
+        <div style={{ marginLeft: "auto" }} />
+        <button onClick={() => set_is_create_open(true)} style={primary_btn}>신규 발주 등록</button>
       </div>
 
-      {/* 결과 테이블 */}
-      <div style={panel_style}>
+      {is_loading && <div style={{ color: ui.muted, marginBottom: 8 }}>불러오는 중…</div>}
+      {error && <div style={{ color: "#c62828", marginBottom: 8 }}>{error}</div>}
+
+      <div style={table_wrap}>
         <table style={table_style}>
           <thead>
             <tr>
               <th style={th_style}>발주ID</th>
-              <th style={th_style}>발주코드</th>
-              <th style={th_style}>거래처명</th>
+              <th style={th_style}>거래처</th>
+              <th style={th_style}>품목ID</th>
+              <th style={th_style}>수량</th>
               <th style={th_style}>상태</th>
-              <th style={th_style}>입고 예정일</th>
-              <th style={th_style}>작성일</th>
-              <th style={th_style}>비고</th>
+              <th style={th_style}>생성일</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td style={td_style} colSpan={7}>
-                  {is_loading ? "불러오는 중..." : "데이터 없음"}
-                </td>
-              </tr>
-            ) : (
-              rows.map((r) => (
-                <tr key={r.id}>
-                  <td style={td_style}>{r.id}</td>
-                  <td style={td_style}>{r.po_code}</td>
-                  <td style={td_style}>{r.vendor_name ?? r.vendor_id}</td>
-                  <td style={td_style}>{r.status}</td>
-                  <td style={td_style}>{r.expected_date ? new Date(r.expected_date).toLocaleDateString() : "-"}</td>
-                  <td style={td_style}>{new Date(r.created_at).toLocaleString()}</td>
+            {filtered_rows.map((r, idx) => {
+              const row_bg: React.CSSProperties | undefined = idx % 2 === 1 ? { background: ui.zebra } : undefined;
+              return (
+                <tr key={r.id ?? r.vendor_order_id} style={row_bg}>
+                  <td style={td_style}>{r.vendor_order_id}</td>
+                  <td style={td_style}>{r.vendor_id}</td>{/* 이름 매핑은 vendor_name_by_id.get(r.vendor_id)로 바꿔도 됨 */}
+                  <td style={td_style}>{r.item_id}</td>
+                  <td style={td_right}>{r.quantity}</td>
                   <td style={td_style}>
-                    {/* 아이콘 자리(편집/삭제 등) — 필요시 연결 */}
-                    <span style={{ opacity: 0.6 }}>—</span>
+                    <span style={{ padding: "2px 8px", borderRadius: 999, border: `1px solid ${ui.border}`, fontSize: 12 }}>
+                      {r.status}
+                    </span>
                   </td>
+                  <td style={td_style}>{fmt_date(r.created_at)}</td>
                 </tr>
-              ))
+              );
+            })}
+            {filtered_rows.length === 0 && !is_loading && !error && (
+              <tr><td colSpan={6} style={{ textAlign: "center", padding: 18, color: ui.muted }}>발주가 없습니다.</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {error_message && (
-        <div style={{ color: "#d00", marginTop: 10, fontSize: 13 }}>{error_message}</div>
+      {/* 신규 등록 모달 */}
+      {is_create_open && (
+        <div style={overlay_style} onClick={() => set_is_create_open(false)}>
+          <div style={modal_style} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>신규 발주 등록</h2>
+              <button type="button" onClick={() => set_is_create_open(false)} style={ghost_btn} aria-label="close">×</button>
+            </div>
+            <VendorOrderCreateForm
+              on_success={() => {
+                set_is_create_open(false);
+                void load_list();
+              }}
+              on_cancel={() => set_is_create_open(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
