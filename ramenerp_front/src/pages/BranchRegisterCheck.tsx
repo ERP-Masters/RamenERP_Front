@@ -5,6 +5,7 @@ export type BranchCreateDto = {
   detail_address?: string;
   store_owner?: string;
   contact?: string;
+  isused?: "USED" | "NOTUSED";
 };
 
 export async function submitBranch(payload: BranchCreateDto): Promise<boolean> {
@@ -24,6 +25,7 @@ export async function submitBranch(payload: BranchCreateDto): Promise<boolean> {
         detail_address: payload.detail_address ?? "",
         store_owner: payload.store_owner ?? "",
         contact: (payload.contact ?? "").replace(/\D/g, ""), // 숫자만 저장하고 싶으면 유지
+        isused: (payload.isused ?? "USED") as "USED" | "NOTUSED",  // ✅ 기본값: USED
       }),
     });
 

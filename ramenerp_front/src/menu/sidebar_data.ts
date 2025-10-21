@@ -49,11 +49,17 @@ export const sidebar_menu: MenuGroup[] = [
     label: "직영점 관리",
     children: [
       { id: "branches", label: "지점 리스트", path: "/branch/list" },
-    ],   // 자식이 없으므로 클릭할 대상이 없어 동작하지 않음
+    ], 
   },
   {
-    id: "inventories",
-    label: "재고 관리",
-    children: [],   // 자식이 없으므로 클릭할 대상이 없어 동작하지 않음(임의로 만들어 놓은 것)
+    id: "isnotused",
+    label: "미사용 항목 관리",
+    children: [
+      { id: "branches", label: "미사용 거래처 리스트", path: "/branch/list" },
+      { id: "branches", label: "미사용 창고 리스트", path: "/branch/list" },
+      { id: "branches", label: "미사용 직영점 리스트", path: "/branch/list" },
+      { id: "branches", label: "미사용 단위 리스트", path: "/branch/list" },
+      { id: "branches", label: "미사용 카테고리 리스트", path: "/branch/list" },
+    ],
   },
 ];

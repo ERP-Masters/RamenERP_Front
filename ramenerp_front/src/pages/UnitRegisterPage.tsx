@@ -102,6 +102,7 @@ const UnitRegisterPage: React.FC = () => {
     const payload = {
       code: unit_code.trim(),
       name: unit_name.trim(),
+      isused: "USED" as const,
     };
     if (!payload.code || !payload.name) {
       alert("코드/이름을 입력해 주세요.");

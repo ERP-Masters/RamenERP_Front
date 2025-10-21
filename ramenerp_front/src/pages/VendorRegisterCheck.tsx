@@ -5,6 +5,7 @@ export interface VendorSubmitInput {
   contact_email: string;  // 담당자 이메일
   address_road: string;   // 도로명
   address_detail: string; // 상세주소
+  isused?: "USED" | "NOTUSED";
 }
 
 export interface VendorSubmitOptions {
@@ -39,6 +40,7 @@ export async function submitVendor(
     manager: (input.contact_name || "").trim(),
     contact: (input.contact_email || "").trim(),
     address: `${(input.address_road || "").trim()} ${(input.address_detail || "").trim()}`.trim(),
+    isused: (input.isused ?? "USED") as "USED" | "NOTUSED",  // ✅ 기본값: USED
   };
 
   try {

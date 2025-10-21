@@ -99,6 +99,7 @@ const CategoryRegisterPage: React.FC = () => {
     const payload = {
       group: String(major_category),
       category_name: trimmed,
+      isused: "USED" as const,
     };
 
     try {

@@ -17,7 +17,7 @@ import VendorNotUsedUi from "../components/VendorNotUsedUi";
 import VendorRegisterPage from "./VendorRegisterPage";
 
 interface ApiVendor {
-  vendor_id: number;
+  vendor_id: number;     // 백엔드 숫자 id 그대로 유지(로직에서 사용)
   name: string;
   manager: string;
   contact: string;
@@ -25,7 +25,9 @@ interface ApiVendor {
   is_active?: boolean | null;
 }
 interface VendorRow {
-  vendor_id: number;
+  vendor_id: number;     // 내부 로직용(그대로 유지)
+  /** ✅ 화면표시용 문자열 ID */
+  display_vendor_id: string;
   name: string;
   manager: string;
   contact: string;
@@ -147,14 +149,28 @@ const icon_bar_style: React.CSSProperties = { display: "inline-flex", alignItems
 const icon_btn_style: React.CSSProperties = { background: "transparent", border: "none", padding: 4, cursor: "pointer", lineHeight: 0 };
 const empty_cell_style = { textAlign: "center", padding: 24, color: ui_tok.label } as const;
 
-const to_vendor_row = (v: ApiVendor): VendorRow => ({
-  vendor_id: v.vendor_id,
-  name: v.name?.trim() ?? "",
-  manager: v.manager?.trim() ?? "",
-  contact: String(v.contact ?? "").trim(),
-  address: v.address?.trim() ?? "",
-  is_active: v.is_active ?? true,
-});
+/** ✅ API -> 화면행 변환
+ *  - 내부 vendor_id(숫자)는 그대로 유지
+ *  - 화면표시용 display_vendor_id에 문자열 ID를 주입(없으면 숫자 fallback)
+ */
+const to_vendor_row = (v: ApiVendor): VendorRow => {
+  // 백엔드가 함께 내려주는 문자열 ID가 있다면 사용
+  const apiAny = v as unknown as Record<string, any>;
+  const stringId =
+    (apiAny.vendor_id && typeof apiAny.vendor_id === "string" && apiAny.vendor_id) ||
+    (apiAny.id && typeof apiAny.id === "string" && apiAny.id) ||
+    String(v.vendor_id);
+
+  return {
+    vendor_id: v.vendor_id,
+    display_vendor_id: stringId,   // 👈 화면 표시 전용
+    name: v.name?.trim() ?? "",
+    manager: v.manager?.trim() ?? "",
+    contact: String(v.contact ?? "").trim(),
+    address: v.address?.trim() ?? "",
+    is_active: v.is_active ?? true,
+  };
+};
 
 const VendorListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -253,7 +269,7 @@ const VendorListPage: React.FC = () => {
 
     const idNum = /^\d+$/.test(nq) ? parseInt(nq, 10) : null;
     return vendors.filter((v) => {
-      const byId = idNum !== null && v.vendor_id === idNum;
+      const byId = idNum !== null && v.vendor_id === idNum; // 내부 로직 그대로 유지
       const byName = nq ? v.name.toLowerCase().includes(nq) : false;
       const byManager = mq ? v.manager.toLowerCase().includes(mq) : false;
       return byId || byName || byManager || (!nq && !mq);
@@ -269,7 +285,14 @@ const VendorListPage: React.FC = () => {
     set_vendors((prev) =>
       prev.map((v) =>
         v.vendor_id === updated.vendor_id
-          ? { ...v, name: updated.name, manager: updated.manager, contact: updated.contact, address: updated.address }
+          ? {
+              ...v,
+              name: updated.name,
+              manager: updated.manager,
+              contact: updated.contact,
+              address: updated.address,
+              // 화면 표시는 기존 display_vendor_id 유지
+            }
           : v
       )
     );
@@ -344,7 +367,8 @@ const VendorListPage: React.FC = () => {
                     title={`${v.name} · ${v.manager} · ${v.contact} · ${v.address}`}
                     style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                   >
-                    <td style={td_style}>{v.vendor_id}</td>
+                    {/* ✅ 여기만 변경: 숫자 id 대신 display_vendor_id 표기 */}
+                    <td style={td_style}>{v.display_vendor_id}</td>
                     <td style={td_style}>{v.name}</td>
                     <td style={td_style}>{v.manager}</td>
                     <td style={td_contact_style}>{v.contact}</td>

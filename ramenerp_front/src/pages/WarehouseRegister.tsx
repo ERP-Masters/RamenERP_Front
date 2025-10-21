@@ -4,6 +4,7 @@ import React, { useState } from "react";
 type CreateWarehouseDto = {
   name: string;
   location: string;
+  isused?: "USED" | "NOTUSED"; // ✅ 서버가 받는 상태값(선택 필드로 선언)
 };
 
 const form_wrap_style: React.CSSProperties = {
@@ -76,6 +77,7 @@ const WareHouseRegister: React.FC = () => {
     const payload: CreateWarehouseDto = {
       name: name.trim(),
       location: location.trim(),
+      isused: "USED", // ✅ 항상 USED로 등록
     };
 
     if (!payload.name || !payload.location) {
@@ -89,7 +91,7 @@ const WareHouseRegister: React.FC = () => {
       const res = await fetch("/api/warehouses", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload), // ✅ isused 함께 전송
       });
 
       const text = await res.text();
@@ -106,10 +108,7 @@ const WareHouseRegister: React.FC = () => {
       set_name("");
       set_location("");
 
-      // 기존 동작: 목록 새로고침 신호
       window.dispatchEvent(new Event("warehouse:created"));
-
-      // ✅ 추가: 모달 자동 닫기 신호 (기존 구조/흐름 변경 없이)
       window.dispatchEvent(new Event("warehouse:register:cancel"));
     } catch (e: any) {
       alert(`등록에 실패하였습니다. ${e?.message || ""}`);
@@ -119,7 +118,6 @@ const WareHouseRegister: React.FC = () => {
   };
 
   const handle_cancel = () => {
-    // 모달 닫기 신호(이미 사용 중인 이벤트)
     window.dispatchEvent(new Event("warehouse:register:cancel"));
   };
 
@@ -154,7 +152,6 @@ const WareHouseRegister: React.FC = () => {
           <button type="submit" style={submit_btn_style} disabled={is_submitting}>
             {is_submitting ? "등록 중…" : "등록"}
           </button>
-
           {/* 필요 시 수동 닫기 버튼
           <button type="button" style={ghost_btn_style} onClick={handle_cancel}>닫기</button> */}
         </div>
