@@ -9,15 +9,16 @@ import {
   type VendorEditTarget,
 } from "./VendorEditFunction";
 
-// ✅ 변경: 기능은 여기서, UI는 컴포넌트에서
-import { deleteVendorById, type VendorDeleteTarget } from "./VendorDeleteFunction";
 import VendorNotUsedUi from "../components/VendorNotUsedUi";
 
-// ✅ 추가: 모달로 띄울 등록 페이지 컴포넌트
+// ✅ 이미 사용 중인 미사용 등록 기능이 있다면 그대로 유지
+import { markVendorNotUsed } from "./VendorNotUsedFunction";
+
+// ✅ 등록 페이지 모달
 import VendorRegisterPage from "./VendorRegisterPage";
 
 interface ApiVendor {
-  vendor_id: number;     // 백엔드 숫자 id 그대로 유지(로직에서 사용)
+  vendor_id: number;
   name: string;
   manager: string;
   contact: string;
@@ -25,8 +26,7 @@ interface ApiVendor {
   is_active?: boolean | null;
 }
 interface VendorRow {
-  vendor_id: number;     // 내부 로직용(그대로 유지)
-  /** ✅ 화면표시용 문자열 ID */
+  vendor_id: number;
   display_vendor_id: string;
   name: string;
   manager: string;
@@ -34,6 +34,9 @@ interface VendorRow {
   address: string;
   is_active?: boolean;
 }
+
+/** ✅ 로컬로 타겟 타입만 유지 (예전 VendorDeleteTarget 대체) */
+type VendorDeleteTarget = { vendor_id: number; name: string };
 
 const ui_tok = {
   bg_page: "#f6f7f9",
@@ -105,7 +108,6 @@ const create_btn_style: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-// ⬇️⬇️⬇️ 여기만 UI 수정 (높이 고정 + 내부 스크롤)
 const table_card_style: React.CSSProperties = {
   border: `1px solid ${ui_tok.border}`,
   borderRadius: ui_tok.radius,
@@ -114,7 +116,6 @@ const table_card_style: React.CSSProperties = {
   overflowY: "auto",
   maxHeight: "60vh",
 };
-// ⬆️⬆️⬆️ UI 수정 끝
 
 const table_wrap_style = { overflowX: "auto" } as const;
 const table_style = { width: "100%", borderCollapse: "separate" as const, borderSpacing: 0 } as const;
@@ -149,12 +150,7 @@ const icon_bar_style: React.CSSProperties = { display: "inline-flex", alignItems
 const icon_btn_style: React.CSSProperties = { background: "transparent", border: "none", padding: 4, cursor: "pointer", lineHeight: 0 };
 const empty_cell_style = { textAlign: "center", padding: 24, color: ui_tok.label } as const;
 
-/** ✅ API -> 화면행 변환
- *  - 내부 vendor_id(숫자)는 그대로 유지
- *  - 화면표시용 display_vendor_id에 문자열 ID를 주입(없으면 숫자 fallback)
- */
-const to_vendor_row = (v: ApiVendor): VendorRow => {
-  // 백엔드가 함께 내려주는 문자열 ID가 있다면 사용
+const to_vendor_row = (v: ApiVendor) => {
   const apiAny = v as unknown as Record<string, any>;
   const stringId =
     (apiAny.vendor_id && typeof apiAny.vendor_id === "string" && apiAny.vendor_id) ||
@@ -163,13 +159,13 @@ const to_vendor_row = (v: ApiVendor): VendorRow => {
 
   return {
     vendor_id: v.vendor_id,
-    display_vendor_id: stringId,   // 👈 화면 표시 전용
+    display_vendor_id: stringId,
     name: v.name?.trim() ?? "",
     manager: v.manager?.trim() ?? "",
     contact: String(v.contact ?? "").trim(),
     address: v.address?.trim() ?? "",
     is_active: v.is_active ?? true,
-  };
+  } as VendorRow;
 };
 
 const VendorListPage: React.FC = () => {
@@ -187,10 +183,11 @@ const VendorListPage: React.FC = () => {
 
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<VendorEditTarget | null>(null);
+
+  // ✅ 미사용 등록 모달을 위한 상태(타겟 구조만 유지)
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<VendorDeleteTarget | null>(null);
 
-  // ✅ 추가: 등록 모달 열림 상태
   const [is_register_open, set_is_register_open] = useState(false);
 
   useEffect(() => {
@@ -250,7 +247,6 @@ const VendorListPage: React.FC = () => {
     };
   }, []);
 
-  // ✅ 추가: 등록 성공/취소 시 모달 닫기
   useEffect(() => {
     const closeOnCreated = () => set_is_register_open(false);
     const closeOnCancel = () => set_is_register_open(false);
@@ -269,7 +265,7 @@ const VendorListPage: React.FC = () => {
 
     const idNum = /^\d+$/.test(nq) ? parseInt(nq, 10) : null;
     return vendors.filter((v) => {
-      const byId = idNum !== null && v.vendor_id === idNum; // 내부 로직 그대로 유지
+      const byId = idNum !== null && v.vendor_id === idNum;
       const byName = nq ? v.name.toLowerCase().includes(nq) : false;
       const byManager = mq ? v.manager.toLowerCase().includes(mq) : false;
       return byId || byName || byManager || (!nq && !mq);
@@ -285,18 +281,12 @@ const VendorListPage: React.FC = () => {
     set_vendors((prev) =>
       prev.map((v) =>
         v.vendor_id === updated.vendor_id
-          ? {
-              ...v,
-              name: updated.name,
-              manager: updated.manager,
-              contact: updated.contact,
-              address: updated.address,
-              // 화면 표시는 기존 display_vendor_id 유지
-            }
+          ? { ...v, name: updated.name, manager: updated.manager, contact: updated.contact, address: updated.address }
           : v
       )
     );
   };
+
   const openDelete = (row: VendorRow) => {
     setDeleteTarget({ vendor_id: row.vendor_id, name: row.name });
     setDeleteOpen(true);
@@ -334,7 +324,6 @@ const VendorListPage: React.FC = () => {
               />
             </div>
 
-            {/* ✅ 변경: 신규 거래처 등록 → 모달 오픈 */}
             <button
               type="button"
               style={create_btn_style}
@@ -367,7 +356,6 @@ const VendorListPage: React.FC = () => {
                     title={`${v.name} · ${v.manager} · ${v.contact} · ${v.address}`}
                     style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                   >
-                    {/* ✅ 여기만 변경: 숫자 id 대신 display_vendor_id 표기 */}
                     <td style={td_style}>{v.display_vendor_id}</td>
                     <td style={td_style}>{v.name}</td>
                     <td style={td_style}>{v.manager}</td>
@@ -397,7 +385,7 @@ const VendorListPage: React.FC = () => {
                           type="button"
                           style={icon_btn_style}
                           onClick={() => openDelete(v)}
-                          title="삭제"
+                          title="미사용 등록"
                           aria-label="미사용"
                         >
                           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -420,8 +408,8 @@ const VendorListPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 기존 모달/요약/수정/삭제 로직은 그대로 유지 */}
         <VendorSummarySearch open={summaryOpen} onClose={() => set_summaryOpen(false)} />
+
         <VendorEditUi
           open={editOpen}
           target={editTarget}
@@ -438,7 +426,7 @@ const VendorListPage: React.FC = () => {
           }}
         />
 
-        {/* ✅ 변경: 삭제 UI 컴포넌트 교체 */}
+        {/* ✅ 확인 모달은 그대로 사용. 내부 기능은 '미사용 등록' */}
         <VendorNotUsedUi
           open={deleteOpen}
           target={deleteTarget}
@@ -446,16 +434,16 @@ const VendorListPage: React.FC = () => {
           onConfirm={async () => {
             if (!deleteTarget) return;
             try {
-              await deleteVendorById(deleteTarget.vendor_id);
+              await markVendorNotUsed(deleteTarget.vendor_id);
               set_vendors((prev) => prev.filter((v) => v.vendor_id !== deleteTarget.vendor_id));
-              alert("삭제가 완료되었습니다.");
+              alert("미사용으로 등록되었습니다.");
+              closeDelete(); // ✅ 확인 누르는 즉시 모달 닫기
             } catch (e: any) {
-              alert(e?.message || "삭제에 실패했습니다.");
+              alert(e?.message || "미사용 등록에 실패했습니다.");
             }
           }}
         />
 
-        {/* ✅ 추가: 등록 모달 */}
         {is_register_open && (
           <div
             style={{
@@ -492,8 +480,6 @@ const VendorListPage: React.FC = () => {
                   닫기
                 </button>
               </div>
-
-              {/* 프롭스 없이 바로 사용 */}
               <VendorRegisterPage />
             </div>
           </div>

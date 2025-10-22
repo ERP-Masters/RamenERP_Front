@@ -4,7 +4,9 @@
 export type BranchState = "USED" | "NOTUSED";
 
 export type ApiBranch = {
-  branch_id: number;
+  branch_id: number;            // ← 요청/내부 로직은 숫자형 유지
+  /** 화면표시용 문자열 ID (백엔드가 주지 않으면 fetch에서 파생 생성) */
+  display_branch_id: string;
   name: string;
   location: string;
   detail_address: string;
@@ -24,15 +26,15 @@ async function safeJson<T = any>(res: Response): Promise<T | null> {
 
 /**
  * 지정 지점을 미사용으로 전환
- * - 백엔드 명세상 필드는 isused가 아닌 `issued` 를 요구(예전 에러 메시지 기준)
- * - { issued: "NOTUSED" } 로 전송
- * - 성공 시 'branch:notused:updated' 이벤트를 쏨(필요시 화면에서 듣고 새로고침)
+ * - 요청은 항상 숫자형 branch_id 사용
+ * - { isused: "NOTUSED" } 로 전송
+ * - 성공 시 'branch:notused:updated' 이벤트 브로드캐스트
  */
 export async function markBranchNotUsed(branch_id: number): Promise<void> {
   const payload = { isused: "NOTUSED" as BranchState };
 
   const res = await fetch(`${BR_API}/${encodeURIComponent(branch_id)}`, {
-    method: "PUT",                 // 서버가 PATCH가 아니라 PUT만 받는 경우가 많아 PUT 사용
+    method: "PUT",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -46,15 +48,14 @@ export async function markBranchNotUsed(branch_id: number): Promise<void> {
     throw new Error(msg);
   }
 
-  // 화면 갱신용 신호 (필요한 쪽에서 addEventListener로 수신)
+  // 화면 갱신용 신호
   window.dispatchEvent(new Event("branch:notused:updated"));
 }
 
 /**
- * 미사용( NOTUSED ) 상태의 지점 목록 조회
- * - 명세: /branches/state 로 GET 요청 시 NOTUSED 집합을 반환한다고 가정
- * - (만약 서버가 쿼리 파라미터를 요구하면 아래 주석처럼 쓰면 됨)
- *     fetch(`${BR_API}/state?issued=NOTUSED`)
+ * 미사용(NOTUSED) 상태의 지점 목록 조회
+ * - GET /branches/state
+ * - 화면 표시를 위해 display_branch_id(문자열) 보강
  */
 export async function fetchNotUsedBranches(): Promise<ApiBranch[]> {
   const res = await fetch(`${BR_API}/state`, {
@@ -62,16 +63,36 @@ export async function fetchNotUsedBranches(): Promise<ApiBranch[]> {
     headers: { Accept: "application/json" },
   });
 
-  const data = await safeJson<ApiBranch[] | { items?: ApiBranch[] }>(res);
+  const data = await safeJson<ApiBranch[] | { items?: any[] }>(res);
   if (!res.ok) {
     const msg = (data as any)?.message || `HTTP ${res.status}`;
     throw new Error(msg);
   }
 
-  // 서버가 배열 그대로 주는 경우/객체 래핑해 주는 경우 모두 대응
-  const list =
-    Array.isArray(data) ? data :
+  const raw: any[] =
+    Array.isArray(data) ? (data as any[]) :
     (data && Array.isArray((data as any).items) ? (data as any).items : []);
+
+  // ✅ display_branch_id 보강 + branch_id는 숫자형으로 정규화
+  const list: ApiBranch[] = raw.map((b: any) => {
+    const display =
+      (typeof b?.display_branch_id === "string" && b.display_branch_id) ||
+      (typeof b?.branch_id === "string" && b.branch_id) ||
+      (typeof b?.id === "string" && b.id) ||
+      String(b?.branch_id ?? "");
+
+    return {
+      branch_id: Number(b?.branch_id),           // 숫자형 고정
+      display_branch_id: display,                // 화면 표시용 문자열 ID
+      name: String(b?.name ?? "").trim(),
+      location: String(b?.location ?? "").trim(),
+      detail_address: String(b?.detail_address ?? "").trim(),
+      store_owner: String(b?.store_owner ?? "").trim(),
+      contact: String(b?.contact ?? "").trim(),
+      isused: b?.isused ?? null,
+      created_at: String(b?.created_at ?? "").trim(),
+    } as ApiBranch;
+  });
 
   return list;
 }

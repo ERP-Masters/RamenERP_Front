@@ -1,18 +1,19 @@
-// src/pages/NotUsedBranchPageUi.tsx
+// src/pages/NotUsedVendorPageUi.tsx
 import React, { useEffect, useState } from "react";
-import { fetchNotUsedBranches, type ApiBranch } from "../pages/BranchNotUsedFunction";
-import { markManyBranchesUsed } from "../pages/BranchUsedFunction";
+import { fetchNotUsedVendors, type ApiVendor } from "../pages/VendorNotUsedFunction";
+import { markManyVendorsUsed } from "../pages/VendorUsedFunction";
 
-/** 화면 표시에만 쓰는 행 타입 — 벤더 화면과 동일 패턴 */
+/** 화면 표시에만 쓰는 행 타입 */
 type Row = {
-  id_num: number;                 // 서버 요청/체크박스용 숫자형 ID (문자형이면 끝자리 숫자 추출)
-  display_branch_id: string;      // 화면 표시용 문자열 ID
+  /** 서버 요청/체크박스용 숫자형 ID (문자형이면 끝자리 숫자 추출) */
+  id_num: number;
+  /** 화면 표시용 문자열 ID */
+  display_vendor_id: string;
+
   name: string;
-  location: string;
-  detail_address: string;
-  store_owner: string;
+  manager: string;
   contact: string;
-  created_at: string;
+  address: string;
 };
 
 const ui_tok = {
@@ -106,46 +107,44 @@ const use_btn_style: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const NotUsedBranchPageUi: React.FC = () => {
+const NotUsedVendorPageUi: React.FC = () => {
   const [rows, set_rows] = useState<Row[]>([]);
   const [loading, set_loading] = useState(false);
   const [error, set_error] = useState("");
-  const [select_mode, set_select_mode] = useState(false);
+  const [selectMode, set_selectMode] = useState(false);
 
-  /** 체크박스 상태를 '문자열 키'로 관리 */
+  /** ✅ 체크박스 상태를 '문자열 키'로 관리해서 NaN 충돌 제거 */
   const [checked, set_checked] = useState<Record<string, boolean>>({});
 
   // 숫자/문자 어떤 값이 와도 숫자 id 추출
-  const to_id_num = (v: any): number => {
+  const toIdNum = (v: any): number => {
     if (typeof v === "number") return v;
     const m = String(v ?? "").match(/\d+$/);
     return m ? Number(m[0]) : NaN;
   };
 
-  // 각 행의 고유 키 (숫자면 n-숫자, 아니면 s-문자ID)
-  const row_key = (r: Row) =>
-    Number.isFinite(r.id_num) ? `n-${r.id_num}` : `s-${r.display_branch_id}`;
+  // ✅ 각 행의 고유 키 (숫자면 n-숫자, 아니면 s-문자ID)
+  const rowKey = (r: Row) =>
+    Number.isFinite(r.id_num) ? `n-${r.id_num}` : `s-${r.display_vendor_id}`;
 
-  const to_row = (b: ApiBranch): Row => {
-    const anyB = b as unknown as Record<string, any>;
+  const to_row = (v: ApiVendor): Row => {
+    const id_num = toIdNum((v as any).vendor_id);
     const display =
-      (typeof anyB.display_branch_id === "string" && anyB.display_branch_id) ||
-      (typeof anyB.branch_id === "string" && anyB.branch_id) ||
-      (typeof anyB.id === "string" && anyB.id) ||
-      String(anyB.branch_id ?? b.branch_id);
-
-    // (이전 단계에서 이미 보완됨: display까지 폴백)
-    const id_num = to_id_num(anyB.branch_id ?? anyB.id ?? b.branch_id ?? display);
+      typeof (v as any).display_vendor_id === "string" && (v as any).display_vendor_id
+        ? (v as any).display_vendor_id
+        : typeof (v as any).vendor_id === "string"
+        ? (v as any).vendor_id
+        : typeof (v as any).id === "string"
+        ? (v as any).id
+        : String((v as any).vendor_id ?? "");
 
     return {
       id_num,
-      display_branch_id: display,
-      name: String(b.name ?? "").trim(),
-      location: String(b.location ?? "").trim(),
-      detail_address: String(b.detail_address ?? "").trim(),
-      store_owner: String(b.store_owner ?? "").trim(),
-      contact: String(b.contact ?? "").trim(),
-      created_at: String(b.created_at ?? "").trim(),
+      display_vendor_id: display,
+      name: String(v.name ?? "").trim(),
+      manager: String(v.manager ?? "").trim(),
+      contact: String(v.contact ?? "").trim(),
+      address: String(v.address ?? "").trim(),
     };
   };
 
@@ -153,58 +152,55 @@ const NotUsedBranchPageUi: React.FC = () => {
     set_loading(true);
     set_error("");
     try {
-      const list = await fetchNotUsedBranches();
+      const list = await fetchNotUsedVendors();
       set_rows((Array.isArray(list) ? list : []).map(to_row));
       set_checked({});
     } catch (e: any) {
-      set_error(e?.message || "미사용 직영점 목록을 불러오지 못했습니다.");
+      set_error(e?.message || "미사용 거래처 목록을 불러오지 못했습니다.");
     } finally {
       set_loading(false);
     }
   };
 
-  /** 선택된(숫자 ID가 있는) 행들의 숫자 ID 배열 */
-  const selected_ids = () =>
-    (rows
-      .filter((r) => checked[row_key(r)])
-      .map((r) => (Number.isFinite(r.id_num) ? r.id_num : to_id_num(r.display_branch_id)))
-      .filter((n) => Number.isFinite(n)) as number[]);
+  /** ✅ 선택된(숫자 ID가 있는) 행들의 숫자 ID 배열 */
+  const selectedIds = () =>
+    rows
+      .filter((r) => checked[rowKey(r)] && Number.isFinite(r.id_num))
+      .map((r) => r.id_num);
 
-  // “사용” — 낙관적 제거 + 서버 반영 + 재동기화
-  const handle_restore_use = async () => {
-    const ids = selected_ids();
+  // ✅ “사용” — 낙관적 제거 + 서버 반영 + 재동기화
+  const handleRestoreUse = async () => {
+    const ids = selectedIds();
     if (ids.length === 0) {
-      alert("숫자형 ID가 있는 지점만 사용 전환할 수 있습니다. 선택을 확인해주세요.");
+      alert("사용으로 전환할 거래처를 선택하세요.");
       return;
     }
     const msg =
       ids.length === 1
-        ? "1개 지점을 사용 등록하시겠습니까?"
-        : `${ids.length}개 지점을 사용 등록하시겠습니까?`;
+        ? "1개 거래처를 사용 등록하시겠습니까?"
+        : `${ids.length}개 거래처를 사용 등록하시겠습니까?`;
     if (!window.confirm(msg)) return;
 
-    // 1) 화면 즉시 제거 — ✅ 변경: remove_keys를 '체크된 실제 키' 전부(n-/s-)로 산출
-    const remove_keys = new Set<string>(
-      rows.filter((r) => checked[row_key(r)]).map((r) => row_key(r))
-    );
-    set_rows((prev) => prev.filter((r) => !remove_keys.has(row_key(r))));
+    // 1) 화면 즉시 제거 (키 기반으로 안전하게 제거)
+    const removeKeys = new Set(ids.map((id) => `n-${id}`));
+    set_rows((prev) => prev.filter((r) => !removeKeys.has(rowKey(r))));
     set_checked((prev) => {
       const next = { ...prev };
-      remove_keys.forEach((k) => delete next[k]);
+      [...removeKeys].forEach((k) => delete next[k]);
       return next;
     });
 
     try {
       set_loading(true);
-      // 2) 서버 반영(USED)
-      await markManyBranchesUsed(ids);
-      // 3) 재동기화
-      await load();
-      set_select_mode(false);
+      // 2) 서버 반영(USED) — 숫자형 ID로 전송
+      await markManyVendorsUsed(ids);
+      // 3) 후행 동기화
+      void load();
+      set_selectMode(false);
       alert("사용으로 전환되었습니다.");
     } catch (e: any) {
       alert(e?.message || "전환 중 오류가 발생했습니다.");
-      await load();
+      void load();
     } finally {
       set_loading(false);
     }
@@ -214,48 +210,39 @@ const NotUsedBranchPageUi: React.FC = () => {
     load();
     const onNotUsed = () => load();
     const onRestored = () => load();
-    window.addEventListener("branch:notused:updated", onNotUsed);
-    window.addEventListener("branch:used:restored", onRestored);
+    window.addEventListener("vendor:notused:updated", onNotUsed);
+    window.addEventListener("vendor:used:restored", onRestored);
     return () => {
-      window.removeEventListener("branch:notused:updated", onNotUsed);
-      window.removeEventListener("branch:used:restored", onRestored);
+      window.removeEventListener("vendor:notused:updated", onNotUsed);
+      window.removeEventListener("vendor:used:restored", onRestored);
     };
   }, []);
-
-  // 선택 모드 토글 시 체크 초기화 (UX 개선)
-  const toggle_select_mode = () => {
-    set_select_mode((v) => {
-      const next = !v;
-      if (!next) set_checked({});
-      return next;
-    });
-  };
 
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        <div style={title_style}>미사용 직영점 조회</div>
+        <div style={title_style}>미사용 거래처 조회</div>
 
         <div style={top_bar_style}>
           <button
             type="button"
             style={select_btn_style}
-            onClick={toggle_select_mode}
+            onClick={() => set_selectMode((v) => !v)}
             title="선택 모드"
           >
-            {select_mode ? "선택 해제" : "선택"}
+            {selectMode ? "선택 해제" : "선택"}
           </button>
 
-          {select_mode && (
-            <button
-              type="button"
-              style={use_btn_style}
-              onClick={handle_restore_use}
-              title="사용으로 전환"
-            >
-              사용
-            </button>
-          )}
+        {selectMode && (
+          <button
+            type="button"
+            style={use_btn_style}
+            onClick={handleRestoreUse}
+            title="사용으로 전환"
+          >
+            사용
+          </button>
+        )}
         </div>
 
         <div style={table_card_style}>
@@ -263,53 +250,50 @@ const NotUsedBranchPageUi: React.FC = () => {
             <table style={table_style}>
               <thead>
                 <tr>
-                  {select_mode && <th style={th_style} />}
-                  <th style={th_style}>branch_id</th>
+                  {selectMode && <th style={th_style} />}
+                  <th style={th_style}>vendor_id</th>
                   <th style={th_style}>name</th>
-                  <th style={th_style}>location</th>
-                  <th style={th_style}>detail_address</th>
-                  <th style={th_style}>store_owner</th>
+                  <th style={th_style}>manager</th>
                   <th style={th_style}>contact</th>
-                  <th style={th_style}>created_at</th>
+                  <th style={th_style}>address</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, idx) => {
-                  const key = row_key(r);
+                  const key = rowKey(r);
+                  const validId = Number.isFinite(r.id_num);
                   return (
                     <tr
                       key={key}
                       style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
-                      title={`${r.name} · ${r.location} · ${r.detail_address}`}
+                      title={`${r.name} · ${r.manager} · ${r.contact} · ${r.address}`}
                     >
-                      {select_mode && (
-                        <td style={{ ...td_style, position: "relative" }}>
+                      {selectMode && (
+                        <td style={td_style}>
                           <input
                             type="checkbox"
+                            disabled={!validId}
                             checked={!!checked[key]}
-                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               set_checked((prev) => ({ ...prev, [key]: e.target.checked }))
                             }
                           />
                         </td>
                       )}
-                      <td style={td_style}>{r.display_branch_id}</td>
+                      <td style={td_style}>{r.display_vendor_id}</td>
                       <td style={td_style}>{r.name}</td>
-                      <td style={td_style}>{r.location}</td>
-                      <td style={td_style}>{r.detail_address}</td>
-                      <td style={td_style}>{r.store_owner}</td>
+                      <td style={td_style}>{r.manager}</td>
                       <td style={td_style}>{r.contact}</td>
-                      <td style={td_style}>{r.created_at}</td>
+                      <td style={td_style}>{r.address}</td>
                     </tr>
                   );
                 })}
 
                 {rows.length === 0 && !loading && !error && (
                   <tr>
-                    {/* 열 개수: 선택모드 8, 기본 7 */}
-                    <td style={empty_style} colSpan={select_mode ? 8 : 7}>
-                      미사용으로 등록된 지점이 없습니다.
+                    {/* 열 개수: 선택모드 6, 기본 5 */}
+                    <td style={empty_style} colSpan={selectMode ? 6 : 5}>
+                      미사용으로 등록된 거래처가 없습니다.
                     </td>
                   </tr>
                 )}
@@ -325,4 +309,4 @@ const NotUsedBranchPageUi: React.FC = () => {
   );
 };
 
-export default NotUsedBranchPageUi;
+export default NotUsedVendorPageUi;

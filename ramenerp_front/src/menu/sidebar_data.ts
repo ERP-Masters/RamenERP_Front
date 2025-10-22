@@ -58,7 +58,7 @@ export const sidebar_menu: MenuGroup[] = [
     children: [
       { id: "warehouse-notused", label: "미사용 창고 리스트", path: "/branch/list" },
       { id: "branch-notused", label: "미사용 지점 리스트", path: "/branch/state" },
-      { id: "vendor-notused", label: "미사용 거래처 리스트", path: "/branch/list" },
+      { id: "vendor-notused", label: "미사용 거래처 리스트", path: "/vendor/state" },
       { id: "unit-notused", label: "미사용 단위 리스트", path: "/branch/list" },
       { id: "category-notused", label: "미사용 카테고리 리스트", path: "/branch/list" },
     ],   // 자식이 없으므로 클릭할 대상이 없어 동작하지 않음

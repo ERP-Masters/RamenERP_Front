@@ -19,6 +19,7 @@ import WarehouseListPanel from "./components/WarehouseListPanel";
 import BranchListPage from "./pages/BranchListPage";
 import BranchRegisterPage from "./pages/BranchRegisterPage";
 import NotUsedBranchUi from "./components/NotUsedBranchPageUi";
+import NotUsedVendorPageUi from "./pages/NotUsedVendorPageUi";
 
 const App: React.FC = () => {
   return (
@@ -36,6 +37,7 @@ const App: React.FC = () => {
         <Route path="vendor/register" element={<VendorRegisterPage />} />
         <Route path="vendor/list" element={<VendorListPage />} />
         <Route path="/vendor-orders" element={<VendorOrderListPage />} />
+        <Route path="/vendor/state" element={<NotUsedVendorPageUi />} />
 
 
         <Route path="category/register" element={<CategoryRegisterPage />} />
@@ -50,6 +52,7 @@ const App: React.FC = () => {
         <Route path="branch/register" element={<BranchRegisterPage />} />
         <Route path="branch/list" element={<BranchListPage />} />
         <Route path="branch/state" element={<NotUsedBranchUi />} />
+
 
         {/* 404 → /product (선택) */}
         <Route path="*" element={<Navigate to="/product" replace />} />

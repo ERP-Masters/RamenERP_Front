@@ -1,45 +1,55 @@
 // src/pages/BranchUsedFunction.tsx
-// 미사용 상태(=NOTUSED) 지점을 사용(=USED)으로 복구하는 전용 유틸
+// 지점 "사용 등록(USED)" 전용 유틸
 
 export type BranchState = "USED" | "NOTUSED";
 
 const BR_API = "/api/branches";
 
-/** 공통: 안전 JSON 파싱 */
-async function safeJson<T = any>(res: Response): Promise<T | null> {
-  const txt = await res.text();
-  return txt ? (JSON.parse(txt) as T) : null;
-}
+const safeJson = async (res: Response) => {
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
+};
 
-/**
- * 지정 지점을 사용으로 전환
- * - 미사용 전환과 동일한 패턴: PUT /api/branches/:id  +  body: { isused: "USED" }
- * - 성공 시 'branch:used:restored' 이벤트를 쏨(미사용 화면은 이를 듣고 자동 갱신)
+/** ✅ 단일 지점을 '사용(USED)'으로 전환
+ * - 인자는 숫자형 또는 문자열(ID 문자열 가능)
+ * - 문자열이 오면 끝자리 숫자를 추출해 숫자형 id로 정규화
+ * - PUT /api/branches/:id  { isused: "USED" }
+ * - 성공 시 'branch:used:restored' 이벤트 발행
  */
-export async function markBranchUsed(branch_id: number): Promise<void> {
-  const payload = { isused: "USED" as BranchState };
+export async function markBranchUsed(branch_id: number | string): Promise<void> {
+  // 1) 숫자 id 정규화: "BR_SEOUL_0002" -> 2
+  const idNum =
+    typeof branch_id === "number"
+      ? branch_id
+      : Number(((branch_id as string).match(/\d+$/) || [])[0]);
 
-  const res = await fetch(`${BR_API}/${encodeURIComponent(branch_id)}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await safeJson(res);
-  if (!res.ok) {
-    const msg = (data as any)?.message || `HTTP ${res.status}`;
-    throw new Error(msg);
+  if (!Number.isFinite(idNum)) {
+    throw new Error("유효하지 않은 branch_id 입니다. (숫자 ID 필요)");
   }
 
-  // 화면 갱신용 신호 (미사용 목록은 이 이벤트를 듣고 즉시 사라짐)
+  // 2) USED 로 상태 변경
+  const res = await fetch(`${BR_API}/${encodeURIComponent(idNum)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ isused: "USED" as BranchState }),
+  });
+
+  const j = await safeJson(res);
+  if (!res.ok) throw new Error(j?.message || `HTTP ${res.status}`);
+
+  // 3) 화면 갱신 신호(미사용 목록은 이 이벤트를 듣고 새로고침/제거)
   window.dispatchEvent(new Event("branch:used:restored"));
 }
 
-/** 여러 지점을 한 번에 사용으로 전환 */
-export async function markManyBranchesUsed(ids: number[]): Promise<void> {
-  // 병렬 처리
-  await Promise.all(ids.map((id) => markBranchUsed(id)));
+/** ✅ 여러 지점을 한 번에 USED 전환 */
+export async function markManyBranchesUsed(ids: Array<number | string>): Promise<void> {
+  // 숫자화 + 유효성 체크
+  const normalized = ids.map((v) =>
+    typeof v === "number" ? v : Number(((v as string).match(/\d+$/) || [])[0])
+  );
+  if (!normalized.every((n) => Number.isFinite(n))) {
+    throw new Error("선택된 항목 중 숫자형 branch_id 가 아닌 값이 있습니다.");
+  }
+
+  await Promise.all(normalized.map((id) => markBranchUsed(id)));
 }

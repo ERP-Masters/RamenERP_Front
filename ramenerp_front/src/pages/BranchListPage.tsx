@@ -181,16 +181,36 @@ const icon_btn_style: React.CSSProperties = {
 const empty_style = { padding: 24, textAlign: "center", color: ui_tok.label } as const;
 
 /* ===== 유틸 ===== */
-const to_row = (b: ApiBranch): Row => ({
-  branch_id: Number(b.branch_id),
-  name: String(b.name ?? "").trim(),
-  location: String(b.location ?? "").trim(),
-  detail_address: String(b.detail_address ?? "").trim(),
-  store_owner: String(b.store_owner ?? "").trim(),
-  contact: String(b.contact ?? "").trim(),
-  isused: b.isused ?? null, // ← 컬럼은 숨기지만 값은 보존(수정 모달에 필요)
-  created_at: String(b.created_at ?? "").trim(),
-});
+// ✅ 숫자/문자 어떤 형태로 와도 숫자 ID를 안전 추출 + 화면용 문자열 ID 보강
+const to_row = (b: ApiBranch): Row => {
+  // 숫자/문자 모두 대응: 끝자리 숫자를 숫자 ID로 추출 (예: BR_SEOUL_0007 → 7)
+  const toIdNum = (v: any): number => {
+    if (typeof v === "number") return v;
+    const m = String(v ?? "").match(/\d+$/);
+    return m ? Number(m[0]) : NaN;
+  };
+
+  // 화면표시용 문자열 ID 확보
+  const display =
+    (typeof (b as any)?.display_branch_id === "string" && (b as any).display_branch_id) ||
+    (typeof (b as any)?.branch_id === "string" && String((b as any).branch_id)) ||
+    (typeof (b as any)?.id === "string" && String((b as any).id)) ||
+    String((b as any)?.branch_id ?? "");
+
+  return {
+    branch_id: toIdNum((b as any).branch_id), // ← 요청/내부 로직용 숫자
+    name: String(b.name ?? "").trim(),
+    location: String(b.location ?? "").trim(),
+    detail_address: String(b.detail_address ?? "").trim(),
+    store_owner: String(b.store_owner ?? "").trim(),
+    contact: String(b.contact ?? "").trim(),
+    isused: b.isused ?? null,
+    created_at: String(b.created_at ?? "").trim(),
+    // 화면 표시용 문자열 ID를 런타임 속성으로 보강(타입은 그대로 유지)
+    ...(display ? { display_branch_id: display } : {}),
+  } as Row & { display_branch_id?: string };
+};
+
 const safeJson = async (res: Response) => {
   const text = await res.text();
   return text ? JSON.parse(text) : null;
@@ -409,11 +429,12 @@ const BranchListPage: React.FC = () => {
               <tbody>
                 {rows.map((r, idx) => (
                   <tr
-                    key={r.branch_id}
+                    key={Number.isFinite(r.branch_id) ? `n-${r.branch_id}` : `s-${(r as any).display_branch_id || 'unknown'}`}
                     title={`${r.name} · ${r.location} · ${r.detail_address}`}
                     style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                   >
-                    <td style={td_style}>{r.branch_id}</td>
+                    {/* ✅ 화면에는 문자열 브랜치 ID 표시, 없으면 숫자 fallback */}
+                    <td style={td_style}>{(r as any).display_branch_id ?? r.branch_id}</td>
                     <td style={td_style}>{r.name}</td>
                     <td style={td_style}>{r.location}</td>
                     <td style={td_style}>{r.detail_address}</td>
