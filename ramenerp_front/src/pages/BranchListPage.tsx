@@ -11,8 +11,10 @@ import BranchEditUi, {
 } from "./BranchEditFunction";
 
 // ✅ 미사용 등록 모달(UI)
-// (파일명은 BranchNotUsedUi.tsx, 기본 export 컴포넌트를 그대로 받아 별칭으로 사용)
 import BranchNoutUsedUi from "../components/BranchNotUsedUi";
+
+// ✅ 추가: 미사용 전환 API (PUT isused=NOTUSED)
+import { markBranchNotUsed } from "./BranchNotUsedFunction";
 
 /* ===== 공통: API 베이스 ===== */
 const BR_API = "/api/branches";
@@ -25,7 +27,7 @@ type ApiBranch = {
   detail_address: string;
   store_owner: string;
   contact: string;
-  issued?: string | null;     // 선택 필드 → 없으면 빈칸
+  isused?: string | null;     // ← DB에는 존재하지만 목록에선 표시 안 함
   created_at: string;
 };
 type Row = {
@@ -35,7 +37,7 @@ type Row = {
   detail_address: string;
   store_owner: string;
   contact: string;
-  issued?: string | null;
+  isused?: string | null;
   created_at: string;
 };
 
@@ -186,7 +188,7 @@ const to_row = (b: ApiBranch): Row => ({
   detail_address: String(b.detail_address ?? "").trim(),
   store_owner: String(b.store_owner ?? "").trim(),
   contact: String(b.contact ?? "").trim(),
-  issued: b.issued ?? null, // 없으면 빈칸으로 표시
+  isused: b.isused ?? null, // ← 컬럼은 숨기지만 값은 보존(수정 모달에 필요)
   created_at: String(b.created_at ?? "").trim(),
 });
 const safeJson = async (res: Response) => {
@@ -200,12 +202,12 @@ const BranchListPage: React.FC = () => {
   const [is_loading, set_is_loading] = useState(false);
   const [error_message, set_error_message] = useState("");
 
-  const [query, set_query] = useState("");         // 위치/이름 통합 검색
-  const [regOpen, set_regOpen] = useState(false);  // 등록 모달
+  const [query, set_query] = useState("");
+  const [regOpen, set_regOpen] = useState(false);
   const [editOpen, set_editOpen] = useState(false);
   const [editTarget, set_editTarget] = useState<BranchEditTarget | null>(null);
 
-  // ✅ 추가: 미사용 등록 모달 상태(최소 변경)
+  // ✅ 미사용 등록 모달 상태
   const [notUsedOpen, set_notUsedOpen] = useState(false);
   const [notUsedTarget, set_notUsedTarget] = useState<{ branch_id: number; name: string } | null>(null);
 
@@ -215,10 +217,9 @@ const BranchListPage: React.FC = () => {
     try {
       const res = await fetch(`${BR_API}`, { method: "GET", headers: { Accept: "application/json" }, signal });
       const j: ApiBranch[] = (await safeJson(res)) ?? [];
-      if (!res.ok) {
-        throw new Error((j as any)?.message || `HTTP ${res.status}`);
-      }
-      set_rows(Array.isArray(j) ? j.map(to_row) : []);
+      if (!res.ok) throw new Error((j as any)?.message || `HTTP ${res.status}`);
+      // ✅ 추가: NOTUSED는 메인 목록에서 숨김
+      set_rows((Array.isArray(j) ? j.map(to_row) : []).filter((r) => r.isused !== "NOTUSED"));
     } catch (e: any) {
       if (e?.name !== "AbortError") set_error_message(e?.message || "지점 목록을 불러오는 중 오류가 발생했습니다.");
     } finally {
@@ -244,6 +245,17 @@ const BranchListPage: React.FC = () => {
     };
   }, []);
 
+  // ✅ 추가: 상태 전환 브로드캐스트 수신 시 자동 새로고침
+  useEffect(() => {
+    const onChanged = () => load();
+    window.addEventListener("branch:notused:updated", onChanged);
+    window.addEventListener("branch:used:restored", onChanged);
+    return () => {
+      window.removeEventListener("branch:notused:updated", onChanged);
+      window.removeEventListener("branch:used:restored", onChanged);
+    };
+  }, []);
+
   const handle_search = async () => {
     const q = query.trim();
     if (!q) { load(); return; }
@@ -251,9 +263,7 @@ const BranchListPage: React.FC = () => {
     set_is_loading(true);
     set_error_message("");
     try {
-      // 1) 이름 검색: /api/branches/search/name/:bname
       let res = await fetch(`${BR_API}/search/name/${encodeURIComponent(q)}`, { headers: { Accept: "application/json" } });
-      // 이름 검색 실패하면 위치 검색: /api/branches/search/location/:loc
       if (!res.ok) {
         res = await fetch(`${BR_API}/search/location/${encodeURIComponent(q)}`, { headers: { Accept: "application/json" } });
       }
@@ -263,7 +273,8 @@ const BranchListPage: React.FC = () => {
         const data = await safeJson(res);
         if (!res.ok) throw new Error((data as any)?.message || `HTTP ${res.status}`);
         const list: ApiBranch[] = Array.isArray(data) ? data : (data ? [data] : []);
-        set_rows(list.map(to_row));
+        // ✅ 검색 결과도 NOTUSED 숨김
+        set_rows(list.map(to_row).filter((r) => r.isused !== "NOTUSED"));
       }
     } catch (e: any) {
       set_error_message(e?.message || "검색 중 오류가 발생했습니다.");
@@ -295,7 +306,8 @@ const BranchListPage: React.FC = () => {
         const item: ApiBranch | ApiBranch[] | null = await safeJson(res);
         if (!res.ok) throw new Error((item as any)?.message || `HTTP ${res.status}`);
         const list: ApiBranch[] = Array.isArray(item) ? item : (item ? [item] : []);
-        set_rows(list.map(to_row));
+        // ✅ 단건 검색도 NOTUSED 숨김
+        set_rows(list.map(to_row).filter((r) => r.isused !== "NOTUSED"));
       }
     } catch (e: any) {
       set_error_message(e?.message || "ID 검색 중 오류가 발생했습니다.");
@@ -313,7 +325,7 @@ const BranchListPage: React.FC = () => {
       detail_address: r.detail_address,
       store_owner: r.store_owner,
       contact: r.contact,
-      issued: r.issued ?? undefined,
+      issued: r.isused ?? undefined, // ← 목록에서는 숨기지만 수정 모달엔 전달
       created_at: r.created_at,
     };
     set_editTarget(tgt);
@@ -323,20 +335,23 @@ const BranchListPage: React.FC = () => {
 
   const handleSaved = (updated: BranchEditTarget) => {
     set_rows((prev) =>
-      prev.map((r) =>
-        r.branch_id === updated.branch_id
-          ? {
-              ...r,
-              name: updated.name,
-              location: updated.location,
-              detail_address: updated.detail_address,
-              store_owner: updated.store_owner,
-              contact: updated.contact,
-              issued: updated.issued ?? r.issued ?? null,
-              created_at: updated.created_at || r.created_at,
-            }
-          : r
-      )
+      prev
+        .map((r) =>
+          r.branch_id === updated.branch_id
+            ? {
+                ...r,
+                name: updated.name,
+                location: updated.location,
+                detail_address: updated.detail_address,
+                store_owner: updated.store_owner,
+                contact: updated.contact,
+                isused: updated.issued ?? r.isused ?? null,
+                created_at: updated.created_at || r.created_at,
+              }
+            : r
+        )
+        // ✅ 수정 후에도 NOTUSED가 되었다면(혹시 모를 케이스) 메인 목록에선 숨김
+        .filter((r) => r.isused !== "NOTUSED")
     );
   };
 
@@ -386,7 +401,7 @@ const BranchListPage: React.FC = () => {
                   <th style={th_style}>detail_address</th>
                   <th style={th_style}>store_owner</th>
                   <th style={th_style}>contact</th>
-                  <th style={th_style}>issued</th>
+                  {/* (숨김) <th style={th_style}>issued</th> */}
                   <th style={th_style}>created_at</th>
                   <th style={th_style}>actions</th>
                 </tr>
@@ -404,13 +419,12 @@ const BranchListPage: React.FC = () => {
                     <td style={td_style}>{r.detail_address}</td>
                     <td style={td_style}>{r.store_owner}</td>
                     <td style={td_style}>{r.contact}</td>
-                    {/* issued: DB에 없으면 빈칸 */}
-                    <td style={td_style}>{r.issued ?? ""}</td>
+                    {/* (숨김) <td style={td_style}>{r.isused ?? ""}</td> */}
                     <td style={td_style}>{r.created_at}</td>
 
                     {/* ✅ 오른쪽 끝: 연필/휴지통 아이콘 */}
                     <td style={actions_cell_style}>
-                      {/* 수정(연필, 회색) */}
+                      {/* 수정 */}
                       <button
                         type="button"
                         style={icon_btn_style}
@@ -430,7 +444,7 @@ const BranchListPage: React.FC = () => {
                         </svg>
                       </button>
 
-                      {/* 미사용 등록(휴지통, 빨간색) → 모달 오픈 */}
+                      {/* 미사용 등록(모달 오픈) */}
                       <button
                         type="button"
                         style={icon_btn_style}
@@ -452,7 +466,8 @@ const BranchListPage: React.FC = () => {
 
                 {rows.length === 0 && !is_loading && !error_message && (
                   <tr>
-                    <td colSpan={9} style={empty_style}>등록된 지점이 없습니다.</td>
+                    {/* 총 8열로 변경되어 colSpan=8 */}
+                    <td colSpan={8} style={empty_style}>등록된 지점이 없습니다.</td>
                   </tr>
                 )}
               </tbody>
@@ -477,14 +492,21 @@ const BranchListPage: React.FC = () => {
           }}
         />
 
-        {/* ✅ 미사용 등록 모달(기능 없이 열고 닫기만) */}
+        {/* ✅ 미사용 등록 모달(기능 연동) */}
         <BranchNoutUsedUi
           open={notUsedOpen}
           target={notUsedTarget}
           onClose={() => set_notUsedOpen(false)}
-          onConfirm={() => {
-            // 실제 미사용 처리 API는 추후 연동.
-            set_notUsedOpen(false);
+          onConfirm={async () => {
+            if (!notUsedTarget) return;
+            try {
+              await markBranchNotUsed(notUsedTarget.branch_id); // PUT isused=NOTUSED
+              set_notUsedOpen(false);
+              alert("미사용으로 등록되었습니다.");
+              load(); // 즉시 목록 갱신(메인에서 숨김)
+            } catch (e: any) {
+              alert(e?.message || "미사용 등록에 실패했습니다.");
+            }
           }}
         />
 
