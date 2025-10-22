@@ -1,308 +1,344 @@
-import React, { useEffect, useState } from "react";
+// src/pages/ItemRegisterForm.tsx
+import React from "react";
 
-interface IdNameOption { id: number; name: string; }
-interface ProductData {
-  item_id: string;
-  name: string;
-  category_id: string;
-  vendor_id: string;
-  unit_id: string;
-  unit_price: string;
-  expiry_date: string; // yyyy-mm-dd
-}
-interface CreateItemDto {
-  item_id: string;
-  name: string;
-  category_id: number;
-  vendor_id: number;
-  unit_id: number;
-  unit_price: number;
-  expiry_date: string;
-}
+type UseState = "USED" | "NOTUSED";
+type Option = { id: string; name: string; extra?: string; numId?: number }; // ← 숫자 ID 보관
 
-type ItemRegisterFormProps = {
-  on_success?: () => void;
-  on_cancel?: () => void;
+type Props = { on_success?: () => void; on_cancel?: () => void };
+
+const ui = {
+  border: "#e5e7eb",
+  input: { padding: 8, borderRadius: 8, border: "1px solid #e5e7eb", width: 320 } as React.CSSProperties,
+  field: { display: "grid", gap: 6, marginBottom: 8 } as React.CSSProperties,
 };
 
-const ui_tok = {
-  gap: 12,
-  gap_lg: 16,
-  radius: 10,
-  border: "#e5e7eb",
-  text_muted: "#6b7280",
-  text: "#111827",
-  primary_bg: "#0ea5e9",
-  primary_border: "#0284c7",
-  primary_text: "#fff",
-} as const;
+async function fetch_json(url: string) {
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
+    try { const j = text ? JSON.parse(text) : null; throw new Error(j?.message || j?.error || text || `HTTP ${res.status}`); }
+    catch { throw new Error(text || `HTTP ${res.status}`); }
+  }
+  return text ? JSON.parse(text) : null;
+}
 
-const grid_2_style = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: ui_tok.gap_lg,
-} as const;
-const section_style = { display: "flex", flexDirection: "column" as const, gap: 6 } as const;
-const label_style = { fontSize: 13, color: ui_tok.text_muted, fontWeight: 600 } as const;
-const input_style = {
-  display: "block", width: "100%", padding: "10px 12px",
-  borderRadius: ui_tok.radius, border: `1px solid ${ui_tok.border}`, outline: "none",
-} as const;
-const select_style = input_style;
-const num_style = { ...input_style, textAlign: "right" } as const;
-const help_style = { color: ui_tok.text_muted, fontSize: 12 } as const;
-const error_style = { color: "#c62828", fontSize: 12, marginTop: 6 } as const;
-const info_style = { color: "#2e7d32", fontSize: 12, marginTop: 6 } as const;
-const toolbar_style = { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 } as const;
-const primary_button_style = {
-  padding: "10px 14px", borderRadius: ui_tok.radius,
-  background: ui_tok.primary_bg, border: `1px solid ${ui_tok.primary_border}`,
-  color: ui_tok.primary_text, fontWeight: 700, cursor: "pointer",
-} as const;
-const ghost_button_style = {
-  padding: "10px 14px", borderRadius: ui_tok.radius,
-  background: "transparent", border: `1px solid ${ui_tok.border}`,
-  color: "#111827", fontWeight: 600, cursor: "pointer",
-} as const;
-const subtle_note_style = { marginTop: 6, fontSize: 11, color: ui_tok.text_muted } as const;
+/** 공통 옵션 정규화: id는 문자열 유지, 가능한 경우 numId(숫자 ID)도 채움 */
+function normalize_options(
+  raw: any[],
+  idKeys: string[],
+  nameKeys: string[],
+  extraKeys?: string[],
+  numericIdKeys: string[] = ["id", "pk", "vendor_pk", "category_pk", "unit_pk"]
+): Option[] {
+  const out: Option[] = [];
+  for (const r of raw ?? []) {
+    const idVal = idKeys.map((k) => r?.[k]).find((v) => v !== undefined && v !== null);
+    const nameVal = nameKeys.map((k) => r?.[k]).find((v) => v !== undefined && v !== null);
+    if (idVal === undefined || nameVal === undefined) continue;
+    const extraVal = extraKeys?.map((k) => r?.[k]).find((v) => v !== undefined && v !== null);
+    const numericRaw = numericIdKeys.map((k) => r?.[k]).find((v) => typeof v === "number" && Number.isFinite(v));
+    out.push({
+      id: String(idVal), // 문자열 유지(VD_코드 같은 것도 허용)
+      name: String(nameVal),
+      extra: extraVal != null ? String(extraVal) : undefined,
+      numId: typeof numericRaw === "number" ? numericRaw : undefined,
+    });
+  }
+  return out;
+}
 
-const ItemRegisterForm: React.FC<ItemRegisterFormProps> = ({ on_success, on_cancel }) => {
-  const [form_data, set_form_data] = useState<ProductData>({
-    item_id: "", name: "", category_id: "", vendor_id: "", unit_id: "", unit_price: "", expiry_date: "",
-  });
+/** 카테고리/단위/거래처 옵션 로더 — 여러 엔드포인트를 순차 시도 */
+async function fetch_category_options(): Promise<Option[]> {
+  const candidates = ["/api/category", "/api/categories", "/api/categories/options"];
+  for (const url of candidates) {
+    try {
+      const raw = await fetch_json(url);
+      const arr = Array.isArray(raw) ? raw : raw?.items ?? [];
+      const opts = normalize_options(arr, ["id", "category_id"], ["category_name", "name"]);
+      if (opts.length) return opts;
+    } catch {}
+  }
+  return [];
+}
 
-  const [category_options, set_category_options] = useState<IdNameOption[]>([]);
-  const [vendor_options, set_vendor_options] = useState<IdNameOption[]>([]);
-  const [unit_options, set_unit_options] = useState<IdNameOption[]>([]);
-  const [is_loading_options, set_is_loading_options] = useState<boolean>(false);
-  const [load_error, set_load_error] = useState<string | null>(null);
+async function fetch_unit_options(): Promise<Option[]> {
+  const candidates = ["/api/units", "/api/unit", "/api/units/options"];
+  for (const url of candidates) {
+    try {
+      const raw = await fetch_json(url);
+      const arr = Array.isArray(raw) ? raw : raw?.items ?? [];
+      const opts = normalize_options(arr, ["id", "unit_id"], ["name", "unit_name", "code"], ["code"]);
+      if (opts.length) return opts;
+    } catch {}
+  }
+  return [];
+}
 
-  const [is_submitting, set_is_submitting] = useState<boolean>(false);
-  const [error_message, set_error_message] = useState<string>("");
-  const [info_message, set_info_message] = useState<string>("");
+async function fetch_vendor_options(): Promise<Option[]> {
+  // 숫자 id를 얻기 위해 상세 엔드포인트를 먼저 시도
+  const candidates = [
+    "/api/vendors",          // ← 상세(숫자 id 있을 확률 높음)
+    "/api/vendors/summary",
+    "/api/vendors/options",
+  ];
+  for (const url of candidates) {
+    try {
+      const raw = await fetch_json(url);
+      const arr = Array.isArray(raw) ? raw : raw?.items ?? [];
+      const opts = normalize_options(
+        arr,
+        ["id", "vendor_id"],      // id: 문자열(VD_코드 포함)
+        ["name", "vendor_name"],  // 표시명
+        undefined,
+        ["id", "vendor_pk", "pk"] // 숫자 id 후보 키
+      );
+      if (opts.length) return opts;
+    } catch {}
+  }
+  return [];
+}
 
-  const to_int = (value: string): number => {
-    const n = Number(value);
-    if (!Number.isFinite(n) || !Number.isInteger(n)) throw new Error("정수 필드에 잘못된 값이 있습니다.");
-    return n;
-  };
+const isDigits = (s: unknown) => typeof s === "string" && /^\d+$/.test(s);
+const isValidDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-  const normalize_option = (raw: any, type: "category" | "unit" | "vendor"): IdNameOption => {
-    switch (type) {
-      case "category":
-        return { id: Number(raw.id ?? raw.category_id), name: String(raw.group ?? raw.name ?? raw.category_name) };
-      case "unit":
-        return { id: Number(raw.id ?? raw.unit_id), name: String(raw.code ?? raw.name ?? raw.unit_name ?? raw.code) };
-      case "vendor":
-        return { id: Number(raw.id ?? raw.vendor_id), name: String(raw.name ?? raw.vendor_name) };
-    }
-  };
+const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
+  // 상태는 문자열로 관리
+  const [category_id, set_category_id] = React.useState<string>("");
+  const [name, set_name] = React.useState("");
+  const [unit_id, set_unit_id] = React.useState<string>("");
+  const [unit_price, set_unit_price] = React.useState<string>("");
+  const [expiry_date, set_expiry_date] = React.useState("");
+  const [vendor_id, set_vendor_id] = React.useState<string>("");
+  const [isused, set_isused] = React.useState<UseState>("USED");
 
-  const fetch_json = async <T,>(url: string, signal?: AbortSignal): Promise<T> => {
-    const res = await fetch(url, { signal, headers: { Accept: "application/json" } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json() as Promise<T>;
-  };
+  const [category_opts, set_category_opts] = React.useState<Option[]>([]);
+  const [unit_opts, set_unit_opts] = React.useState<Option[]>([]);
+  const [vendor_opts, set_vendor_opts] = React.useState<Option[]>([]);
 
-  const to_array = (raw: any): any[] => {
-    if (Array.isArray(raw)) return raw;
-    if (raw?.items && Array.isArray(raw.items)) return raw.items;
-    if (raw?.data && Array.isArray(raw.data)) return raw.data;
-    if (raw?.results && Array.isArray(raw.results)) return raw.results;
-    return [];
-  };
+  const [loading, set_loading] = React.useState(false);
+  const [saving, set_saving] = React.useState(false);
+  const [error, set_error] = React.useState("");
+  const [field_errors, set_field_errors] = React.useState<string[]>([]);
 
-  const is_valid_date = (value: string): boolean => {
-    if (!value) return false;
-    const t = Date.parse(value);
-    return Number.isFinite(t);
-  };
-
-  const is_valid_form = (): boolean => {
-    if (!form_data.item_id.trim()) return false;
-    if (!form_data.category_id) return false;
-    if (!form_data.name.trim()) return false;
-    if (!form_data.unit_id) return false;
-    if (!form_data.vendor_id) return false;
-    const price_num = Number(form_data.unit_price);
-    if (!Number.isFinite(price_num) || !Number.isInteger(price_num) || price_num < 0) return false;
-    if (!form_data.expiry_date) return false;
-    if (!is_valid_date(form_data.expiry_date)) return false;
-    return true;
-  };
-
-  const to_create_dto = (data: ProductData): CreateItemDto => ({
-    item_id: data.item_id.trim(),
-    name: data.name.trim(),
-    category_id: to_int(data.category_id),
-    vendor_id: to_int(data.vendor_id),
-    unit_id: to_int(data.unit_id),
-    unit_price: to_int(data.unit_price),
-    expiry_date: data.expiry_date.trim(),
-  });
-
-  useEffect(() => {
-    const ac = new AbortController();
-    const { signal } = ac;
+  React.useEffect(() => {
+    let alive = true;
     (async () => {
-      set_is_loading_options(true);
-      set_load_error(null);
+      set_loading(true);
+      set_error(""); set_field_errors([]);
       try {
-        const [cats_raw, vendors_raw, units_raw] = await Promise.all([
-          fetch_json<any>("/api/category", signal),
-          fetch_json<any>("/api/vendors", signal),
-          fetch_json<any>("/api/units", signal),
+        const [cats, units, vends] = await Promise.all([
+          fetch_category_options(),
+          fetch_unit_options(),
+          fetch_vendor_options(),
         ]);
-        const cats = to_array(cats_raw).map((c) => normalize_option(c, "category")).filter((o) => Number.isFinite(o.id) && !!o.name);
-        const vendors = to_array(vendors_raw).map((v) => normalize_option(v, "vendor")).filter((o) => Number.isFinite(o.id) && !!o.name);
-        const units = to_array(units_raw).map((u) => normalize_option(u, "unit")).filter((o) => Number.isFinite(o.id) && !!o.name);
-        set_category_options(cats);
-        set_vendor_options(vendors);
-        set_unit_options(units);
-      } catch (err: any) {
-        if (err?.name !== "AbortError") set_load_error(err?.message || "옵션 목록을 불러오지 못했습니다.");
+        if (!alive) return;
+        set_category_opts(cats.sort((a,b)=>a.name.localeCompare(b.name,"ko")));
+        set_unit_opts(units.sort((a,b)=>(a.extra??a.name).localeCompare(b.extra??b.name,"ko")));
+        set_vendor_opts(vends.sort((a,b)=>a.name.localeCompare(b.name,"ko")));
+      } catch (e: any) {
+        if (!alive) return;
+        set_error(e?.message || "옵션 로드 실패");
       } finally {
-        set_is_loading_options(false);
+        if (alive) set_loading(false);
       }
     })();
-    return () => ac.abort();
+    return () => { alive = false; };
   }, []);
 
-  const handle_change = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    set_form_data((prev) => ({ ...prev, [name]: value }));
+  const validate = () => {
+    const errs: string[] = [];
+
+    if (category_opts.length === 0) errs.push("카테고리 목록이 비어있습니다. 먼저 카테고리를 등록하세요.");
+    if (!category_id) errs.push("카테고리를 선택하세요.");
+
+    if (!name.trim()) errs.push("품목명을 입력하세요.");
+
+    const priceNum = Number(unit_price);
+    if (!Number.isFinite(priceNum) || priceNum < 0) errs.push("단가는 0 이상 숫자로 입력하세요.");
+
+    if (unit_opts.length === 0) errs.push("단위 목록이 비어있습니다. 먼저 단위를 등록하세요.");
+    if (!unit_id) errs.push("단위를 선택하세요.");
+
+    if (!isValidDate(expiry_date)) errs.push("유통기한을 선택하세요.");
+
+    if (vendor_opts.length === 0) {
+      errs.push("거래처 목록이 비어있습니다. 먼저 거래처를 등록하세요.");
+    } else if (!vendor_id) {
+      errs.push("거래처를 선택하세요.");
+    } else {
+      // 숫자 id 확보 가능 여부를 미리 점검
+      const chosen = vendor_opts.find(v => v.id === vendor_id);
+      const numeric = chosen?.numId ?? (isDigits(vendor_id) ? Number(vendor_id) : NaN);
+      if (!Number.isFinite(numeric)) {
+        errs.push("선택한 거래처에 숫자 ID가 없습니다. 백엔드에서 'id(숫자)'를 함께 내려주도록 수정이 필요합니다.");
+      }
+    }
+
+    if (isused !== "USED" && isused !== "NOTUSED") errs.push("사용 상태를 선택하세요.");
+
+    set_field_errors(errs);
+    return errs.length === 0;
   };
 
-  const handle_submit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    set_error_message("");
-    set_info_message("");
+    set_error(""); set_field_errors([]);
+    if (!validate()) return;
 
-    const trimmed: ProductData = {
-      ...form_data,
-      item_id: form_data.item_id.trim(),
-      name: form_data.name.trim(),
-      unit_price: form_data.unit_price.trim(),
-      expiry_date: form_data.expiry_date.trim(),
-      category_id: form_data.category_id.trim(),
-      unit_id: form_data.unit_id.trim(),
-      vendor_id: form_data.vendor_id.trim(),
-    };
-
-    if (!is_valid_form()) {
-      set_error_message("필수 항목을 확인해주세요. (품목ID/카테고리/품목명/단위/단가/거래처/유통기한)");
+    const chosenVendor = vendor_opts.find(v => v.id === vendor_id);
+    const vendor_id_num = chosenVendor?.numId ?? (isDigits(vendor_id) ? Number(vendor_id) : NaN);
+    if (!Number.isFinite(vendor_id_num)) {
+      set_field_errors(["선택한 거래처에 숫자 ID가 없습니다. 백엔드가 숫자 id를 함께 내려주거나 /api/vendors 같은 상세 엔드포인트를 사용해주세요."]);
       return;
     }
 
+    const chosenCat = category_opts.find(c => c.id === category_id);
+    const category_id_num = chosenCat?.numId ?? (isDigits(category_id) ? Number(category_id) : Number(category_id));
+    const chosenUnit = unit_opts.find(u => u.id === unit_id);
+    const unit_id_num = chosenUnit?.numId ?? (isDigits(unit_id) ? Number(unit_id) : Number(unit_id));
+
+    const payload = {
+      category_id: Number(category_id_num),
+      name: String(name.trim()),
+      unit_id: Number(unit_id_num),
+      unit_price: Number(unit_price),
+      expiry_date: String(expiry_date),
+      vendor_id: Number(vendor_id_num),
+      isused: isused as UseState,
+    };
+
+    set_saving(true);
     try {
-      set_is_submitting(true);
-      const payload = to_create_dto(trimmed);
       const res = await fetch("/api/items", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
+      const text = await res.text().catch(() => "");
       if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try {
-          const ct = res.headers.get("content-type") || "";
-          if (ct.includes("application/json")) {
-            const j = await res.json();
-            msg = j?.message ? (Array.isArray(j.message) ? j.message.join(", ") : String(j.message)) : msg;
-          } else {
-            const t = await res.text();
-            if (t) msg = t;
-          }
-        } catch {}
-        throw new Error(msg);
+        try { const j = text ? JSON.parse(text) : null; throw new Error(j?.message || j?.error || text || `HTTP ${res.status}`); }
+        catch { throw new Error(text || `HTTP ${res.status}`); }
       }
-
-      set_info_message("품목 등록이 완료되었습니다.");
-      set_form_data({ item_id: "", name: "", category_id: "", vendor_id: "", unit_id: "", unit_price: "", expiry_date: "" });
-      if (on_success) on_success();
+      on_success?.();
     } catch (err: any) {
-      set_error_message(err?.message || "등록 중 오류가 발생했습니다.");
+      set_error(err?.message || "등록 실패");
     } finally {
-      set_is_submitting(false);
+      set_saving(false);
     }
   };
 
-  const is_select_disabled = is_loading_options;
-
   return (
-    <form onSubmit={handle_submit} noValidate>
-      {load_error && <div style={error_style}>목록 불러오기 오류: {load_error}</div>}
-      {is_loading_options && <div style={help_style}>목록 불러오는 중…</div>}
-      {error_message && <div style={error_style}>{error_message}</div>}
-      {info_message && <div style={info_style}>{info_message}</div>}
+    <form onSubmit={submit} style={{ display: "grid", gap: 10 }}>
+      <label style={ui.field}>
+        <span>카테고리 *</span>
+        <select
+          value={category_id}
+          onChange={(e) => set_category_id(e.target.value)}
+          style={{ ...ui.input, width: 360 }}
+          required
+          disabled={loading || category_opts.length === 0}
+        >
+          <option value="">선택</option>
+          {category_opts.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </label>
 
-      <div style={{ marginTop: 8, marginBottom: 12 }}>
-        <div style={{ ...help_style, fontWeight: 700, color: ui_tok.text }}>기본 정보</div>
-        <div style={grid_2_style}>
-          <div style={section_style}>
-            <label htmlFor="item_id" style={label_style}>품목ID</label>
-            <input id="item_id" name="item_id" type="text" value={form_data.item_id} onChange={handle_change} style={input_style} required />
-            <div style={subtle_note_style}>예: ITEM_001</div>
-          </div>
+      <label style={ui.field}>
+        <span>품목명 *</span>
+        <input
+          value={name}
+          onChange={(e) => set_name(e.target.value)}
+          style={ui.input}
+          placeholder="예: 생면"
+          required
+        />
+      </label>
 
-          <div style={section_style}>
-            <label htmlFor="name" style={label_style}>품목명</label>
-            <input id="name" name="name" type="text" value={form_data.name} onChange={handle_change} style={input_style} required />
-          </div>
+      <label style={ui.field}>
+        <span>단위 *</span>
+        <select
+          value={unit_id}
+          onChange={(e) => set_unit_id(e.target.value)}
+          style={{ ...ui.input, width: 360 }}
+          required
+          disabled={loading || unit_opts.length === 0}
+        >
+          <option value="">선택</option>
+          {unit_opts.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.extra ? `${u.extra} (${u.name})` : u.name}
+            </option>
+          ))}
+        </select>
+      </label>
 
-          <div style={section_style}>
-            <label htmlFor="category_id" style={label_style}>카테고리</label>
-            <select id="category_id" name="category_id" value={form_data.category_id} onChange={handle_change} style={select_style} required disabled={is_select_disabled}>
-              <option value="">{is_loading_options ? "불러오는 중…" : (category_options.length ? "선택" : "목록 없음")}</option>
-              {category_options.map((c) => (<option key={c.id} value={String(c.id)}>{c.name}</option>))}
-            </select>
-          </div>
+      <label style={ui.field}>
+        <span>단가(원) *</span>
+        <input
+          type="number"
+          min={0}
+          value={unit_price}
+          onChange={(e) => set_unit_price(e.target.value)}
+          style={ui.input}
+          required
+        />
+      </label>
 
-          <div style={section_style}>
-            <label htmlFor="vendor_id" style={label_style}>거래처</label>
-            <select id="vendor_id" name="vendor_id" value={form_data.vendor_id} onChange={handle_change} style={select_style} required disabled={is_select_disabled}>
-              <option value="">{is_loading_options ? "불러오는 중…" : (vendor_options.length ? "선택" : "목록 없음")}</option>
-              {vendor_options.map((v) => (<option key={v.id} value={String(v.id)}>{v.name}</option>))}
-            </select>
-          </div>
+      <label style={ui.field}>
+        <span>유통기한 *</span>
+        <input
+          type="date"
+          value={expiry_date}
+          onChange={(e) => set_expiry_date(e.target.value)}
+          style={ui.input}
+          required
+        />
+      </label>
+
+      <label style={ui.field}>
+        <span>거래처 *</span>
+        <select
+          value={vendor_id}
+          onChange={(e) => set_vendor_id(e.target.value)}
+          style={{ ...ui.input, width: 360 }}
+          required
+          disabled={loading || vendor_opts.length === 0}
+        >
+          <option value="">선택</option>
+          {vendor_opts.map((v) => (
+            <option key={v.id} value={v.id}>{v.name}</option>
+          ))}
+        </select>
+      </label>
+
+      <label style={ui.field}>
+        <span>사용 상태 *</span>
+        <select
+          value={isused}
+          onChange={(e) => set_isused(e.target.value as UseState)}
+          style={{ ...ui.input, width: 200 }}
+          required
+        >
+          <option value="USED">USED</option>
+          <option value="NOTUSED">NOTUSED</option>
+        </select>
+      </label>
+
+      {field_errors.length > 0 && (
+        <div style={{ color: "#c62828" }}>
+          {field_errors.map((m, i) => <div key={i}>• {m}</div>)}
         </div>
-      </div>
+      )}
+      {error && <div style={{ color: "#c62828" }}>{error}</div>}
 
-      <div style={{ marginTop: 12 }}>
-        <div style={{ ...help_style, fontWeight: 700, color: ui_tok.text }}>규격 / 가격 / 유통기한</div>
-        <div style={grid_2_style}>
-          <div style={section_style}>
-            <label htmlFor="unit_id" style={label_style}>단위</label>
-            <select id="unit_id" name="unit_id" value={form_data.unit_id} onChange={handle_change} style={select_style} required disabled={is_select_disabled}>
-              <option value="">{is_loading_options ? "불러오는 중…" : (unit_options.length ? "선택" : "목록 없음")}</option>
-              {unit_options.map((u) => (<option key={u.id} value={String(u.id)}>{u.name}</option>))}
-            </select>
-          </div>
-
-          <div style={section_style}>
-            <label htmlFor="unit_price" style={label_style}>단가(원)</label>
-            <input id="unit_price" name="unit_price" type="number" inputMode="numeric" step={1} min={0} value={form_data.unit_price} onChange={handle_change} style={num_style} required />
-            <div style={subtle_note_style}>정수만 입력 가능</div>
-          </div>
-
-          <div style={section_style}>
-            <label htmlFor="expiry_date" style={label_style}>유통기한</label>
-            <input id="expiry_date" name="expiry_date" type="date" value={form_data.expiry_date} onChange={handle_change} style={input_style} required />
-          </div>
-
-          <div />
-        </div>
-      </div>
-
-      <div style={toolbar_style}>
-        {on_cancel && (
-          <button type="button" onClick={on_cancel} disabled={is_submitting} style={ghost_button_style}>
-            취소
-          </button>
-        )}
-        <button type="submit" disabled={is_submitting || is_select_disabled} style={primary_button_style}>
-          {is_submitting ? "등록 중…" : "등록"}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button type="submit" disabled={saving || loading} style={{ padding: "8px 12px" }}>
+          {saving ? "저장 중..." : "등록"}
+        </button>
+        <button type="button" onClick={() => on_cancel?.()} style={{ padding: "8px 12px" }}>
+          취소
         </button>
       </div>
     </form>
