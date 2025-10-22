@@ -6,6 +6,8 @@ export type ApiUnit = {
   code: string;
   name: string;
   is_active?: boolean | null;
+  // 서버가 내려보낼 수도 있으니 선택적으로 타입만 추가
+  isused?: "USED" | "NOTUSED" | null;
 };
 
 export type UnitEditTarget = {
@@ -25,7 +27,12 @@ export async function putUnit(payload: UnitEditTarget): Promise<ApiUnit> {
   const res = await fetch(`/api/units/${unit_id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ code: code.trim(), name: name.trim() }),
+    // ✅ 백엔드 검증 통과를 위해 isused 명시
+    body: JSON.stringify({
+      code: code.trim(),
+      name: name.trim(),
+      isused: "USED",
+    }),
   });
 
   const raw = await res.text();
@@ -38,5 +45,5 @@ export async function putUnit(payload: UnitEditTarget): Promise<ApiUnit> {
     }
   }
 
-  return raw ? (JSON.parse(raw) as ApiUnit) : ({ unit_id, code, name } as ApiUnit);
+  return raw ? (JSON.parse(raw) as ApiUnit) : ({ unit_id, code, name, isused: "USED" } as ApiUnit);
 }

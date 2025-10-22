@@ -276,6 +276,38 @@ const BranchListPage: React.FC = () => {
     };
   }, []);
 
+  /* ✅ 추가: 지점 수정 성공 브로드캐스트 수신 → 해당 행만 즉시 갱신 */
+  useEffect(() => {
+    const onEdited = (e: Event) => {
+      const v = (e as CustomEvent).detail as Partial<BranchEditTarget> | undefined;
+      if (!v || typeof v !== "object") return;
+      const vid = (v as any).branch_id;
+      if (vid == null) return;
+
+      set_rows((prev) =>
+        prev
+          .map((r) =>
+            Number(r.branch_id) === Number(vid)
+              ? {
+                  ...r,
+                  name: (v as any).name ?? r.name,
+                  location: (v as any).location ?? r.location,
+                  detail_address: (v as any).detail_address ?? r.detail_address,
+                  store_owner: (v as any).store_owner ?? r.store_owner,
+                  contact: (v as any).contact ?? r.contact,
+                  isused: (v as any).issued ?? r.isused,
+                  created_at: (v as any).created_at ?? r.created_at,
+                }
+              : r
+          )
+          .filter((r) => r.isused !== "NOTUSED")
+      );
+    };
+
+    window.addEventListener("branch:edited", onEdited as EventListener);
+    return () => window.removeEventListener("branch:edited", onEdited as EventListener);
+  }, []);
+
   const handle_search = async () => {
     const q = query.trim();
     if (!q) { load(); return; }
@@ -353,20 +385,22 @@ const BranchListPage: React.FC = () => {
   };
   const closeEdit = () => set_editOpen(false);
 
+  // ✅ 교체: 응답에서 branch_id가 문자열이어도 바로 반영되도록 숫자 비교
   const handleSaved = (updated: BranchEditTarget) => {
+    const uid = Number((updated as any)?.branch_id);
     set_rows((prev) =>
       prev
         .map((r) =>
-          r.branch_id === updated.branch_id
+          Number(r.branch_id) === uid
             ? {
                 ...r,
-                name: updated.name,
-                location: updated.location,
-                detail_address: updated.detail_address,
-                store_owner: updated.store_owner,
-                contact: updated.contact,
-                isused: updated.issued ?? r.isused ?? null,
-                created_at: updated.created_at || r.created_at,
+                name: updated.name ?? r.name,
+                location: updated.location ?? r.location,
+                detail_address: updated.detail_address ?? r.detail_address,
+                store_owner: updated.store_owner ?? r.store_owner,
+                contact: updated.contact ?? r.contact,
+                isused: (updated as any)?.issued ?? r.isused ?? null,
+                created_at: (updated as any)?.created_at || r.created_at,
               }
             : r
         )

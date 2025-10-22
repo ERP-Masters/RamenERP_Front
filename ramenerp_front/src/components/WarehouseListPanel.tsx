@@ -9,7 +9,7 @@ import { deleteWarehouseWithAlerts, type WarehouseDeleteTarget } from "../pages/
 // (추가) 모달로 띄울 등록 폼(프로펠스 없이 사용)
 import WareHouseRegister from "../pages/WarehouseRegister";
 
-type ApiWarehouse = { warehouse_id: number; name: string; location: string; created_at: string; };
+type ApiWarehouse = { warehouse_id: number | string; name: string; location: string; created_at: string; };
 type Row = { warehouse_id: number; name: string; location: string; created_at: string; };
 export interface WarehouseListPanelProps { filterLocation?: string; }
 
@@ -169,12 +169,34 @@ const icon_btn_style: React.CSSProperties = {
 const empty_style = { textAlign: "center", padding: 24, color: ui_tok.label } as const;
 
 /* ===== 유틸 ===== */
-const to_row = (w: ApiWarehouse): Row => ({
-  warehouse_id: Number(w.warehouse_id),
-  name: String(w.name ?? "").trim(),
-  location: String(w.location ?? "").trim(),
-  created_at: String(w.created_at ?? "").trim(),
-});
+/** ✅ 서버 값이 숫자/문자 어떤 형태든
+ *  - 요청용: 숫자 ID(끝자리 숫자 추출)
+ *  - 표시용: 문자열 ID 유지
+ */
+const to_row = (w: ApiWarehouse): Row => {
+  const toIdNum = (v: any): number => {
+    if (typeof v === "number") return v;
+    const m = String(v ?? "").match(/\d+$/);
+    return m ? Number(m[0]) : NaN;
+  };
+
+  // 화면에 보여줄 문자열 ID 후보
+  const display =
+    (typeof (w as any)?.display_warehouse_id === "string" && (w as any).display_warehouse_id) ||
+    (typeof (w as any)?.warehouse_id === "string" && String((w as any).warehouse_id)) ||
+    (typeof (w as any)?.id === "string" && String((w as any).id)) ||
+    String((w as any)?.warehouse_id ?? "");
+
+  return {
+    warehouse_id: toIdNum((w as any).warehouse_id), // ← API 요청용 숫자
+    name: String(w.name ?? "").trim(),
+    location: String(w.location ?? "").trim(),
+    created_at: String(w.created_at ?? "").trim(),
+    // 화면표시용 문자열 ID를 런타임 속성으로 보강
+    ...(display ? { display_warehouse_id: display } : {}),
+  } as Row & { display_warehouse_id?: string };
+};
+
 const fmtDate = (iso: string) => {
   if (!iso) return "";
   try {
@@ -248,7 +270,6 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
   useEffect(() => {
     const closeModal = () => set_regOpen(false);
     window.addEventListener("warehouse:register:cancel", closeModal);
-    // 성공 이벤트에도 닫히길 원하면 유지 (이미 목록 새로고침 리스너도 있음)
     window.addEventListener("warehouse:created", closeModal);
     return () => {
       window.removeEventListener("warehouse:register:cancel", closeModal);
@@ -258,11 +279,32 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === "Enter") e.preventDefault(); };
 
-  const openEdit = (row: Row) => { set_editTarget({ warehouse_id: row.warehouse_id, name: row.name, location: row.location }); set_editOpen(true); };
+  const openEdit = (row: Row) => {
+    set_editTarget({ warehouse_id: row.warehouse_id, name: row.name, location: row.location });
+    set_editOpen(true);
+  };
   const closeEdit = () => set_editOpen(false);
+
+  // ✅ 여기만 보강: 숫자 ID가 안 맞으면 표시용 문자열 ID로도 매칭
   const handleSaved = (updated: ApiWarehouse) => {
-    set_rows(prev => prev.map(r => r.warehouse_id === updated.warehouse_id
-      ? { ...r, name: updated.name, location: updated.location, created_at: updated.created_at } : r));
+    set_rows(prev =>
+      prev.map((r: any) => {
+        const uidNum = Number((updated as any).warehouse_id);
+        const sameNum = Number(r.warehouse_id) === uidNum && !Number.isNaN(uidNum);
+        const sameDisplay =
+          String((r as any).display_warehouse_id ?? "") === String((updated as any).warehouse_id ?? "");
+
+        if (sameNum || sameDisplay) {
+          return {
+            ...r,
+            name: updated.name,
+            location: updated.location,
+            created_at: updated.created_at,
+          };
+        }
+        return r;
+      })
+    );
   };
 
   const openDelete = (row: Row) => { set_delTarget({ warehouse_id: row.warehouse_id, name: row.name }); set_delOpen(true); };
@@ -312,9 +354,12 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, idx) => (
-                  <tr key={r.warehouse_id} title={`${r.name} · ${r.location}`} style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}>
-                    <td style={td_style}>{r.warehouse_id}</td>
+                {rows.map((r: any, idx) => (
+                  <tr key={`${r.warehouse_id}-${(r as any).display_warehouse_id ?? ""}`}
+                      title={`${r.name} · ${r.location}`}
+                      style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}>
+                    {/* ✅ 화면에는 문자열 ID를 우선 표시 */}
+                    <td style={td_style}>{(r as any).display_warehouse_id ?? r.warehouse_id}</td>
                     <td style={td_style}>{r.name}</td>
                     <td style={td_style}>{r.location}</td>
                     <td style={created_cell_style}>
@@ -373,7 +418,7 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
           onSubmit={async (data) => {
             try {
               const updated = await putWarehouse(data);
-              handleSaved(updated);
+              handleSaved(updated);  // ← ✅ 즉시 반영
               closeEdit();
               alert("창고 정보가 업데이트 되었습니다.");
             } catch (e: any) {

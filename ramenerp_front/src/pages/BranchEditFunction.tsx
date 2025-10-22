@@ -31,7 +31,7 @@ export async function putBranch(data: BranchEditTarget) {
     }),
   });
 
-  const raw = await res.text();
+  const raw = await res.text().catch(() => "");
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
@@ -40,8 +40,33 @@ export async function putBranch(data: BranchEditTarget) {
     } catch {}
     throw new Error(msg);
   }
-  // 서버가 수정된 레코드를 돌려준다고 가정
-  return raw ? JSON.parse(raw) : { ...data };
+
+  // ✅ 응답 파싱 (204 대비)
+  let updated: BranchEditTarget;
+  if (raw) {
+    try {
+      updated = JSON.parse(raw);
+    } catch {
+      // 예외적으로 잘못된 JSON이 오면 기존 값으로 대체
+      updated = { ...data };
+    }
+  } else {
+    // 204(No Content) → 기존 값으로 구성
+    updated = { ...data };
+  }
+
+  // ✅ branch_id 를 숫자로 ‘반드시’ 정규화 (문자열로 오면 리스트 갱신이 안 보일 수 있음)
+  const uid = Number((updated as any)?.branch_id ?? data.branch_id);
+  (updated as any).branch_id = uid;
+
+  // ✅ issued/created_at 이 응답에 없으면 기존 값 유지(선택)
+  if (updated.issued === undefined) updated.issued = data.issued ?? null;
+  if (!updated.created_at) updated.created_at = data.created_at;
+
+  /* ✅ 저장 즉시 리스트가 갱신되도록 브로드캐스트 */
+  window.dispatchEvent(new CustomEvent("branch:edited", { detail: updated }));
+
+  return updated;
 }
 
 /* ===== 수정 모달 UI ===== */

@@ -12,8 +12,17 @@ import { deleteUnitWithAlerts, type UnitDeleteTarget } from "../pages/UnitDelete
 // ✅ 모달로 띄울 등록 페이지 (기존 페이지를 그대로 사용)
 import UnitRegisterPage from "../pages/UnitRegisterPage";
 
-type ApiUnit = { unit_id: number; code: string; name: string; is_active?: boolean | null; };
-type UnitRow = { unit_id: number; code: string; name: string; is_active?: boolean };
+type ApiUnit = { unit_id: number | string; code: string; name: string; is_active?: boolean | null; };
+
+// 👉 내부 로우: 요청/로직용은 숫자 ID 유지
+type UnitRow = {
+  unit_id: number;
+  code: string;
+  name: string;
+  is_active?: boolean;
+  // 화면 표시용 문자열 ID (런타임 속성으로만 보강)
+  display_unit_id?: string;
+};
 
 const ui_tok = {
   bg_page: "#f6f7f9",
@@ -40,14 +49,14 @@ const controls_title_style: React.CSSProperties = {
   fontWeight: 800,
   color: ui_tok.text,
   margin: "0 0 6px 0",
-  transform: "translateY(-4px)", // -20px → -4px 로 줄여서 제목과 바로 붙도록
+  transform: "translateY(-4px)",
 };
 const top_row_style: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
   gap: 12,
-  marginTop: -8, // 버튼 라인을 더 위로
+  marginTop: -8,
 };
 const top_controls_style: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8 };
 
@@ -77,12 +86,31 @@ const name_cell_style: React.CSSProperties = {
 
 const icon_btn_style: React.CSSProperties = { background: "transparent", border: "none", padding: 4, cursor: "pointer", lineHeight: 0 };
 
-const to_row = (u: ApiUnit): UnitRow => ({
-  unit_id: u.unit_id,
-  code: String(u.code ?? "").trim(),
-  name: String(u.name ?? "").trim(),
-  is_active: u.is_active ?? true,
-});
+/* ===== 숫자/문자 혼용 ID 대응 =====
+   - 요청/로직: 숫자 ID (문자열이면 끝자리 숫자 추출)
+   - 화면표시: 문자열 ID를 우선 표시
+*/
+const to_row = (u: ApiUnit): UnitRow => {
+  const toIdNum = (v: any): number => {
+    if (typeof v === "number") return v;
+    const m = String(v ?? "").match(/\d+$/);
+    return m ? Number(m[0]) : NaN;
+  };
+
+  const display =
+    (typeof (u as any)?.display_unit_id === "string" && (u as any).display_unit_id) ||
+    (typeof (u as any)?.unit_id === "string" && String((u as any).unit_id)) ||
+    (typeof (u as any)?.id === "string" && String((u as any).id)) ||
+    String((u as any)?.unit_id ?? "");
+
+  return {
+    unit_id: toIdNum((u as any).unit_id),         // ← PUT/DELETE 등 요청용은 항상 숫자
+    code: String(u.code ?? "").trim(),
+    name: String(u.name ?? "").trim(),
+    is_active: u.is_active ?? true,
+    ...(display ? { display_unit_id: display } : {}),
+  };
+};
 
 const UnitListPanel: React.FC = () => {
   const [rows, set_rows] = useState<UnitRow[]>([]);
@@ -135,11 +163,32 @@ const UnitListPanel: React.FC = () => {
     };
   }, []);
 
-  const open_edit = (row: UnitRow) => { set_edit_target({ unit_id: row.unit_id, code: row.code, name: row.name }); set_edit_open(true); };
+  const open_edit = (row: UnitRow) => {
+    // 요청용 숫자 ID 유지
+    set_edit_target({ unit_id: row.unit_id, code: row.code, name: row.name });
+    set_edit_open(true);
+  };
   const close_edit = () => set_edit_open(false);
 
   const handle_saved = (updated: ApiUnit) => {
-    set_rows(prev => prev.map(r => (r.unit_id === updated.unit_id ? { ...r, code: updated.code, name: updated.name } : r)));
+    // 응답의 unit_id가 문자열일 수도 있으니 숫자로 비교
+    const uid = Number((updated as any).unit_id);
+    set_rows(prev =>
+      prev.map(r =>
+        Number(r.unit_id) === uid
+          ? {
+              ...r,
+              code: String(updated.code ?? r.code),
+              name: String(updated.name ?? r.name),
+              // 화면 표시는 문자열 ID 우선
+              display_unit_id:
+                (typeof (updated as any)?.unit_id === "string" && String((updated as any).unit_id)) ||
+                r.display_unit_id ||
+                String(uid),
+            }
+          : r
+      )
+    );
   };
 
   const open_delete = (row: UnitRow) => { set_del_target({ unit_id: row.unit_id, name: row.name }); set_del_open(true); };
@@ -175,8 +224,13 @@ const UnitListPanel: React.FC = () => {
               </thead>
               <tbody>
                 {rows.map((r, idx) => (
-                  <tr key={r.unit_id} title={`${r.code} · ${r.name}`} style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}>
-                    <td style={td_style}>{r.unit_id}</td>
+                  <tr
+                    key={Number.isFinite(r.unit_id) ? `n-${r.unit_id}` : `s-${(r as any).display_unit_id || "unknown"}`}
+                    title={`${r.code} · ${r.name}`}
+                    style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
+                  >
+                    {/* ✅ 화면에는 문자열 ID 우선 표시, 없으면 숫자 fallback */}
+                    <td style={td_style}>{(r as any).display_unit_id ?? r.unit_id}</td>
                     <td style={td_style}>{r.code}</td>
                     <td style={name_cell_style}>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</span>
@@ -216,11 +270,16 @@ const UnitListPanel: React.FC = () => {
           onClose={close_edit}
           onSubmit={async (data) => {
             try {
+              // ✅ 추가: 낙관적 갱신 — 서버 응답을 기다리지 않고 즉시 화면 반영
+              handle_saved({ unit_id: data.unit_id, code: data.code, name: data.name } as ApiUnit);
+
               const updated = await putUnit(data);
-              handle_saved(updated);
+              handle_saved(updated); // 서버가 문자열 ID 등 보냈으면 한 번 더 정합성 보정
               close_edit();
               alert("단위가 수정되었습니다.");
             } catch (e: any) {
+              // ✅ 추가: 실패 시 목록을 서버와 재동기화(낙관적 갱신 롤백)
+              await load();
               alert(e?.message || "단위 수정에 실패했습니다.");
             }
           }}

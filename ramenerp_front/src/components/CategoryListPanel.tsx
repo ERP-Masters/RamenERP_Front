@@ -1,4 +1,3 @@
-// src/components/CategoryListPanel.tsx
 import React, { useEffect, useState } from "react";
 import CategoryEditPage, { CategoryEditTarget } from "./CategoryEditPage";
 
@@ -10,18 +9,18 @@ import { deleteCategoryWithAlerts } from "../pages/CategoryDeleteFunction";
 import CategoryRegisterPage from "../pages/CategoryRegisterPage";
 
 type ApiCategory = {
-  category_id: number;
+  category_id: number | string;            // ← 숫자/문자 모두 허용
   group: string;
   category_name: string;
   is_active?: boolean | null;
 };
 
 type CategoryRow = {
-  category_id: number;
+  category_id: number;                     // ← 요청용 숫자 ID
   group: string;
   category_name: string;
   is_active?: boolean;
-};
+} & { display_category_id?: string };      // ← 화면표시용 문자열 ID
 
 /* ===== 화면 공통 토큰(유닛/창고와 동일) ===== */
 const ui_tok = {
@@ -115,12 +114,31 @@ const name_cell_style: React.CSSProperties = {
 };
 const icon_btn_style: React.CSSProperties = { background: "transparent", border: "none", padding: 4, cursor: "pointer", lineHeight: 0 };
 
-const to_row = (c: ApiCategory): CategoryRow => ({
-  category_id: c.category_id,
-  group: String(c.group ?? "").trim(),
-  category_name: String(c.category_name ?? "").trim(),
-  is_active: c.is_active ?? true,
-});
+/* ✅ 공통: 끝자리 숫자만 뽑아 숫자 ID로 변환 */
+const numId = (v: any): number => {
+  if (typeof v === "number") return v;
+  const m = String(v ?? "").match(/\d+$/);
+  return m ? Number(m[0]) : NaN;
+};
+
+/* ✅ 숫자/문자 어떤 형태로 와도
+   - category_id(요청용)는 숫자 추출
+   - display_category_id(표시용)는 문자열 유지 */
+const to_row = (c: ApiCategory): CategoryRow => {
+  const display =
+    (typeof (c as any)?.display_category_id === "string" && (c as any).display_category_id) ||
+    (typeof c.category_id === "string" && String(c.category_id)) ||
+    (typeof (c as any)?.id === "string" && String((c as any).id)) ||
+    String(c.category_id ?? "");
+
+  return {
+    category_id: numId(c.category_id),            // ← 요청/내부용 숫자
+    group: String(c.group ?? "").trim(),
+    category_name: String(c.category_name ?? "").trim(),
+    is_active: c.is_active ?? true,
+    ...(display ? { display_category_id: display } : {}),
+  };
+};
 
 const CategoryListPanel: React.FC = () => {
   const [rows, set_rows] = useState<CategoryRow[]>([]);
@@ -182,11 +200,13 @@ const CategoryListPanel: React.FC = () => {
   };
   const close_edit = () => set_edit_open(false);
 
+  /* ✅ 여기 수정: 비교용 ID를 numId로 통일 */
   const handle_saved = (updated: ApiCategory) => {
+    const uid = numId((updated as any).category_id);
     set_rows((prev) =>
       prev.map((row) =>
-        row.category_id === updated.category_id
-          ? { ...row, group: updated.group, category_name: updated.category_name }
+        numId(row.category_id) === uid
+          ? { ...row, group: (updated as any).group, category_name: (updated as any).category_name }
           : row
       )
     );
@@ -197,6 +217,30 @@ const CategoryListPanel: React.FC = () => {
     set_del_open(true);
   };
   const close_delete = () => set_del_open(false);
+
+  /* ✅ 저장 성공 브로드캐스트 수신 → 해당 행만 즉시 갱신 (비교도 numId 사용) */
+  useEffect(() => {
+    const onEdited = (e: Event) => {
+      const v = (e as CustomEvent).detail as Partial<ApiCategory> | undefined;
+      if (!v || typeof v !== "object") return;
+      const vid = numId((v as any).category_id);
+      if (!Number.isFinite(vid)) return;
+
+      set_rows(prev =>
+        prev.map(r =>
+          numId(r.category_id) === vid
+            ? {
+                ...r,
+                group: (v as any).group ?? r.group,
+                category_name: (v as any).category_name ?? r.category_name,
+              }
+            : r
+        )
+      );
+    };
+    window.addEventListener("category:edited", onEdited as EventListener);
+    return () => window.removeEventListener("category:edited", onEdited as EventListener);
+  }, []);
 
   return (
     <div style={page_wrap_style}>
@@ -233,12 +277,13 @@ const CategoryListPanel: React.FC = () => {
                     title={`${r.group} · ${r.category_name}`}
                     style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                   >
-                    <td style={td_style}>{r.category_id}</td>
+                    {/* 화면에는 문자열 ID 우선 표시 */}
+                    <td style={td_style}>{(r as any).display_category_id ?? r.category_id}</td>
                     <td style={td_style}>{r.group}</td>
                     <td style={name_cell_style}>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{r.category_name}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        {/* 수정: 회색 연필 아이콘 */}
+                        {/* 수정 */}
                         <button
                           type="button"
                           style={icon_btn_style}
@@ -247,18 +292,12 @@ const CategoryListPanel: React.FC = () => {
                           aria-label="수정"
                         >
                           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path
-                              d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z"
-                              stroke="#374151"
-                              strokeWidth="1.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
+                            <path d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             <path d="M12 5l3 3" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
                         </button>
 
-                        {/* 삭제: 빨간 휴지통 아이콘 */}
+                        {/* 삭제 */}
                         <button
                           type="button"
                           style={icon_btn_style}
@@ -302,7 +341,7 @@ const CategoryListPanel: React.FC = () => {
           }}
         />
 
-        {/* ✅ 등록 모달: CategoryRegisterPage 그대로 사용 */}
+        {/* 등록 모달 */}
         {reg_open && (
           <div
             style={{

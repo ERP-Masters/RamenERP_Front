@@ -11,7 +11,26 @@ export type VendorEditTarget = {
 
 // 서버에 PUT 요청: 수정 후 갱신된 벤더를 반환
 export async function putVendor(data: VendorEditTarget) {
-  const res = await fetch(`/api/vendors/${data.vendor_id}`, {
+  // ✅ 문자열/숫자 어떤 형태로 와도 숫자 ID로 정규화
+  const to_id_num = (v: unknown): number => {
+    if (typeof v === "number") return v;
+    if (typeof v === "string") {
+      const m = v.match(/\d+$/);
+      if (m && m[0]) return Number(m[0]);
+    }
+    return NaN;
+  };
+
+  // 우선 vendor_id, 폴백으로 display_vendor_id 같은 화면용 ID도 시도
+  const idNum =
+    to_id_num((data as any)?.vendor_id) ??
+    to_id_num((data as any)?.display_vendor_id);
+
+  if (!Number.isFinite(idNum)) {
+    throw new Error("유효하지 않은 vendor_id 입니다. (숫자 ID 필요)");
+  }
+
+  const res = await fetch(`/api/vendors/${encodeURIComponent(idNum)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
@@ -22,7 +41,7 @@ export async function putVendor(data: VendorEditTarget) {
     }),
   });
 
-  const raw = await res.text();
+  const raw = await res.text().catch(() => "");
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
@@ -31,7 +50,15 @@ export async function putVendor(data: VendorEditTarget) {
     } catch {}
     throw new Error(msg);
   }
-  return raw ? JSON.parse(raw) : { ...data };
+
+  // 204(No Content) 처리: 성공 시 기존 데이터 + 변경값 합성 반환
+  if (!raw) {
+    return {
+      ...data,
+      vendor_id: idNum, // 내부적으로 숫자화된 id 반영
+    };
+  }
+  return JSON.parse(raw);
 }
 
 // ===== 수정 모달 UI =====

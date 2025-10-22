@@ -19,11 +19,8 @@ import WarehouseListPanel from "./components/WarehouseListPanel";
 import BranchListPage from "./pages/BranchListPage";
 import BranchRegisterPage from "./pages/BranchRegisterPage";
 import NotUsedBranchUi from "./components/NotUsedBranchPageUi";
-<<<<<<< HEAD
 import NotUsedVendorPageUi from "./pages/NotUsedVendorPageUi";
-=======
 import ItemNotUsedListPage from "@/pages/ItemNotUsedListPage";
->>>>>>> LKH
 
 const App: React.FC = () => {
   return (
