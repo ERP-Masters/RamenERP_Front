@@ -19,7 +19,11 @@ import WarehouseListPanel from "./components/WarehouseListPanel";
 import BranchListPage from "./pages/BranchListPage";
 import BranchRegisterPage from "./pages/BranchRegisterPage";
 import NotUsedBranchUi from "./components/NotUsedBranchPageUi";
+<<<<<<< HEAD
 import NotUsedVendorPageUi from "./pages/NotUsedVendorPageUi";
+=======
+import ItemNotUsedListPage from "@/pages/ItemNotUsedListPage";
+>>>>>>> LKH
 
 const App: React.FC = () => {
   return (
@@ -39,7 +43,6 @@ const App: React.FC = () => {
         <Route path="/vendor-orders" element={<VendorOrderListPage />} />
         <Route path="/vendor/state" element={<NotUsedVendorPageUi />} />
 
-
         <Route path="category/register" element={<CategoryRegisterPage />} />
         <Route path="category/list" element={<CategoryListPanel />} />
 
@@ -52,6 +55,7 @@ const App: React.FC = () => {
         <Route path="branch/register" element={<BranchRegisterPage />} />
         <Route path="branch/list" element={<BranchListPage />} />
         <Route path="branch/state" element={<NotUsedBranchUi />} />
+        <Route path="/items/notused" element={<ItemNotUsedListPage />} />
 
 
         {/* 404 → /product (선택) */}
