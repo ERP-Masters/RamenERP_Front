@@ -57,7 +57,7 @@ export const sidebar_menu: MenuGroup[] = [
     label: "미사용 목록 관리",
     children: [
       { id: "warehouse-notused", label: "미사용 창고 리스트", path: "/branch/list" },
-      { id: "branch-notused", label: "미사용 지점 리스트", path: "/branch/list" },
+      { id: "branch-notused", label: "미사용 지점 리스트", path: "/branch/state" },
       { id: "vendor-notused", label: "미사용 거래처 리스트", path: "/branch/list" },
       { id: "unit-notused", label: "미사용 단위 리스트", path: "/branch/list" },
       { id: "category-notused", label: "미사용 카테고리 리스트", path: "/branch/list" },
