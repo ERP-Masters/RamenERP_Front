@@ -6,6 +6,7 @@ export interface VendorSubmitInput {
   address_road: string;   // 도로명
   address_detail: string; // 상세주소
   isused?: "USED" | "NOTUSED";
+  identification_number?: string; // ✅ 추가: 8자리 사업자등록번호
 }
 
 export interface VendorSubmitOptions {
@@ -41,6 +42,7 @@ export async function submitVendor(
     contact: (input.contact_email || "").trim(),
     address: `${(input.address_road || "").trim()} ${(input.address_detail || "").trim()}`.trim(),
     isused: (input.isused ?? "USED") as "USED" | "NOTUSED",  // ✅ 기본값: USED
+    identification_number: (input.identification_number || "").trim(), // ✅ 추가 전송
   };
 
   try {

@@ -8,6 +8,7 @@ type VendorFormViewState = {
   contact_name: string;
   address_road: string;
   address_detail: string;
+  identification_number: string; // ✅ 8자리 사업자등록번호
 };
 
 const ui_tok = {
@@ -98,6 +99,7 @@ const VendorRegisterPage: React.FC = () => {
     contact_name: "",
     address_road: "",
     address_detail: "",
+    identification_number: "", // ✅ 초기값
   });
   const [contact_email, set_contact_email] = useState("");
   const detail_ref = useRef<HTMLInputElement>(null);
@@ -118,6 +120,11 @@ const VendorRegisterPage: React.FC = () => {
   const on_contact_email_change: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     set_contact_email(e.target.value.replace(/\s/g, ""));
   };
+  // ✅ 사업자등록번호: 숫자만, 최대 8자리
+  const on_identification_number_change: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+    set_form_data((prev) => ({ ...prev, identification_number: digits }));
+  };
 
   const open_address_search = () => {
     const d: any = (window as any).daum;
@@ -136,25 +143,29 @@ const VendorRegisterPage: React.FC = () => {
 
   const on_submit: React.FormEventHandler = async (e) => {
     e.preventDefault();
+
+    // 간단 검증: 8자리 숫자 필수
+    if (!/^\d{8}$/.test(form_data.identification_number)) {
+      alert("사업자등록번호(8자리 숫자)를 정확히 입력해 주세요.");
+      return;
+    }
+
     const res = await submitVendor({
       name: form_data.name,
       contact_name: form_data.contact_name,
       contact_email,
       address_road: form_data.address_road,
       address_detail: form_data.address_detail,
+      identification_number: form_data.identification_number, // ✅ 함께 전송
     });
     if (res.ok) {
-      // 리스트 페이지가 듣는 이벤트는 submitVendor에서 이미 발생(vendor:created)
-      // 라우팅으로 열린 경우엔 뒤로가기 시도
       window.dispatchEvent(new Event("vendor:register:cancel"));
     }
   };
 
   const on_cancel_click = (e: React.MouseEvent) => {
     e.preventDefault();
-    // 리스트 페이지의 모달 닫기용 신호
     window.dispatchEvent(new Event("vendor:register:cancel"));
-    // 라우팅으로 열렸다면 뒤로가기 시도(옵션)
     if (window.history.length > 1) {
       try { navigate(-1); } catch {}
     }
@@ -238,10 +249,32 @@ const VendorRegisterPage: React.FC = () => {
           onFocus={(e)=> (e.currentTarget.style.boxShadow = ui_tok.focus)}
           onBlur={(e)=> (e.currentTarget.style.boxShadow = "none")}
         />
+
+        {/* ✅ 도로명 주소 '바로 아래 줄'에 전체폭 행 추가 */}
+        <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "auto minmax(260px, 1fr)", columnGap: 12, alignItems: "center" }}>
+          <label style={label_style}>사업자등록번호 (8자리)</label>
+          <input
+            type="text"
+            name="identification_number"
+            value={form_data.identification_number}
+            onChange={on_identification_number_change}
+            inputMode="numeric"
+            pattern="\d{8}"
+            placeholder="예) 12345678"
+            style={input_style}
+            maxLength={8}
+            title="8자리 숫자만 입력"
+            onFocus={(e)=> (e.currentTarget.style.boxShadow = ui_tok.focus)}
+            onBlur={(e)=> (e.currentTarget.style.boxShadow = "none")}
+            required
+          />
+        </div>
       </div>
 
       <div>
         <button type="submit" style={submit_btn_style}>등록</button>
+        {/* 필요 시 취소 버튼
+        <button type="button" onClick={on_cancel_click} style={cancel_btn_style}>취소</button> */}
       </div>
     </form>
   );

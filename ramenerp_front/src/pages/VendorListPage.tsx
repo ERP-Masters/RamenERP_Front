@@ -24,6 +24,7 @@ interface ApiVendor {
   contact: string;
   address: string;
   is_active?: boolean | null;
+  identification_number?: string | null; // ✅ 추가: 사업자등록번호(선택)
 }
 interface VendorRow {
   vendor_id: number;
@@ -33,6 +34,7 @@ interface VendorRow {
   contact: string;
   address: string;
   is_active?: boolean;
+  identification_number?: string; // ✅ 추가
 }
 
 /** ✅ 로컬로 타겟 타입만 유지 (예전 VendorDeleteTarget 대체) */
@@ -95,6 +97,7 @@ const quick_btn_style: React.CSSProperties = {
   cursor: "pointer",
   whiteSpace: "nowrap",
   transform: "translateY(-5px)",
+  marginLeft: 12, // ⬅️ 초기화 버튼과 간격 추가
 };
 const create_btn_style: React.CSSProperties = {
   height: 40,
@@ -150,6 +153,24 @@ const icon_bar_style: React.CSSProperties = { display: "inline-flex", alignItems
 const icon_btn_style: React.CSSProperties = { background: "transparent", border: "none", padding: 4, cursor: "pointer", lineHeight: 0 };
 const empty_cell_style = { textAlign: "center", padding: 24, color: ui_tok.label } as const;
 
+// ✅ 이름 셀 내부 구성용 (줄바꿈/뱃지)
+const name_cell_wrap_style: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, minWidth: 0 };
+const name_text_style: React.CSSProperties = { overflow: "hidden", textOverflow: "ellipsis" };
+const id_badge_style: React.CSSProperties = {
+  display: "inline-block",
+  fontSize: 12,
+  lineHeight: 1,
+  padding: "4px 6px",
+  borderRadius: 6,
+  background: "#f3f4f6",
+  border: "1px solid #e5e7eb",
+  color: "#374151",
+  maxWidth: "100%",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
 const to_vendor_row = (v: ApiVendor) => {
   const apiAny = v as unknown as Record<string, any>;
   const stringId =
@@ -165,6 +186,7 @@ const to_vendor_row = (v: ApiVendor) => {
     contact: String(v.contact ?? "").trim(),
     address: v.address?.trim() ?? "",
     is_active: v.is_active ?? true,
+    identification_number: (v.identification_number ?? undefined) || undefined, // ✅ 매핑
   } as VendorRow;
 };
 
@@ -310,10 +332,7 @@ const VendorListPage: React.FC = () => {
 
           <div style={top_row_style}>
             <div style={top_controls_style}>
-              <button type="button" style={quick_btn_style} onClick={open_summary_modal}>
-                거래처명 빠른 조회
-              </button>
-
+              {/* ⬇️ 검색 바가 먼저, 빠른 조회 버튼은 오른쪽(초기화 버튼 옆) */}
               <VendorSearchBar
                 nameValue={nameQuery}
                 managerValue={managerQuery}
@@ -322,6 +341,10 @@ const VendorListPage: React.FC = () => {
                 onSearch={handle_search_click}
                 onReset={handle_reset_click}
               />
+
+              <button type="button" style={quick_btn_style} onClick={open_summary_modal}>
+                거래처 ID 조회
+              </button>
             </div>
 
             <button
@@ -357,7 +380,22 @@ const VendorListPage: React.FC = () => {
                     style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                   >
                     <td style={td_style}>{v.display_vendor_id}</td>
-                    <td style={td_style}>{v.name}</td>
+
+                    {/* ✅ 이름 셀 내부에 사업자등록번호 배지 표시 */}
+                    <td style={td_style}>
+                      <div style={name_cell_wrap_style}>
+                        <span style={name_text_style}>{v.name}</span>
+                        {v.identification_number && (
+                          <span
+                            style={id_badge_style}
+                            title={`사업자등록번호 ${v.identification_number}`}
+                          >
+                            사업자번호 {v.identification_number}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
                     <td style={td_style}>{v.manager}</td>
                     <td style={td_contact_style}>{v.contact}</td>
                     <td style={td_addr_flex_style}>
