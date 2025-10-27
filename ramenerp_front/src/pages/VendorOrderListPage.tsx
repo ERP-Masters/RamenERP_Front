@@ -1,274 +1,574 @@
 // src/pages/VendorOrderListPage.tsx
-import React from "react";
-import VendorOrderCreateForm from "@/pages/VendorOrderCreateForm";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  fetch_vendor_orders_all,
+  fetch_vendor_orders_by_vendor,
+  fetch_vendor_orders_by_status,
+  fetch_vendor_orders_by_period,
+  type VendorOrder,
+} from "../api/vendor_orders";
 
-/* default + named 모두 임포트해서 가용한 쪽을 선택 */
-import VendorApiDefault, * as VendorApiNS from "@/api/vendor_orders";
-// 어댑터: named 가 보이면 그걸 쓰고, 아니면 default 객체 사용
-const API: any =
-  (VendorApiNS as any)?.fetch_vendor_orders ? VendorApiNS : VendorApiDefault;
+import {
+  fetch_vendors,
+  fetch_warehouses,
+  fetch_items,
+  type VendorOption,
+  type WarehouseOption,
+  type ItemOption,
+} from "../api/master_data";
 
-import type {
-  VendorOrderRow,
-  OrderStatus,
-  VendorOption,
-} from "@/types/vendor_order";
+import VendorOrderCreateModal from "../components/VendorOrderCreateModal";
 
+// 공통 UI 토큰
 const ui = {
-  border: "#e5e7eb",
+  bg_page: "#f6f7f9",
+  surface: "#ffffff",
+  border: "#e6e8ec",
+  header_bg: "#f8fafc",
   zebra: "#fafafa",
-  head_bg: "#f8fafc",
-  radius: 10,
-  muted: "#6b7280",
-  primary_bg: "#0ea5e9",
-  primary_bd: "#0284c7",
-  primary_tx: "#fff",
+  text: "#111827",
+  label: "#6b7280",
+  radius: 12,
 } as const;
 
-const page: React.CSSProperties = { padding: 16, maxWidth: 1200, margin: "0 auto" };
-const title: React.CSSProperties = { fontSize: 22, fontWeight: 800, marginBottom: 8 };
-const bar: React.CSSProperties = { display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" as const };
-const select: React.CSSProperties = { padding: 8, minWidth: 160, borderRadius: 8, border: `1px solid ${ui.border}` };
-const input: React.CSSProperties = { padding: 8, width: 160, borderRadius: 8, border: `1px solid ${ui.border}` };
-const ghost_btn: React.CSSProperties = { padding: "8px 12px", borderRadius: 8, border: `1px solid ${ui.border}`, background: "#fff", cursor: "pointer" };
-const primary_btn: React.CSSProperties = { padding: "8px 12px", borderRadius: 8, border: `1px solid ${ui.primary_bd}`, background: ui.primary_bg, color: ui.primary_tx, cursor: "pointer" };
-const twrap: React.CSSProperties = { overflowX: "auto", border: `1px solid ${ui.border}`, borderRadius: ui.radius };
-const table: React.CSSProperties = { width: "100%", borderCollapse: "separate", borderSpacing: 0 };
-const th: React.CSSProperties = { position: "sticky", top: 0, background: ui.head_bg, borderBottom: `1px solid ${ui.border}`, padding: "10px 8px", textAlign: "left", whiteSpace: "nowrap", fontSize: 13, fontWeight: 700 };
-const td: React.CSSProperties = { borderBottom: `1px solid ${ui.border}`, padding: "9px 8px", textAlign: "left", whiteSpace: "nowrap", fontSize: 14 };
-const td_right: React.CSSProperties = { ...td, textAlign: "right" as const };
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
-const modal: React.CSSProperties = { width: "min(720px, 94vw)", maxHeight: "90vh", overflowY: "auto", background: "#fff", border: `1px solid ${ui.border}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", padding: 16 };
+const page_wrap: React.CSSProperties = {
+  background: ui.bg_page,
+  minHeight: "100%",
+  padding: 16,
+  boxSizing: "border-box",
+  fontSize: "clamp(12px,1.05vw,16px)",
+};
 
-const VendorOrderListPage: React.FC = () => {
-  const [rows, set_rows] = React.useState<VendorOrderRow[]>([]);
-  const [vendors, set_vendors] = React.useState<VendorOption[]>([]);
-  const [status_f, set_status_f] = React.useState<OrderStatus | "">("");
-  const [vendor_f, set_vendor_f] = React.useState<string>("");
-  const [wh_f, set_wh_f] = React.useState<string>("");
-  const [item_f, set_item_f] = React.useState<string>("");
+const section_card: React.CSSProperties = {
+  background: ui.surface,
+  border: `1px solid ${ui.border}`,
+  borderRadius: ui.radius,
+  padding: 16,
+  boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
+};
 
-  const [loading, set_loading] = React.useState(false);
-  const [error, set_error] = React.useState("");
-  const [open, set_open] = React.useState(false);
+const table_style: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  fontSize: "0.9em",
+};
 
-  const vendor_name_by_id = React.useMemo(() => {
+const th_style: React.CSSProperties = {
+  textAlign: "left",
+  padding: "8px 10px",
+  background: ui.header_bg,
+  color: ui.label,
+  fontWeight: 600,
+  borderBottom: `1px solid ${ui.border}`,
+  whiteSpace: "nowrap",
+};
+
+const td_style: React.CSSProperties = {
+  textAlign: "left",
+  padding: "8px 10px",
+  borderBottom: `1px solid ${ui.border}`,
+  color: ui.text,
+  verticalAlign: "top",
+  whiteSpace: "nowrap",
+};
+
+const label_small: React.CSSProperties = {
+  fontSize: "0.8em",
+  color: ui.label,
+  fontWeight: 600,
+  marginBottom: 4,
+};
+
+const input_style: React.CSSProperties = {
+  width: "100%",
+  border: `1px solid ${ui.border}`,
+  borderRadius: 8,
+  padding: "8px 10px",
+  fontSize: "0.9em",
+  color: ui.text,
+  backgroundColor: "#fff",
+};
+
+const button_style: React.CSSProperties = {
+  border: `1px solid ${ui.border}`,
+  background: "#fff",
+  borderRadius: 8,
+  padding: "8px 10px",
+  fontSize: "0.8em",
+  fontWeight: 600,
+  cursor: "pointer",
+  textAlign: "center",
+  whiteSpace: "nowrap",
+  lineHeight: 1.2,
+};
+
+// VendorOrder + 사람이 읽을 이름들
+type VendorOrderView = VendorOrder & {
+  vendor_name?: string;
+  wh_name?: string;
+  item_name?: string;
+};
+
+function VendorOrderListPage() {
+  // 원본 데이터
+  const [vendor_orders_raw, set_vendor_orders_raw] = useState<VendorOrder[]>([]);
+  // 마스터 데이터
+  const [vendors, set_vendors] = useState<VendorOption[]>([]);
+  const [warehouses, set_warehouses] = useState<WarehouseOption[]>([]);
+  const [items, set_items] = useState<ItemOption[]>([]);
+
+  // 검색 상태
+  const [filter_vendor_id, set_filter_vendor_id] = useState(""); // 거래처 드롭다운 (id)
+  const [filter_status, set_filter_status] = useState("");
+  const [filter_start_date, set_filter_start_date] = useState("");
+  const [filter_end_date, set_filter_end_date] = useState("");
+  const [filter_order_code, set_filter_order_code] = useState(""); // 발주번호 검색어
+
+  // 자동완성 관련
+  const [order_suggestions, set_order_suggestions] = useState<string[]>([]);
+  const [all_orders_cache, set_all_orders_cache] = useState<VendorOrder[]>([]);
+  const [suggest_open, set_suggest_open] = useState(false);
+
+  // 기타 상태
+  const [is_loading, set_is_loading] = useState(false);
+  const [error_msg, set_error_msg] = useState("");
+
+  // 등록 모달
+  const [is_create_open, set_is_create_open] = useState(false);
+
+  // id -> name 매핑
+  const vendorNameById = useMemo(() => {
     const m = new Map<number, string>();
-    for (const v of vendors) m.set(v.id, v.name);
+    vendors.forEach((v) => m.set(Number(v.id), v.name));
     return m;
   }, [vendors]);
 
-  const load_options = React.useCallback(async () => {
+  const whNameById = useMemo(() => {
+    const m = new Map<number, string>();
+    warehouses.forEach((w) => m.set(Number(w.id), w.name));
+    return m;
+  }, [warehouses]);
+
+  const itemNameById = useMemo(() => {
+    const m = new Map<number, string>();
+    items.forEach((it) => m.set(Number(it.id), it.name));
+    return m;
+  }, [items]);
+
+  // vendor_orders_raw + 매핑 → 화면용
+  const vendor_orders_view: VendorOrderView[] = useMemo(() => {
+    return vendor_orders_raw.map((o) => ({
+      ...o,
+      vendor_name: vendorNameById.get(o.vendor_id),
+      wh_name: whNameById.get(o.wh_id),
+      item_name: itemNameById.get(o.item_id),
+    }));
+  }, [vendor_orders_raw, vendorNameById, whNameById, itemNameById]);
+
+  // 전체 로드 (목록)
+  async function load_all_orders() {
     try {
-      const vs = await API.fetch_vendors();
-      set_vendors(Array.isArray(vs) ? vs : []);
-    } catch {
-      /* no-op */
+      set_is_loading(true);
+      set_error_msg("");
+      const data = await fetch_vendor_orders_all();
+      set_vendor_orders_raw(data);
+    } catch (err: any) {
+      set_error_msg(err.message ?? "목록 불러오기 실패");
+    } finally {
+      set_is_loading(false);
     }
+  }
+
+  // 마스터 데이터 로드 (거래처/창고/품목 이름)
+  async function load_master_data() {
+    try {
+      const [vList, wList, iList] = await Promise.all([
+        fetch_vendors(),
+        fetch_warehouses(),
+        fetch_items(),
+      ]);
+      set_vendors(
+        vList.map((v) => ({ id: v.id, name: v.name ?? `거래처#${v.id}` })),
+      );
+      set_warehouses(
+        wList.map((w) => ({ id: w.id, name: w.name ?? `창고#${w.id}` })),
+      );
+      set_items(
+        iList.map((it) => ({ id: it.id, name: it.name ?? `품목#${it.id}` })),
+      );
+    } catch (err: any) {
+      // 마스터 데이터 실패해도 목록 자체는 보여줄 수 있으므로 에러만 기록
+      console.warn("master data load error:", err);
+    }
+  }
+
+  // 검색 실행
+  async function apply_filters() {
+    try {
+      set_is_loading(true);
+      set_error_msg("");
+
+      // 1) 발주번호 검색(프론트 필터)
+      if (filter_order_code.trim()) {
+        // 캐시 없으면 전체 한 번 가져옴
+        let source = all_orders_cache;
+        if (!source.length) {
+          source = await fetch_vendor_orders_all();
+          set_all_orders_cache(source);
+        }
+
+        const keyword = filter_order_code.trim().toLowerCase();
+        const filtered = source.filter((o) =>
+          o.vendor_order_id.toLowerCase().includes(keyword),
+        );
+        set_vendor_orders_raw(filtered);
+        return;
+      }
+
+      // 2) 기간 조회 (우선순위 높음)
+      if (filter_start_date && filter_end_date) {
+        const data = await fetch_vendor_orders_by_period(
+          filter_start_date,
+          filter_end_date,
+        );
+        set_vendor_orders_raw(data);
+        return;
+      }
+
+      // 3) 거래처별
+      if (filter_vendor_id) {
+        const data = await fetch_vendor_orders_by_vendor(
+          Number(filter_vendor_id),
+        );
+        set_vendor_orders_raw(data);
+        return;
+      }
+
+      // 4) 상태별
+      if (filter_status) {
+        const data = await fetch_vendor_orders_by_status(filter_status);
+        set_vendor_orders_raw(data);
+        return;
+      }
+
+      // 5) 기본 전체
+      const all_data = await fetch_vendor_orders_all();
+      set_vendor_orders_raw(all_data);
+    } catch (err: any) {
+      set_error_msg(err.message ?? "검색 실패");
+    } finally {
+      set_is_loading(false);
+    }
+  }
+
+  // 자동완성: 발주번호 입력할 때 호출
+  async function handleOrderCodeChange(val: string) {
+    set_filter_order_code(val);
+
+    // 빈 문자열이면 닫기
+    if (!val.trim()) {
+      set_order_suggestions([]);
+      set_suggest_open(false);
+      return;
+    }
+
+    // 캐시 없으면 전체 한번 로드
+    let source = all_orders_cache;
+    if (!source.length) {
+      try {
+        source = await fetch_vendor_orders_all();
+        set_all_orders_cache(source);
+      } catch {
+        // 실패해도 그냥 제안 안 띄움
+        return;
+      }
+    }
+
+    const key = val.toLowerCase();
+    // 중복 없는 발주번호 목록
+    const allCodes = Array.from(
+      new Set(source.map((o) => o.vendor_order_id)),
+    );
+
+    const matched = allCodes
+      .filter((code) => code.toLowerCase().includes(key))
+      .slice(0, 5);
+
+    set_order_suggestions(matched);
+    set_suggest_open(true);
+  }
+
+  function selectSuggestion(code: string) {
+    set_filter_order_code(code);
+    set_suggest_open(false);
+    set_order_suggestions([]);
+  }
+
+  // 최초 로드
+  useEffect(() => {
+    load_master_data();
+    load_all_orders();
   }, []);
 
-  const load_list = React.useCallback(async () => {
-    set_loading(true);
-    set_error("");
-    try {
-      const data = await API.fetch_vendor_orders({
-        status: status_f || undefined,
-        vendor_id: vendor_f ? Number(vendor_f) : undefined,
-        wh_id: wh_f ? Number(wh_f) : undefined,
-        item_id: item_f ? Number(item_f) : undefined,
-      });
-      set_rows(Array.isArray(data) ? data : []);
-    } catch (e: any) {
-      set_error(e?.message || "발주 목록 조회 실패");
-    } finally {
-      set_loading(false);
-    }
-  }, [status_f, vendor_f, wh_f, item_f]);
+  // 모달에서 발주 생성 후 콜백
+  function handle_created() {
+    set_is_create_open(false);
+    load_all_orders();
+  }
 
-  React.useEffect(() => { void load_options(); }, [load_options]);
-  React.useEffect(() => { void load_list(); }, [load_list]);
+  // 레이아웃 스타일
+  const topBarGrid: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns:
+      "repeat(auto-fit, minmax(min(180px,100%), 1fr))",
+    gap: 12,
+    alignItems: "end",
+  };
 
-  const filtered = React.useMemo(() => {
-    return rows.filter((r) => {
-      const okS = !status_f || r.status === status_f;
-      const okV = !vendor_f || String(r.vendor_id) === vendor_f;
-      const okW = !wh_f || String(r.wh_id) === wh_f;
-      const okI = !item_f || String(r.item_id) === item_f;
-      return okS && okV && okW && okI;
-    });
-  }, [rows, status_f, vendor_f, wh_f, item_f]);
-
-  const fmt = (iso?: string) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    const y = d.getFullYear(),
-      m = String(d.getMonth() + 1).padStart(2, "0"),
-      dd = String(d.getDate()).padStart(2, "0");
-    const hh = String(d.getHours()).padStart(2, "0"),
-      mi = String(d.getMinutes()).padStart(2, "0");
-    return `${y}-${m}-${dd} ${hh}:${mi}`;
+  // 자동완성 박스 스타일
+  const suggestWrap: React.CSSProperties = {
+    position: "relative",
+  };
+  const suggestList: React.CSSProperties = {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "100%",
+    zIndex: 10,
+    background: "#fff",
+    border: `1px solid ${ui.border}`,
+    borderRadius: 8,
+    boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+    fontSize: "0.8em",
+    maxHeight: 150,
+    overflowY: "auto",
+  };
+  const suggestItem: React.CSSProperties = {
+    padding: "8px 10px",
+    cursor: "pointer",
+    borderBottom: `1px solid ${ui.border}`,
+    lineHeight: 1.4,
   };
 
   return (
-    <div style={page}>
-      <h1 style={title}>발주 내역</h1>
+    <div style={page_wrap}>
+      {/* 페이지 타이틀 */}
+      <h1
+        style={{
+          fontSize: "1.2rem",
+          fontWeight: 800,
+          color: ui.text,
+          marginBottom: 12,
+        }}
+      >
+        발주 내역 조회
+      </h1>
 
-      <div style={bar}>
-        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: ui.muted }}>상태</span>
-          <select
-            value={status_f}
-            onChange={(e) => set_status_f(e.target.value as OrderStatus | "")}
-            style={select}
-          >
-            <option value="">전체</option>
-            <option value="PENDING">PENDING</option>
-            <option value="INPROGRESS">INPROGRESS</option>
-            <option value="SHIPPING">SHIPPING</option>
-            <option value="PARTIALLY">PARTIALLY</option>
-            <option value="COMPLETED">COMPLETED</option>
-            <option value="CANCELED">CANCELED</option>
-          </select>
-        </label>
-
-        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: ui.muted }}>거래처</span>
-          <select
-            value={vendor_f}
-            onChange={(e) => set_vendor_f(e.target.value)}
-            style={select}
-          >
-            <option value="">전체</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: ui.muted }}>창고ID</span>
-          <input
-            value={wh_f}
-            onChange={(e) => set_wh_f(e.target.value)}
-            placeholder="예: 1"
-            style={input}
-          />
-        </label>
-
-        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: ui.muted }}>품목PK</span>
-          <input
-            value={item_f}
-            onChange={(e) => set_item_f(e.target.value)}
-            placeholder="예: 12"
-            style={input}
-          />
-        </label>
-
-        <button onClick={() => void load_list()} style={ghost_btn}>
-          새로고침
-        </button>
-
-        <div style={{ marginLeft: "auto" }} />
-        <button onClick={() => set_open(true)} style={primary_btn}>
-          신규 발주 등록
-        </button>
-      </div>
-
-      {loading && (
-        <div style={{ color: ui.muted, marginBottom: 8 }}>불러오는 중…</div>
-      )}
-      {error && <div style={{ color: "#c62828", marginBottom: 8 }}>{error}</div>}
-
-      <div style={twrap}>
-        <table style={table}>
-          <thead>
-            <tr>
-              <th style={th}>발주ID</th>
-              <th style={th}>창고ID</th>
-              <th style={th}>거래처</th>
-              <th style={th}>품목PK</th>
-              <th style={th}>수량</th>
-              <th style={th}>상태</th>
-              <th style={th}>작성일</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((r, idx) => {
-              const bg = idx % 2 === 1 ? { background: ui.zebra } : undefined;
-              return (
-                <tr key={r.id ?? r.vendor_order_id} style={bg}>
-                  <td style={td}>{r.vendor_order_id}</td>
-                  <td style={td}>{r.wh_id}</td>
-                  <td style={td}>{vendor_name_by_id.get(r.vendor_id) ?? r.vendor_id}</td>
-                  <td style={td}>{r.item_id}</td>
-                  <td style={td_right}>{r.quantity}</td>
-                  <td style={td}>
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: 999,
-                        border: `1px solid ${ui.border}`,
-                        fontSize: 12,
-                      }}
-                    >
-                      {r.status}
-                    </span>
-                  </td>
-                  <td style={td}>{fmt(r.created_at)}</td>
-                </tr>
-              );
-            })}
-            {filtered.length === 0 && !loading && !error && (
-              <tr>
-                <td colSpan={7} style={{ textAlign: "center", padding: 18, color: ui.muted }}>
-                  발주가 없습니다.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* 등록 모달 */}
-      {open && (
-        <div style={overlay} onClick={() => set_open(false)}>
-          <div style={modal} onClick={(e) => e.stopPropagation()}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 8,
-              }}
+      {/* 검색/등록 섹션 */}
+      <div style={{ ...section_card, marginBottom: 16 }}>
+        <div style={topBarGrid}>
+          {/* 거래처 선택 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={label_small}>거래처</div>
+            <select
+              style={input_style}
+              value={filter_vendor_id}
+              onChange={(e) => set_filter_vendor_id(e.target.value)}
             >
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>
-                신규 발주 등록
-              </h2>
-              <button
-                type="button"
-                onClick={() => set_open(false)}
-                style={ghost_btn}
-                aria-label="close"
-              >
-                ×
-              </button>
-            </div>
-            <VendorOrderCreateForm
-              on_success={() => {
-                set_open(false);
-                void load_list();
-              }}
-              on_cancel={() => set_open(false)}
+              <option value="">전체</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 상태 선택 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={label_small}>상태</div>
+            <select
+              style={input_style}
+              value={filter_status}
+              onChange={(e) => set_filter_status(e.target.value)}
+            >
+              <option value="">전체</option>
+              <option value="PENDING">PENDING</option>
+              <option value="INPROGRESS">INPROGRESS</option>
+              <option value="CANCELED">CANCELED</option>
+            </select>
+          </div>
+
+          {/* 기간 - 시작일 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={label_small}>기간 시작</div>
+            <input
+              type="date"
+              style={input_style}
+              value={filter_start_date}
+              onChange={(e) => set_filter_start_date(e.target.value)}
             />
           </div>
+
+          {/* 기간 - 종료일 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={label_small}>기간 종료</div>
+            <input
+              type="date"
+              style={input_style}
+              value={filter_end_date}
+              onChange={(e) => set_filter_end_date(e.target.value)}
+            />
+          </div>
+
+          {/* 발주번호 검색 + 자동완성 */}
+          <div style={{ display: "flex", flexDirection: "column", position: "relative" }}>
+            <div style={label_small}>발주번호</div>
+            <div style={suggestWrap}>
+              <input
+                style={input_style}
+                placeholder="예: VO_VD_SEOUL..."
+                value={filter_order_code}
+                onChange={(e) => handleOrderCodeChange(e.target.value)}
+                onFocus={() => {
+                  if (order_suggestions.length > 0) set_suggest_open(true);
+                }}
+                onBlur={() => {
+                  // 살짝 딜레이 안 주면 클릭 전에 blur돼서 못 고르는 경우가 있음
+                  setTimeout(() => set_suggest_open(false), 150);
+                }}
+              />
+              {suggest_open && order_suggestions.length > 0 && (
+                <div style={suggestList}>
+                  {order_suggestions.map((code) => (
+                    <div
+                      key={code}
+                      style={suggestItem}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectSuggestion(code);
+                      }}
+                    >
+                      {code}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 검색 버튼 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={label_small}>&nbsp;</div>
+            <button
+              style={button_style}
+              onClick={apply_filters}
+              disabled={is_loading}
+            >
+              검색
+            </button>
+          </div>
+
+          {/* 신규 발주 등록 버튼 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={label_small}>&nbsp;</div>
+            <button
+              style={button_style}
+              onClick={() => set_is_create_open(true)}
+            >
+              신규 발주 등록
+            </button>
+          </div>
         </div>
-      )}
+
+        {error_msg && (
+          <div
+            style={{
+              color: "red",
+              marginTop: 8,
+              fontSize: "0.8em",
+              fontWeight: 400,
+            }}
+          >
+            {error_msg}
+          </div>
+        )}
+      </div>
+
+      {/* 발주 목록 섹션 */}
+      <div style={section_card}>
+        <div
+          style={{
+            fontWeight: 600,
+            color: ui.text,
+            marginBottom: 12,
+            fontSize: "1rem",
+          }}
+        >
+          발주 목록
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={table_style}>
+            <thead>
+              <tr>
+                <th style={th_style}>발주번호</th>
+                <th style={th_style}>거래처명</th>
+                <th style={th_style}>품목명</th>
+                <th style={th_style}>창고명</th>
+                <th style={th_style}>수량</th>
+                <th style={th_style}>상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vendor_orders_view.map((o, idx) => (
+                <tr
+                  key={o.vendor_order_id ?? idx}
+                  style={{
+                    background: idx % 2 === 1 ? ui.zebra : "#fff",
+                  }}
+                >
+                  <td style={td_style}>{o.vendor_order_id}</td>
+                  <td style={td_style}>{o.vendor_name ?? o.vendor_id}</td>
+                  <td style={td_style}>{o.item_name ?? o.item_id}</td>
+                  <td style={td_style}>{o.wh_name ?? o.wh_id}</td>
+                  <td style={td_style}>{o.quantity}</td>
+                  <td style={td_style}>{o.status}</td>
+                </tr>
+              ))}
+
+              {vendor_orders_view.length === 0 && !is_loading && (
+                <tr>
+                  <td style={td_style} colSpan={6}>
+                    데이터 없음
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {is_loading && (
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: "0.8em",
+              color: ui.label,
+            }}
+          >
+            로딩 중...
+          </div>
+        )}
+      </div>
+
+      {/* 발주 등록 모달 */}
+      <VendorOrderCreateModal
+        open={is_create_open}
+        on_close={() => set_is_create_open(false)}
+        on_created={handle_created}
+      />
     </div>
   );
-};
+}
 
 export default VendorOrderListPage;

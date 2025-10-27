@@ -1,9 +1,62 @@
 // src/pages/VendorOrderCreateForm.tsx
 import React from "react";
-import ApiDefault, * as ApiNS from "@/api/vendor_orders";
-import type { CreateVendorOrderPayload, OrderStatus, VendorOption, WarehouseOption, ItemOption } from "@/types/vendor_order";
+import { create_vendor_order } from "@/api/vendor_orders";
+import type {
+  CreateVendorOrderPayload,
+  OrderStatus,
+  VendorOption,
+  WarehouseOption,
+  ItemOption,
+} from "@/types/vendor_order";
 
-const API: any = (ApiNS as any)?.create_vendor_order ? ApiNS : ApiDefault;
+/* ===== helpers ===== */
+function build_headers(method = "GET"): Headers {
+  const h = new Headers();
+  h.set("Accept", "application/json");
+  if (method !== "GET" && method !== "HEAD") h.set("Content-Type", "application/json");
+  return h;
+}
+async function parse_json_or_throw(res: Response) {
+  const text = await res.text().catch(() => "");
+  if (!res.ok) throw new Error(text || res.statusText);
+  return text ? JSON.parse(text) : null;
+}
+async function fetch_warehouses(): Promise<WarehouseOption[]> {
+  const res = await fetch(`/api/warehouses`, { headers: build_headers("GET") });
+  const data = await parse_json_or_throw(res);
+  return (Array.isArray(data) ? data : [])
+    .map((w: any) => {
+      const id = Number(w.id ?? w.wh_id);
+      const name = String(w.name ?? w.warehouse_name ?? "");
+      return Number.isFinite(id) && name ? ({ id, name } as WarehouseOption) : null;
+    })
+    .filter(Boolean) as WarehouseOption[];
+}
+async function fetch_vendors(): Promise<VendorOption[]> {
+  const res = await fetch(`/api/vendors`, { headers: build_headers("GET") });
+  const data = await parse_json_or_throw(res);
+  return (Array.isArray(data) ? data : [])
+    .map((v: any) => {
+      const id = Number(v.id);
+      const name = String(v.name ?? v.vendor_name ?? "");
+      const code = v.vendor_id ? String(v.vendor_id) : undefined;
+      return Number.isFinite(id) && name ? ({ id, name, code } as VendorOption & { code?: string }) : null;
+    })
+    .filter(Boolean) as VendorOption[];
+}
+async function fetch_items(): Promise<ItemOption[]> {
+  const res = await fetch(`/api/items`, { headers: build_headers("GET") });
+  const data = await parse_json_or_throw(res);
+  return (Array.isArray(data) ? data : [])
+    .map((it: any) => {
+      const id = Number(it.id);
+      const name = it.name ? String(it.name) : undefined;
+      const ext_item_id = it.item_id ? String(it.item_id) : undefined;
+      return Number.isFinite(id) ? ({ id, name, ext_item_id } as ItemOption & { ext_item_id?: string }) : null;
+    })
+    .filter(Boolean) as ItemOption[];
+}
+/* =================== */
 
 type Props = { on_success?: () => void; on_cancel?: () => void };
 
@@ -23,11 +76,7 @@ const VendorOrderCreateForm: React.FC<Props> = ({ on_success, on_cancel }) => {
   React.useEffect(() => {
     (async () => {
       try {
-        const [wh, vs, its] = await Promise.all([
-          API.fetch_warehouses(),
-          API.fetch_vendors(),
-          API.fetch_items(),
-        ]);
+        const [wh, vs, its] = await Promise.all([fetch_warehouses(), fetch_vendors(), fetch_items()]);
         set_warehouses(wh ?? []);
         set_vendors(vs ?? []);
         set_items(its ?? []);
@@ -40,20 +89,28 @@ const VendorOrderCreateForm: React.FC<Props> = ({ on_success, on_cancel }) => {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     set_error("");
+
     if (!wh_id || !vendor_id || !item_pk || !quantity || !status) {
       set_error("필수값을 모두 입력하세요.");
       return;
     }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      set_error("수량은 1 이상이어야 합니다.");
+      return;
+    }
+
     const payload: CreateVendorOrderPayload = {
       wh_id: Number(wh_id),
       vendor_id: Number(vendor_id),
-      item_id: Number(item_pk),
+      item_id: String(item_pk),   // ✅ 문자열 ("7")
       quantity: Number(quantity),
       status,
     };
+    await create_vendor_order(payload);
+
     set_saving(true);
     try {
-      await API.create_vendor_order(payload);
+      await create_vendor_order(payload);
       on_success?.();
     } catch (err: any) {
       set_error(err?.message || "발주 저장 실패");
@@ -71,7 +128,7 @@ const VendorOrderCreateForm: React.FC<Props> = ({ on_success, on_cancel }) => {
         <span>창고 *</span>
         <select value={wh_id} onChange={(e) => set_wh_id(e.target.value)} style={input}>
           <option value="">선택</option>
-          {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+          {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name} (#{w.id})</option>)}
         </select>
       </label>
 
@@ -79,7 +136,9 @@ const VendorOrderCreateForm: React.FC<Props> = ({ on_success, on_cancel }) => {
         <span>거래처 *</span>
         <select value={vendor_id} onChange={(e) => set_vendor_id(e.target.value)} style={input}>
           <option value="">선택</option>
-          {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          {vendors.map((v: any) => (
+            <option key={v.id} value={v.id}>{v.name}{v.code ? ` (${v.code})` : ""}</option>
+          ))}
         </select>
       </label>
 
@@ -87,9 +146,9 @@ const VendorOrderCreateForm: React.FC<Props> = ({ on_success, on_cancel }) => {
         <span>품목 *</span>
         <select value={item_pk} onChange={(e) => set_item_pk(e.target.value)} style={{ ...input, width: 420 }}>
           <option value="">선택</option>
-          {items.map((it) => (
+          {items.map((it: any) => (
             <option key={it.id} value={it.id}>
-              {it.ext_item_id ? `${it.ext_item_id} — ` : ""}{it.name} (#{it.id})
+              {it.ext_item_id ? `${it.ext_item_id} — ` : ""}{it.name ?? `#${it.id}`} (#{it.id})
             </option>
           ))}
         </select>

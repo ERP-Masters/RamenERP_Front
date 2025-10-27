@@ -1,147 +1,230 @@
-import React, { useEffect, useMemo, useState } from "react";
+// src/pages/VendorOrderCreateModal.tsx
+import React, { useEffect, useState } from "react";
+import { create_vendor_orders } from "../api/vendor_orders";
+import { type CreateVendorOrderLine } from "../types/vendor_order";
 import {
   fetch_vendors,
   fetch_warehouses,
   fetch_items,
-  create_vendor_order,
-} from "@/api/vendor_orders";
-import {
-  VendorOption,
-  WarehouseOption,
-  ItemOption,
-  VendorOrderItemInput,
-  CreateVendorOrderPayload,
-} from "@/types/vendor_order";
-import VendorOrderItemRow from "./VendorOrderItemRow";
+  type VendorOption,
+  type WarehouseOption,
+  type ItemOption,
+} from "../api/master_data";
 
-type Props = {
+const overlay_style: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.35)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 9999,
+};
+
+const modal_style: React.CSSProperties = {
+  width: "min(600px,90%)",
+  background: "#fff",
+  borderRadius: 12,
+  boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+  padding: 20,
+  maxHeight: "80vh",
+  overflowY: "auto",
+  fontSize: "clamp(12px,1.05vw,16px)",
+};
+
+const section_style: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 12,
+  marginBottom: 16,
+};
+
+const label_style: React.CSSProperties = {
+  fontWeight: 600,
+  fontSize: "0.8em",
+  color: "#6b7280",
+  marginBottom: 4,
+};
+
+const input_style: React.CSSProperties = {
+  width: "100%",
+  border: "1px solid #d1d5db",
+  borderRadius: 8,
+  padding: "8px 10px",
+  fontSize: "0.9em",
+};
+
+const row_style: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr auto",
+  gap: 8,
+  alignItems: "center",
+  marginBottom: 8,
+  fontSize: "0.9em",
+};
+
+const small_btn_style: React.CSSProperties = {
+  border: "1px solid #d1d5db",
+  background: "#fff",
+  borderRadius: 8,
+  padding: "6px 8px",
+  fontSize: "0.8em",
+  cursor: "pointer",
+};
+
+interface Props {
   open: boolean;
   on_close: () => void;
   on_created: () => void;
-};
+}
 
-const overlay_style: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
-  display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
-};
-const modal_style: React.CSSProperties = {
-  width: 760, maxWidth: "95vw", background: "#fff", borderRadius: 16,
-  boxShadow: "0 12px 32px rgba(0,0,0,0.15)", padding: 20,
-};
-const header_style: React.CSSProperties = {
-  display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12,
-};
-const row_style: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 };
-const label_style: React.CSSProperties = { fontSize: 13, color: "#555", marginBottom: 6 };
-const input_style: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid #ddd", borderRadius: 10 };
-const table_shell_style: React.CSSProperties = { border: "1px solid #eee", borderRadius: 12, padding: 12, marginTop: 8, background: "#fafafa" };
-const footer_style: React.CSSProperties = { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 };
-const button_style: React.CSSProperties = { padding: "10px 14px", border: "1px solid #ddd", borderRadius: 10, background: "#fff", cursor: "pointer" };
-const primary_button_style: React.CSSProperties = { ...button_style, background: "#111", color: "#fff", border: "1px solid #111" };
-const error_style: React.CSSProperties = { color: "#d00", fontSize: 13, marginTop: 6 };
+// 신규 발주 등록 모달
+function VendorOrderCreateModal({ open, on_close, on_created }: Props) {
+  const [is_saving, set_is_saving] = useState(false);
+  const [error_msg, set_error_msg] = useState("");
 
-const VendorOrderCreateModal: React.FC<Props> = ({ open, on_close, on_created }) => {
-  const [vendor_options, set_vendor_options] = useState<VendorOption[]>([]);
-  const [warehouse_options, set_warehouse_options] = useState<WarehouseOption[]>([]);
-  const [item_options, set_item_options] = useState<ItemOption[]>([]);
+  // 선택지
+  const [vendors, set_vendors] = useState<VendorOption[]>([]);
+  const [warehouses, set_warehouses] = useState<WarehouseOption[]>([]);
+  const [items, set_items] = useState<ItemOption[]>([]);
 
-  const [vendor_id, set_vendor_id] = useState<number | "">("");
-  const [warehouse_id, set_warehouse_id] = useState<number | "">("");
-  const [expected_date, set_expected_date] = useState<string>("");
-  const [note, set_note] = useState<string>("");
+  // 공통 선택값
+  const [selected_vendor_id, set_selected_vendor_id] = useState<string>("");
+  const [selected_wh_id, set_selected_wh_id] = useState<string>("");
 
-  const [items, set_items] = useState<VendorOrderItemInput[]>([]);
-  const [is_submitting, set_is_submitting] = useState<boolean>(false);
-  const [error_message, set_error_message] = useState<string>("");
+  // 품목/수량 라인들
+  const [lines, set_lines] = useState<
+    Array<{ item_id: string; quantity: string }>
+  >([{ item_id: "", quantity: "" }]);
 
+  // 마스터 데이터 로드
   useEffect(() => {
     if (!open) return;
-    let is_mounted = true;
     (async () => {
       try {
-        const [vs, ws] = await Promise.all([fetch_vendors(), fetch_warehouses()]);
-        if (!is_mounted) return;
-        set_vendor_options(vs);
-        set_warehouse_options(ws);
-      } catch (e: unknown) {
-        set_error_message((e as Error).message || "옵션 로드 실패");
+        const [vList, wList, iList] = await Promise.all([
+          fetch_vendors(),
+          fetch_warehouses(),
+          fetch_items(),
+        ]);
+        set_vendors(
+          vList.map((v) => ({
+            id: v.id,
+            name: v.name ?? `거래처#${v.id}`,
+          })),
+        );
+        set_warehouses(
+          wList.map((w) => ({
+            id: w.id,
+            name: w.name ?? `창고#${w.id}`,
+          })),
+        );
+        set_items(
+          iList.map((it) => ({
+            id: it.id,
+            name: it.name ?? `품목#${it.id}`,
+          })),
+        );
+      } catch (err: any) {
+        set_error_msg(err.message ?? "마스터 데이터 로드 실패");
       }
     })();
-    return () => {
-      is_mounted = false;
-      set_items([]);
-      set_error_message("");
-      set_is_submitting(false);
-    };
   }, [open]);
 
-  const is_valid_form = useMemo(() => {
-    if (!vendor_id || !warehouse_id) return false;
-    if (items.length === 0) return false;
-    return items.every((r) => r.item_id > 0 && r.unit_id > 0 && r.qty_ordered > 0 && r.unit_price >= 0);
-  }, [vendor_id, warehouse_id, items]);
+  function add_line() {
+    set_lines((prev) => [...prev, { item_id: "", quantity: "" }]);
+  }
 
-  const add_empty_row = () => {
-    set_items((prev) => [...prev, { item_id: 0, unit_id: 0, qty_ordered: 1, unit_price: 0 }]);
-  };
-  const update_row = (idx: number, patch: Partial<VendorOrderItemInput>) => {
-    set_items((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
-  };
-  const remove_row = (idx: number) => set_items((prev) => prev.filter((_, i) => i !== idx));
+  function remove_line(idx: number) {
+    set_lines((prev) => prev.filter((_, i) => i !== idx));
+  }
 
-  const handle_submit = async () => {
-    if (!is_valid_form) return;
-    set_is_submitting(true);
-    set_error_message("");
+  function update_line(
+    idx: number,
+    key: "item_id" | "quantity",
+    val: string,
+  ) {
+    set_lines((prev) =>
+      prev.map((row, i) => (i === idx ? { ...row, [key]: val } : row)),
+    );
+  }
+
+  async function handle_submit() {
+    if (!selected_vendor_id || !selected_wh_id) {
+      set_error_msg("거래처 / 창고를 선택하세요.");
+      return;
+    }
+
+    // 빈 라인 제외
+    const payload: CreateVendorOrderLine[] = lines
+      .filter(
+        (l) =>
+          l.item_id.trim() !== "" &&
+          l.quantity.trim() !== "" &&
+          Number(l.quantity) > 0,
+      )
+      .map((l) => ({
+        vendor_id: Number(selected_vendor_id),
+        wh_id: Number(selected_wh_id),
+        item_id: Number(l.item_id),
+        quantity: Number(l.quantity),
+        // status는 보내지 않음 -> 서버에서 PENDING 기본값
+      }));
+
+    if (!payload.length) {
+      set_error_msg("발주 라인을 추가하세요.");
+      return;
+    }
+
     try {
-      const payload: CreateVendorOrderPayload = {
-        vendor_id: Number(vendor_id),
-        warehouse_id: Number(warehouse_id),
-        expected_date: expected_date || undefined,
-        note: note || undefined,
-        items,
-      };
-      await create_vendor_order(payload);
-      on_created();
-      on_close();
-    } catch (e: unknown) {
-      set_error_message((e as Error).message || "생성 실패");
+      set_is_saving(true);
+      set_error_msg("");
+
+      await create_vendor_orders(payload); // 배열 통째로 전송
+
+      // 초기화
+      set_selected_vendor_id("");
+      set_selected_wh_id("");
+      set_lines([{ item_id: "", quantity: "" }]);
+
+      on_created(); // 부모: 목록 리로드 + 모달 닫기
+    } catch (err: any) {
+      set_error_msg(err.message ?? "발주 등록 실패");
     } finally {
-      set_is_submitting(false);
+      set_is_saving(false);
     }
-  };
-
-  const search_items = async (q: string) => {
-    try {
-      const list = await fetch_items(q);
-      set_item_options(list);
-      return list;
-    } catch (e: unknown) {
-      set_error_message((e as Error).message || "아이템 검색 실패");
-      return [];
-    }
-  };
+  }
 
   if (!open) return null;
 
   return (
-    <div style={overlay_style} onClick={on_close}>
-      <div style={modal_style} onClick={(e) => e.stopPropagation()}>
-        <div style={header_style}>
-          <h3 style={{ margin: 0 }}>새 VendorOrder 작성</h3>
-          <button style={button_style} onClick={on_close}>닫기</button>
+    <div style={overlay_style}>
+      <div style={modal_style}>
+        <div
+          style={{
+            fontWeight: 600,
+            fontSize: "1rem",
+            marginBottom: 12,
+          }}
+        >
+          거래처 발주 작성
         </div>
 
-        <div style={row_style}>
+        {/* 거래처 / 창고 공통 영역 */}
+        <div style={section_style}>
           <div>
             <div style={label_style}>거래처</div>
             <select
               style={input_style}
-              value={vendor_id}
-              onChange={(e) => set_vendor_id(e.target.value ? Number(e.target.value) : "")}
+              value={selected_vendor_id}
+              onChange={(e) => set_selected_vendor_id(e.target.value)}
             >
               <option value="">선택</option>
-              {vendor_options.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -149,67 +232,115 @@ const VendorOrderCreateModal: React.FC<Props> = ({ open, on_close, on_created })
             <div style={label_style}>창고</div>
             <select
               style={input_style}
-              value={warehouse_id}
-              onChange={(e) => set_warehouse_id(e.target.value ? Number(e.target.value) : "")}
+              value={selected_wh_id}
+              onChange={(e) => set_selected_wh_id(e.target.value)}
             >
               <option value="">선택</option>
-              {warehouse_options.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
             </select>
           </div>
-
-          <div>
-            <div style={label_style}>입고 예정일</div>
-            <input type="date" style={input_style} value={expected_date} onChange={(e) => set_expected_date(e.target.value)} />
-          </div>
-
-          <div>
-            <div style={label_style}>비고</div>
-            <input placeholder="메모" style={input_style} value={note} onChange={(e) => set_note(e.target.value)} />
-          </div>
         </div>
 
-        <div style={{ marginTop: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <strong>발주 품목</strong>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                placeholder="품목 검색"
-                style={input_style}
-                onChange={(e) => { void search_items(e.target.value); }}
-              />
-              <button style={button_style} onClick={add_empty_row}>행 추가</button>
-            </div>
-          </div>
-
-          <div style={table_shell_style}>
-            {items.length === 0 ? (
-              <div style={{ color: "#777", fontSize: 14 }}>품목 행을 추가하세요.</div>
-            ) : (
-              items.map((row, idx) => (
-                <VendorOrderItemRow
-                  key={idx}
-                  index={idx}
-                  row={row}
-                  item_options={item_options}
-                  on_change={(patch) => update_row(idx, patch)}
-                  on_remove={() => remove_row(idx)}
-                />
-              ))
-            )}
-          </div>
+        {/* 품목 라인들 */}
+        <div
+          style={{
+            fontWeight: 600,
+            fontSize: "0.8em",
+            color: "#6b7280",
+          }}
+        >
+          품목 / 수량
         </div>
 
-        {error_message && <div style={error_style}>{error_message}</div>}
+        {lines.map((line, idx) => (
+          <div key={idx} style={row_style}>
+            <select
+              style={input_style}
+              value={line.item_id}
+              onChange={(e) => update_line(idx, "item_id", e.target.value)}
+            >
+              <option value="">품목 선택</option>
+              {items.map((it) => (
+                <option key={it.id} value={it.id}>
+                  {it.name}
+                </option>
+              ))}
+            </select>
 
-        <div style={footer_style}>
-          <button style={button_style} onClick={on_close}>취소</button>
-          <button style={primary_button_style} onClick={handle_submit} disabled={!is_valid_form || is_submitting}>
-            {is_submitting ? "저장 중..." : "저장"}
+            <input
+              style={input_style}
+              placeholder="수량"
+              value={line.quantity}
+              onChange={(e) => update_line(idx, "quantity", e.target.value)}
+            />
+
+            <button
+              style={small_btn_style}
+              onClick={() => remove_line(idx)}
+              disabled={lines.length === 1}
+            >
+              삭제
+            </button>
+          </div>
+        ))}
+
+        <button
+          style={{
+            ...small_btn_style,
+            marginBottom: 16,
+            fontWeight: 600,
+          }}
+          onClick={add_line}
+        >
+          + 품목 추가
+        </button>
+
+        {error_msg && (
+          <div
+            style={{
+              color: "red",
+              fontSize: "0.8em",
+              marginBottom: 8,
+            }}
+          >
+            {error_msg}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            justifyContent: "flex-end",
+            marginTop: 8,
+          }}
+        >
+          <button
+            style={small_btn_style}
+            onClick={on_close}
+            disabled={is_saving}
+          >
+            닫기
+          </button>
+          <button
+            style={{
+              ...small_btn_style,
+              fontWeight: 600,
+              borderColor: "#111827",
+            }}
+            onClick={handle_submit}
+            disabled={is_saving}
+          >
+            등록
           </button>
         </div>
       </div>
     </div>
   );
-};
+}
 
 export default VendorOrderCreateModal;

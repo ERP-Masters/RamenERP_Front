@@ -37,14 +37,14 @@ const App: React.FC = () => {
         {/* 등록/체크 페이지 라우트 */}
         <Route path="vendor/register" element={<VendorRegisterPage />} />
         <Route path="vendor/list" element={<VendorListPage />} />
-        <Route path="/vendor-orders" element={<VendorOrderListPage />} />
+        <Route path="/vendor/orders" element={<VendorOrderListPage />} />
         <Route path="/vendor/state" element={<NotUsedVendorPageUi />} />
 
         <Route path="category/register" element={<CategoryRegisterPage />} />
         <Route path="category/list" element={<CategoryListPanel />} />
 
         <Route path="unit/register" element={<UnitRegisterPage />} />
-        <Route path="unit/list/" element={<UnitListPanel />} />
+        <Route path="unit/list" element={<UnitListPanel />} />
 
         <Route path="warehouse/register" element={<WarehouseRegister />} />
         <Route path="warehouse/list" element={<WarehouseListPanel />} />

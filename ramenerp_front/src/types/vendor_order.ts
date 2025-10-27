@@ -1,48 +1,63 @@
-// 변수: snake_case, boolean: is_ 접두어
+// src/types/vendor_order.ts
+// 👉 이 파일 하나로 모든 타입을 통일해 주세요.
+
 export type VendorOrderStatus =
-  | "DRAFT"
-  | "SUBMITTED"
-  | "APPROVED"
-  | "PARTIALLY_RECEIVED"
-  | "RECEIVED"
-  | "CANCELED";
+  | "PENDING"
+  | "INPROGRESS"
+  | "CANCELED"
+  | "SHIPPING"
+  | "PARTIALLY"
+  | "COMPLETED";
 
-export type VendorOption = { id: number; name: string };
-export type WarehouseOption = { id: number; name: string };
-export type ItemOption = { id: number; name: string; unit_id: number; unit_name?: string };
+// 호환용 별칭 (기존 코드에서 OrderStatus 사용)
+export type OrderStatus = VendorOrderStatus;
 
-export type VendorOrder = {
-  id: number;
-  po_code: string;           // 백엔드가 po_code 사용하면 그대로 두는 게 맞음
+export interface VendorOrder {
+  vendor_order_id: string;
+  wh_id: number;
   vendor_id: number;
-  vendor_name?: string;
-  warehouse_id: number;
-  warehouse_name?: string;
+  // 응답은 숫자/문자열 혼용 가능
+  item_id: number | string;
+  quantity: number;
   status: VendorOrderStatus;
-  expected_date?: string;    // ISO
-  note?: string;
-  is_active?: boolean;
-  created_at: string;
-};
+}
 
-export type VendorOrderItemInput = {
-  item_id: number;
-  unit_id: number;
-  qty_ordered: number;
-  unit_price: number;
-};
-
-export type CreateVendorOrderPayload = {
-  po_code?: string;          // 서버에서 생성될 수도 있음
+// 생성 DTO: 백엔드가 item_id(string; 품목코드)를 요구
+export interface CreateVendorOrderDto {
+  vendor_order_id: string;   // 서버 생성용, 프론트는 "AUTO"로 넣음
+  wh_id: number;
   vendor_id: number;
-  warehouse_id: number;
-  expected_date?: string;
-  note?: string;
-  items: VendorOrderItemInput[];
+  item_id: string;           // 품목 코드 문자열
+  quantity: number;
+  status: VendorOrderStatus;
+}
+
+// ✅ 폼/클라이언트에서 쓰는 Payload: vendor_order_id 제외
+export type CreateVendorOrderPayload = Omit<CreateVendorOrderDto, "vendor_order_id">;
+
+export type VendorOrderQuery = {
+  vendor_id?: number;
+  status?: VendorOrderStatus;
+  start?: string; // yyyy-mm-dd
+  end?: string;   // yyyy-mm-dd
 };
 
-/** --- (선택) 이전 이름과의 호환을 위해 임시 별칭 제공 --- */
-export type PoStatus = VendorOrderStatus;
-export type PurchaseOrder = VendorOrder;
-export type PurchaseOrderItemInput = VendorOrderItemInput;
-export type CreatePoPayload = CreateVendorOrderPayload;
+// 셀렉트 옵션용 타입들 (폼에서 사용 중)
+export interface VendorOption {
+  id: number;           // 내부 PK
+  name: string;         // 표시명
+  code?: string;        // 표시용 코드 (예: "VD_SEOUL_0001")
+}
+
+export interface WarehouseOption {
+  id: number;           // 내부 PK
+  name: string;
+}
+
+export interface ItemOption {
+  id: number;           // 내부 PK(선택값)
+  name?: string;        // 표시명
+  // 서버의 item_id(문자열 코드). 프로젝트 일부 컴포넌트는 ext_item_id로 사용 중이라 둘 다 둡니다.
+  item_id?: string;
+  ext_item_id?: string;
+}
