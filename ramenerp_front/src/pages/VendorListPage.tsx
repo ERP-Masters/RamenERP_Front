@@ -87,8 +87,9 @@ const top_controls_style: React.CSSProperties = {
   justifyContent: "flex-start",
 };
 
+/* ✅ 창고/지점과 동일한 ‘ID 조회’ 버튼 스타일로 통일 (위치 고정) */
 const quick_btn_style: React.CSSProperties = {
-  height: 35,
+  height: 40,
   padding: "0 12px",
   borderRadius: 10,
   border: `1px solid ${ui_tok.border}`,
@@ -96,9 +97,10 @@ const quick_btn_style: React.CSSProperties = {
   color: "#fff",
   cursor: "pointer",
   whiteSpace: "nowrap",
-  transform: "translateY(-5px)",
-  marginLeft: 12, // ⬅️ 초기화 버튼과 간격 추가
+  transform: "translateY(-0.8px)",
+  marginLeft: 12, // 초기화 버튼과 간격
 };
+
 const create_btn_style: React.CSSProperties = {
   height: 40,
   padding: "0 16px",
@@ -186,7 +188,7 @@ const to_vendor_row = (v: ApiVendor) => {
     contact: String(v.contact ?? "").trim(),
     address: v.address?.trim() ?? "",
     is_active: v.is_active ?? true,
-    identification_number: (v.identification_number ?? undefined) || undefined, // ✅ 매핑
+    identification_number: (v.identification_number ?? undefined) || undefined,
   } as VendorRow;
 };
 

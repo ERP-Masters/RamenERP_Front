@@ -8,6 +8,8 @@ import WarehouseDeleteUi from "../components/WarehouseDeleteUi";
 import { deleteWarehouseWithAlerts, type WarehouseDeleteTarget } from "../pages/WarehouseDeleteFunction";
 // (추가) 모달로 띄울 등록 폼(프로펠스 없이 사용)
 import WareHouseRegister from "../pages/WarehouseRegister";
+// ✅ 추가: 창고 ID 상세 검색 모달
+import WarehouseSummarySearch from "../components/WarehouseSummarySearch";
 
 type ApiWarehouse = { warehouse_id: number | string; name: string; location: string; created_at: string; };
 type Row = { warehouse_id: number; name: string; location: string; created_at: string; };
@@ -102,7 +104,7 @@ const quick_btn_style: React.CSSProperties = {
   cursor: "pointer",
   whiteSpace: "nowrap",
   transform: "translateY(-0.8px)",
-  marginLeft: 12, // ⬅ 초기화 버튼보다 약간 오른쪽으로 띄워 붙이기
+  marginLeft: 12, // 초기화 버튼 오른쪽으로 약간 띄우기
 };
 
 const create_btn_style: React.CSSProperties = {
@@ -156,7 +158,6 @@ const created_cell_style: React.CSSProperties = {
   justifyContent: "space-between",
   gap: 8,
 };
-/* 기존 텍스트 버튼 스타일(안 써도 두어도 무방) */
 const small_btn: React.CSSProperties = {
   fontSize: 12,
   padding: "4px 8px",
@@ -172,7 +173,6 @@ const delete_btn_style: React.CSSProperties = {
   color: "#fff",
   border: "none",
 };
-/* ✅ 아이콘 버튼 공통 스타일 */
 const icon_btn_style: React.CSSProperties = {
   background: "transparent",
   border: "none",
@@ -228,6 +228,9 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
   const [delTarget, set_delTarget] = useState<WarehouseDeleteTarget | null>(null);
 
   const [regOpen, set_regOpen] = useState(false);
+
+  // ✅ 추가: 창고 ID 조회 모달 오픈 상태
+  const [summaryOpen, set_summaryOpen] = useState(false);
 
   const [query, set_query] = useState<string>(filterLocation ?? "");
   const firstPropApplied = useRef(false);
@@ -286,6 +289,13 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
     };
   }, []);
 
+  // ✅ 추가: 외부 이벤트로 요약 모달 열기
+  useEffect(() => {
+    const openSummary = () => set_summaryOpen(true);
+    window.addEventListener("warehouse:summary-open", openSummary as EventListener);
+    return () => window.removeEventListener("warehouse:summary-open", openSummary as EventListener);
+  }, []);
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === "Enter") e.preventDefault(); };
 
   const openEdit = (row: Row) => {
@@ -294,7 +304,7 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
   };
   const closeEdit = () => set_editOpen(false);
 
-  // ✅ 숫자 ID/표시용 ID 둘 다 매칭
+  // 숫자 ID/표시용 ID 둘 다 매칭
   const handleSaved = (updated: ApiWarehouse) => {
     set_rows(prev =>
       prev.map((r: any) => {
@@ -376,14 +386,13 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
                   <tr key={`${r.warehouse_id}-${(r as any).display_warehouse_id ?? ""}`}
                       title={`${r.name} · ${r.location}`}
                       style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}>
-                    {/* ✅ 화면에는 문자열 ID를 우선 표시 */}
+                    {/* 화면에는 문자열 ID를 우선 표시 */}
                     <td style={td_style}>{(r as any).display_warehouse_id ?? r.warehouse_id}</td>
                     <td style={td_style}>{r.name}</td>
                     <td style={td_style}>{r.location}</td>
                     <td style={created_cell_style}>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(r.created_at)}</span>
                       <div style={{ display: "flex", alignItems: "center" }}>
-                        {/* ✅ 수정: 회색 연필 아이콘 */}
                         <button
                           type="button"
                           style={icon_btn_style}
@@ -403,7 +412,6 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
                           </svg>
                         </button>
 
-                        {/* ✅ 삭제: 빨간 휴지통 아이콘 */}
                         <button
                           type="button"
                           style={icon_btn_style}
@@ -436,7 +444,7 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
           onSubmit={async (data) => {
             try {
               const updated = await putWarehouse(data);
-              handleSaved(updated);  // ← ✅ 즉시 반영
+              handleSaved(updated);
               closeEdit();
               alert("창고 정보가 업데이트 되었습니다.");
             } catch (e: any) {
@@ -498,6 +506,9 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
             </div>
           </div>
         )}
+
+        {/* ✅ 추가: 창고 ID 상세 검색 모달 마운트 */}
+        <WarehouseSummarySearch open={summaryOpen} onClose={() => set_summaryOpen(false)} />
       </div>
     </div>
   );

@@ -16,6 +16,9 @@ import BranchNoutUsedUi from "../components/BranchNotUsedUi";
 // ✅ 추가: 미사용 전환 API (PUT isused=NOTUSED)
 import { markBranchNotUsed } from "./BranchNotUsedFunction";
 
+// ✅ 추가: 지점 ID 상세 검색 모달(창고와 동일 UX)
+import BranchSummarySearch from "../components/BranchSummarySearch";
+
 /* ===== 공통: API 베이스 ===== */
 const BR_API = "/api/branches";
 
@@ -27,7 +30,7 @@ type ApiBranch = {
   detail_address: string;
   store_owner: string;
   contact: string;
-  isused?: string | null;     // ← DB에는 존재하지만 목록에선 표시 안 함
+  isused?: string | null;
   created_at: string;
 };
 type Row = {
@@ -109,18 +112,21 @@ const reset_btn_style: React.CSSProperties = {
   ...search_btn_style,
   background: "#6b7280",
 };
+
+/* ✅ 변경: 창고의 quick_btn_style과 완전히 동일한 스타일(화면 비율 변화에도 위치 고정) */
 const id_btn_style: React.CSSProperties = {
-  height: 34,
+  height: 40,
   padding: "0 12px",
-  borderRadius: 999,
+  borderRadius: 10,
   border: `1px solid ${ui_tok.border}`,
-  background: "#424345ff",
-  color: "#eaecf1ff",
+  background: "#111827",
+  color: "#fff",
   cursor: "pointer",
   whiteSpace: "nowrap",
-  fontSize: 12,
-  marginLeft: 12,
+  transform: "translateY(-0.8px)",
+  marginLeft: 12, // 초기화 버튼 오른쪽으로 일정 간격 고정
 };
+
 const create_btn_style: React.CSSProperties = {
   height: 40,
   padding: "0 16px",
@@ -181,16 +187,13 @@ const icon_btn_style: React.CSSProperties = {
 const empty_style = { padding: 24, textAlign: "center", color: ui_tok.label } as const;
 
 /* ===== 유틸 ===== */
-// ✅ 숫자/문자 어떤 형태로 와도 숫자 ID를 안전 추출 + 화면용 문자열 ID 보강
 const to_row = (b: ApiBranch): Row => {
-  // 숫자/문자 모두 대응: 끝자리 숫자를 숫자 ID로 추출 (예: BR_SEOUL_0007 → 7)
   const toIdNum = (v: any): number => {
     if (typeof v === "number") return v;
     const m = String(v ?? "").match(/\d+$/);
     return m ? Number(m[0]) : NaN;
   };
 
-  // 화면표시용 문자열 ID 확보
   const display =
     (typeof (b as any)?.display_branch_id === "string" && (b as any).display_branch_id) ||
     (typeof (b as any)?.branch_id === "string" && String((b as any).branch_id)) ||
@@ -198,7 +201,7 @@ const to_row = (b: ApiBranch): Row => {
     String((b as any)?.branch_id ?? "");
 
   return {
-    branch_id: toIdNum((b as any).branch_id), // ← 요청/내부 로직용 숫자
+    branch_id: toIdNum((b as any).branch_id),
     name: String(b.name ?? "").trim(),
     location: String(b.location ?? "").trim(),
     detail_address: String(b.detail_address ?? "").trim(),
@@ -206,7 +209,6 @@ const to_row = (b: ApiBranch): Row => {
     contact: String(b.contact ?? "").trim(),
     isused: b.isused ?? null,
     created_at: String(b.created_at ?? "").trim(),
-    // 화면 표시용 문자열 ID를 런타임 속성으로 보강(타입은 그대로 유지)
     ...(display ? { display_branch_id: display } : {}),
   } as Row & { display_branch_id?: string };
 };
@@ -231,6 +233,9 @@ const BranchListPage: React.FC = () => {
   const [notUsedOpen, set_notUsedOpen] = useState(false);
   const [notUsedTarget, set_notUsedTarget] = useState<{ branch_id: number; name: string } | null>(null);
 
+  // ✅ 추가: 지점 ID 상세 검색 모달 상태
+  const [summaryOpen, set_summaryOpen] = useState(false);
+
   const load = async (signal?: AbortSignal) => {
     set_is_loading(true);
     set_error_message("");
@@ -238,7 +243,6 @@ const BranchListPage: React.FC = () => {
       const res = await fetch(`${BR_API}`, { method: "GET", headers: { Accept: "application/json" }, signal });
       const j: ApiBranch[] = (await safeJson(res)) ?? [];
       if (!res.ok) throw new Error((j as any)?.message || `HTTP ${res.status}`);
-      // ✅ 추가: NOTUSED는 메인 목록에서 숨김
       set_rows((Array.isArray(j) ? j.map(to_row) : []).filter((r) => r.isused !== "NOTUSED"));
     } catch (e: any) {
       if (e?.name !== "AbortError") set_error_message(e?.message || "지점 목록을 불러오는 중 오류가 발생했습니다.");
@@ -253,7 +257,6 @@ const BranchListPage: React.FC = () => {
     return () => ac.abort();
   }, []);
 
-  // 등록 성공/취소 시 모달 닫고 새로고침
   useEffect(() => {
     const onCreated = () => { set_regOpen(false); load(); };
     const onCancel = () => set_regOpen(false);
@@ -265,7 +268,6 @@ const BranchListPage: React.FC = () => {
     };
   }, []);
 
-  // ✅ 추가: 상태 전환 브로드캐스트 수신 시 자동 새로고침
   useEffect(() => {
     const onChanged = () => load();
     window.addEventListener("branch:notused:updated", onChanged);
@@ -276,7 +278,6 @@ const BranchListPage: React.FC = () => {
     };
   }, []);
 
-  /* ✅ 추가: 지점 수정 성공 브로드캐스트 수신 → 해당 행만 즉시 갱신 */
   useEffect(() => {
     const onEdited = (e: Event) => {
       const v = (e as CustomEvent).detail as Partial<BranchEditTarget> | undefined;
@@ -325,7 +326,6 @@ const BranchListPage: React.FC = () => {
         const data = await safeJson(res);
         if (!res.ok) throw new Error((data as any)?.message || `HTTP ${res.status}`);
         const list: ApiBranch[] = Array.isArray(data) ? data : (data ? [data] : []);
-        // ✅ 검색 결과도 NOTUSED 숨김
         set_rows(list.map(to_row).filter((r) => r.isused !== "NOTUSED"));
       }
     } catch (e: any) {
@@ -340,7 +340,7 @@ const BranchListPage: React.FC = () => {
     load();
   };
 
-  // ✅ ID 전용 검색(프롬프트)
+  // (유지) 프롬프트 기반 단건 검색 함수 — 버튼에서는 사용하지 않지만 남겨둠
   const handle_id_search = async () => {
     const id = window.prompt("검색할 지점 ID를 입력하세요");
     if (!id) return;
@@ -358,7 +358,6 @@ const BranchListPage: React.FC = () => {
         const item: ApiBranch | ApiBranch[] | null = await safeJson(res);
         if (!res.ok) throw new Error((item as any)?.message || `HTTP ${res.status}`);
         const list: ApiBranch[] = Array.isArray(item) ? item : (item ? [item] : []);
-        // ✅ 단건 검색도 NOTUSED 숨김
         set_rows(list.map(to_row).filter((r) => r.isused !== "NOTUSED"));
       }
     } catch (e: any) {
@@ -377,7 +376,7 @@ const BranchListPage: React.FC = () => {
       detail_address: r.detail_address,
       store_owner: r.store_owner,
       contact: r.contact,
-      issued: r.isused ?? undefined, // ← 목록에서는 숨기지만 수정 모달엔 전달
+      issued: r.isused ?? undefined,
       created_at: r.created_at,
     };
     set_editTarget(tgt);
@@ -385,7 +384,6 @@ const BranchListPage: React.FC = () => {
   };
   const closeEdit = () => set_editOpen(false);
 
-  // ✅ 교체: 응답에서 branch_id가 문자열이어도 바로 반영되도록 숫자 비교
   const handleSaved = (updated: BranchEditTarget) => {
     const uid = Number((updated as any)?.branch_id);
     set_rows((prev) =>
@@ -404,7 +402,6 @@ const BranchListPage: React.FC = () => {
               }
             : r
         )
-        // ✅ 수정 후에도 NOTUSED가 되었다면(혹시 모를 케이스) 메인 목록에선 숨김
         .filter((r) => r.isused !== "NOTUSED")
     );
   };
@@ -427,8 +424,12 @@ const BranchListPage: React.FC = () => {
               <button type="button" style={search_btn_style} onClick={handle_search}>검색</button>
               <button type="button" style={reset_btn_style} onClick={handle_reset}>초기화</button>
 
-              {/* ID 전용 검색 버튼 */}
-              <button type="button" style={id_btn_style} onClick={handle_id_search}>
+              {/* ✅ 창고와 동일한 디자인/배치의 ID 조회 버튼 → 모달 오픈 */}
+              <button
+                type="button"
+                style={id_btn_style}
+                onClick={() => set_summaryOpen(true)}
+              >
                 지점 ID 검색
               </button>
             </div>
@@ -455,7 +456,6 @@ const BranchListPage: React.FC = () => {
                   <th style={th_style}>detail_address</th>
                   <th style={th_style}>store_owner</th>
                   <th style={th_style}>contact</th>
-                  {/* (숨김) <th style={th_style}>issued</th> */}
                   <th style={th_style}>created_at</th>
                   <th style={th_style}>actions</th>
                 </tr>
@@ -467,19 +467,14 @@ const BranchListPage: React.FC = () => {
                     title={`${r.name} · ${r.location} · ${r.detail_address}`}
                     style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                   >
-                    {/* ✅ 화면에는 문자열 브랜치 ID 표시, 없으면 숫자 fallback */}
                     <td style={td_style}>{(r as any).display_branch_id ?? r.branch_id}</td>
                     <td style={td_style}>{r.name}</td>
                     <td style={td_style}>{r.location}</td>
                     <td style={td_style}>{r.detail_address}</td>
                     <td style={td_style}>{r.store_owner}</td>
                     <td style={td_style}>{r.contact}</td>
-                    {/* (숨김) <td style={td_style}>{r.isused ?? ""}</td> */}
                     <td style={td_style}>{r.created_at}</td>
-
-                    {/* ✅ 오른쪽 끝: 연필/휴지통 아이콘 */}
                     <td style={actions_cell_style}>
-                      {/* 수정 */}
                       <button
                         type="button"
                         style={icon_btn_style}
@@ -499,7 +494,6 @@ const BranchListPage: React.FC = () => {
                         </svg>
                       </button>
 
-                      {/* 미사용 등록(모달 오픈) */}
                       <button
                         type="button"
                         style={icon_btn_style}
@@ -521,7 +515,6 @@ const BranchListPage: React.FC = () => {
 
                 {rows.length === 0 && !is_loading && !error_message && (
                   <tr>
-                    {/* 총 8열로 변경되어 colSpan=8 */}
                     <td colSpan={8} style={empty_style}>등록된 지점이 없습니다.</td>
                   </tr>
                 )}
@@ -547,7 +540,7 @@ const BranchListPage: React.FC = () => {
           }}
         />
 
-        {/* ✅ 미사용 등록 모달(기능 연동) */}
+        {/* ✅ 미사용 등록 모달 */}
         <BranchNoutUsedUi
           open={notUsedOpen}
           target={notUsedTarget}
@@ -555,17 +548,20 @@ const BranchListPage: React.FC = () => {
           onConfirm={async () => {
             if (!notUsedTarget) return;
             try {
-              await markBranchNotUsed(notUsedTarget.branch_id); // PUT isused=NOTUSED
+              await markBranchNotUsed(notUsedTarget.branch_id);
               set_notUsedOpen(false);
               alert("미사용으로 등록되었습니다.");
-              load(); // 즉시 목록 갱신(메인에서 숨김)
+              load();
             } catch (e: any) {
               alert(e?.message || "미사용 등록에 실패했습니다.");
             }
           }}
         />
 
-        {/* ===== 등록 모달 (유지) ===== */}
+        {/* ✅ 추가: 지점 ID 상세 검색 모달 */}
+        <BranchSummarySearch open={summaryOpen} onClose={() => set_summaryOpen(false)} />
+
+        {/* ===== 등록 모달 ===== */}
         {regOpen && (
           <div
             style={{

@@ -1,3 +1,4 @@
+// src/pages/CategoryListPanel.tsx
 import React, { useEffect, useState } from "react";
 import CategoryEditPage, { CategoryEditTarget } from "./CategoryEditPage";
 
@@ -8,21 +9,24 @@ import { deleteCategoryWithAlerts } from "../pages/CategoryDeleteFunction";
 // ✅ 모달로 띄울 등록 페이지 (기존 페이지 그대로 사용)
 import CategoryRegisterPage from "../pages/CategoryRegisterPage";
 
+// ✅ 추가: 카테고리 ID 조회 모달
+import CategorySummarySearch from "../components/CategorySummarySearch";
+
 type ApiCategory = {
-  category_id: number | string;            // ← 숫자/문자 모두 허용
+  category_id: number | string;
   group: string;
   category_name: string;
   is_active?: boolean | null;
 };
 
 type CategoryRow = {
-  category_id: number;                     // ← 요청용 숫자 ID
+  category_id: number;
   group: string;
   category_name: string;
   is_active?: boolean;
-} & { display_category_id?: string };      // ← 화면표시용 문자열 ID
+} & { display_category_id?: string };
 
-/* ===== 화면 공통 토큰(유닛/창고와 동일) ===== */
+/* ===== 화면 공통 토큰 ===== */
 const ui_tok = {
   bg_page: "#f6f7f9",
   surface: "#ffffff",
@@ -62,6 +66,23 @@ const top_controls_style: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
+};
+
+const right_actions_style: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8, // 버튼 간격
+};
+
+const quick_btn_style: React.CSSProperties = {
+  height: 40,
+  padding: "0 12px",
+  borderRadius: 10,
+  border: `1px solid ${ui_tok.border}`,
+  background: "#111827",
+  color: "#fff",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
 };
 
 const create_btn_style: React.CSSProperties = {
@@ -104,7 +125,6 @@ const th_style = {
 const td_style = { borderBottom: `1px solid ${ui_tok.border}`, padding: 12, textAlign: "left" as const, whiteSpace: "nowrap" as const } as const;
 const empty_style = { padding: 24, textAlign: "center", color: ui_tok.label } as const;
 
-/* 이름 셀 좌/우 배치 + 액션 아이콘 */
 const name_cell_style: React.CSSProperties = {
   ...td_style,
   display: "flex",
@@ -114,16 +134,12 @@ const name_cell_style: React.CSSProperties = {
 };
 const icon_btn_style: React.CSSProperties = { background: "transparent", border: "none", padding: 4, cursor: "pointer", lineHeight: 0 };
 
-/* ✅ 공통: 끝자리 숫자만 뽑아 숫자 ID로 변환 */
 const numId = (v: any): number => {
   if (typeof v === "number") return v;
   const m = String(v ?? "").match(/\d+$/);
   return m ? Number(m[0]) : NaN;
 };
 
-/* ✅ 숫자/문자 어떤 형태로 와도
-   - category_id(요청용)는 숫자 추출
-   - display_category_id(표시용)는 문자열 유지 */
 const to_row = (c: ApiCategory): CategoryRow => {
   const display =
     (typeof (c as any)?.display_category_id === "string" && (c as any).display_category_id) ||
@@ -132,7 +148,7 @@ const to_row = (c: ApiCategory): CategoryRow => {
     String(c.category_id ?? "");
 
   return {
-    category_id: numId(c.category_id),            // ← 요청/내부용 숫자
+    category_id: numId(c.category_id),
     group: String(c.group ?? "").trim(),
     category_name: String(c.category_name ?? "").trim(),
     is_active: c.is_active ?? true,
@@ -145,16 +161,16 @@ const CategoryListPanel: React.FC = () => {
   const [is_loading, set_is_loading] = useState(false);
   const [error_message, set_error_message] = useState("");
 
-  // 수정 모달(기존)
   const [edit_open, set_edit_open] = useState<boolean>(false);
   const [edit_target, set_edit_target] = useState<CategoryEditTarget | null>(null);
 
-  // 삭제 모달(추가)
   const [del_open, set_del_open] = useState<boolean>(false);
   const [del_target, set_del_target] = useState<{ category_id: number; category_name: string } | null>(null);
 
-  // ✅ 등록 모달
   const [reg_open, set_reg_open] = useState(false);
+
+  // ✅ 추가: 카테고리 ID 조회 모달
+  const [summary_open, set_summary_open] = useState(false);
 
   const load = async (signal?: AbortSignal) => {
     set_is_loading(true);
@@ -182,7 +198,6 @@ const CategoryListPanel: React.FC = () => {
     return () => ac.abort();
   }, []);
 
-  // (선택) 생성/취소 이벤트 받아서 모달 닫고 새로고침 – CategoryRegisterPage가 해당 이벤트를 쏘면 동작
   useEffect(() => {
     const onCreated = () => { set_reg_open(false); load(); };
     const onCancel = () => { set_reg_open(false); };
@@ -200,7 +215,6 @@ const CategoryListPanel: React.FC = () => {
   };
   const close_edit = () => set_edit_open(false);
 
-  /* ✅ 여기 수정: 비교용 ID를 numId로 통일 */
   const handle_saved = (updated: ApiCategory) => {
     const uid = numId((updated as any).category_id);
     set_rows((prev) =>
@@ -218,7 +232,6 @@ const CategoryListPanel: React.FC = () => {
   };
   const close_delete = () => set_del_open(false);
 
-  /* ✅ 저장 성공 브로드캐스트 수신 → 해당 행만 즉시 갱신 (비교도 numId 사용) */
   useEffect(() => {
     const onEdited = (e: Event) => {
       const v = (e as CustomEvent).detail as Partial<ApiCategory> | undefined;
@@ -245,14 +258,19 @@ const CategoryListPanel: React.FC = () => {
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        {/* 상단 타이틀 & 우측 ‘신규 카테고리 등록’ 버튼 */}
+        {/* 상단 타이틀 & 우측 버튼들 */}
         <div style={controls_block_style}>
           <div style={controls_title_style}>카테고리 조회</div>
           <div style={top_row_style}>
             <div style={top_controls_style} />
-            <button type="button" style={create_btn_style} onClick={() => set_reg_open(true)}>
-              신규 카테고리 등록
-            </button>
+            <div style={right_actions_style}>
+              <button type="button" style={quick_btn_style} onClick={() => set_summary_open(true)}>
+                카테고리 ID 조회
+              </button>
+              <button type="button" style={create_btn_style} onClick={() => set_reg_open(true)}>
+                신규 카테고리 등록
+              </button>
+            </div>
           </div>
         </div>
 
@@ -277,13 +295,11 @@ const CategoryListPanel: React.FC = () => {
                     title={`${r.group} · ${r.category_name}`}
                     style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                   >
-                    {/* 화면에는 문자열 ID 우선 표시 */}
                     <td style={td_style}>{(r as any).display_category_id ?? r.category_id}</td>
                     <td style={td_style}>{r.group}</td>
                     <td style={name_cell_style}>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{r.category_name}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        {/* 수정 */}
                         <button
                           type="button"
                           style={icon_btn_style}
@@ -296,8 +312,6 @@ const CategoryListPanel: React.FC = () => {
                             <path d="M12 5l3 3" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
                         </button>
-
-                        {/* 삭제 */}
                         <button
                           type="button"
                           style={icon_btn_style}
@@ -324,7 +338,7 @@ const CategoryListPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* 수정 모달 (기존 유지) */}
+        {/* 수정 모달 */}
         <CategoryEditPage open={edit_open} target={edit_target} onClose={close_edit} onSaved={handle_saved} />
 
         {/* 삭제 모달 */}
@@ -382,6 +396,9 @@ const CategoryListPanel: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* ✅ 카테고리 ID 조회 모달 마운트 */}
+        <CategorySummarySearch open={summary_open} onClose={() => set_summary_open(false)} />
       </div>
     </div>
   );
