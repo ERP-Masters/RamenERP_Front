@@ -7,9 +7,9 @@ import { sidebar_menu } from "@/menu/sidebar_data";
 type SidebarMode = "overlay" | "docked";
 
 type SidebarProps = {
-  is_open: boolean;                 // overlay 모드에서만 의미 있음
+  is_open: boolean;
   set_is_open: (v: boolean) => void;
-  mode?: SidebarMode;               // "overlay" | "docked"
+  mode?: SidebarMode;
 };
 
 /* ====== light theme styles ====== */
@@ -52,6 +52,7 @@ const header_style: React.CSSProperties = {
   fontWeight: 800,
   fontSize: 16,
   color: "#111827",
+  position: "relative",
 };
 
 const close_btn_style: React.CSSProperties = {
@@ -88,12 +89,21 @@ const children_wrap_base: React.CSSProperties = {
   transition: "max-height 200ms ease",
 };
 
+/**
+ * NOTE: padding을 shorthand로 쓰지 않는다.
+ * paddingTop / paddingRight / paddingBottom / paddingLeft 를 명시적으로 쓴다.
+ */
 const link_style: React.CSSProperties = {
   display: "block",
-  padding: "9px 18px 9px 28px",
+  textDecoration: "none",
   fontSize: 14,
   color: "#374151",
-  textDecoration: "none",
+
+  // padding: "9px 18px 9px 28px",
+  paddingTop: 9,
+  paddingRight: 18,
+  paddingBottom: 9,
+  paddingLeft: 28,
 };
 
 const link_active_style: React.CSSProperties = {
@@ -102,6 +112,8 @@ const link_active_style: React.CSSProperties = {
   color: "#1f2937",
   fontWeight: 700,
   borderLeft: "3px solid #2563eb",
+
+  // override ONLY left padding
   paddingLeft: 25,
 };
 
@@ -122,7 +134,11 @@ const backdrop_style = (is_open: boolean): React.CSSProperties => ({
 });
 /* ================================= */
 
-const Sidebar: React.FC<SidebarProps> = ({ is_open, set_is_open, mode = "overlay" }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  is_open,
+  set_is_open,
+  mode = "overlay",
+}) => {
   const { pathname } = useLocation();
   const [expanded_id, set_expanded_id] = React.useState<string>("items");
 
@@ -154,9 +170,11 @@ const Sidebar: React.FC<SidebarProps> = ({ is_open, set_is_open, mode = "overlay
           }}
         >
           {group.children.map((item) => {
-            // src/components/Sidebar.tsx (render_group 내부)
-            const is_active = pathname === item.path || pathname.startsWith(item.path + "/");
-            ;
+            // 현재 경로와 메뉴 path 비교해서 active 여부 판단
+            const is_active =
+              pathname === item.path ||
+              pathname.startsWith(item.path + "/");
+
             return (
               <NavLink
                 key={item.id}
@@ -185,20 +203,25 @@ const Sidebar: React.FC<SidebarProps> = ({ is_open, set_is_open, mode = "overlay
       </nav>
     ) : (
       <>
-        <div onClick={() => set_is_open(false)} style={backdrop_style(is_open)} />
+        <div
+          onClick={() => set_is_open(false)}
+          style={backdrop_style(is_open)}
+        />
         <nav
           style={is_open ? overlay_panel_visible : overlay_panel_hidden}
           aria-label="sidebar"
         >
-          <div style={header_style}>라멘 ERP</div>
-          <button
-            type="button"
-            onClick={() => set_is_open(false)}
-            style={close_btn_style}
-            aria-label="close sidebar"
-          >
-            ×
-          </button>
+          <div style={header_style}>
+            라멘 ERP
+            <button
+              type="button"
+              onClick={() => set_is_open(false)}
+              style={close_btn_style}
+              aria-label="close sidebar"
+            >
+              ×
+            </button>
+          </div>
           <div>{sidebar_menu.map(render_group)}</div>
         </nav>
       </>
