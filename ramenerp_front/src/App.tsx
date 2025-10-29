@@ -3,60 +3,70 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
 
-// 페이지들
 import ProductPage from "./pages/ProductPage";
 import ItemListPage from "./pages/ItemListPage";
-// ✅ 유틸을 써야 할 때만 (경로: utils)
+import ItemNotUsedListPage from "./pages/ItemNotUsedListPage";
+
 import VendorRegisterPage from "./pages/VendorRegisterPage";
+import VendorListPage from "./pages/VendorListPage";
+import NotUsedVendorPageUi from "./pages/NotUsedVendorPageUi";
+
+import VendorOrderListPage from "./pages/VendorOrderListPage";
+import VendorOrderNewPage from "./pages/VendorOrderNewPage";
+
 import CategoryRegisterPage from "./pages/CategoryRegisterPage";
 import CategoryListPanel from "./components/CategoryListPanel";
+
 import UnitRegisterPage from "./pages/UnitRegisterPage";
 import UnitListPanel from "./components/UnitListPanel";
-import VendorListPage from "./pages/VendorListPage";
-import VendorOrderListPage from "@/pages/VendorOrderListPage";
+
 import WarehouseRegister from "./pages/WarehouseRegister";
 import WarehouseListPanel from "./components/WarehouseListPanel";
-import BranchListPage from "./pages/BranchListPage";
+
 import BranchRegisterPage from "./pages/BranchRegisterPage";
+import BranchListPage from "./pages/BranchListPage";
 import NotUsedBranchUi from "./components/NotUsedBranchPageUi";
-import NotUsedVendorPageUi from "./pages/NotUsedVendorPageUi";
-import ItemNotUsedListPage from "@/pages/ItemNotUsedListPage";
 
 const App: React.FC = () => {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        {/* 메인 진입 시 특정 페이지로 보내고 싶으면 아래 주석 해제
-        <Route index element={<Navigate to="/product" replace />} />
-        */}
-        <Route path="product" element={<ProductPage />} />
-        {/* 기존 ItemRegisterPage 제거: 안전하게 리다이렉트 */}
-        <Route path="product/register" element={<Navigate to="/product" replace />} />
-        <Route path="product/list" element={<ItemListPage />} />
+        {/* index를 product로 보내고 싶으면 이거 활성화해도 됨 */}
+        {/* <Route index element={<Navigate to="product" replace />} /> */}
 
-        {/* 등록/체크 페이지 라우트 */}
+        {/* 품목/재고 */}
+        <Route path="product" element={<ProductPage />} />
+        <Route path="product/list" element={<ItemListPage />} />
+        <Route path="items/notused" element={<ItemNotUsedListPage />} />
+
+        {/* 거래처 */}
         <Route path="vendor/register" element={<VendorRegisterPage />} />
         <Route path="vendor/list" element={<VendorListPage />} />
-        <Route path="/vendor/orders" element={<VendorOrderListPage />} />
-        <Route path="/vendor/state" element={<NotUsedVendorPageUi />} />
+        <Route path="vendor/state" element={<NotUsedVendorPageUi />} />
 
+        {/* ✅ 발주 */}
+        <Route path="vendor-order" element={<VendorOrderListPage />} />
+        <Route path="vendor-order/new" element={<VendorOrderNewPage />} />
+
+        {/* 카테고리 */}
         <Route path="category/register" element={<CategoryRegisterPage />} />
         <Route path="category/list" element={<CategoryListPanel />} />
 
+        {/* 단위 */}
         <Route path="unit/register" element={<UnitRegisterPage />} />
         <Route path="unit/list" element={<UnitListPanel />} />
 
+        {/* 창고 */}
         <Route path="warehouse/register" element={<WarehouseRegister />} />
         <Route path="warehouse/list" element={<WarehouseListPanel />} />
 
+        {/* 지점 */}
         <Route path="branch/register" element={<BranchRegisterPage />} />
         <Route path="branch/list" element={<BranchListPage />} />
         <Route path="branch/state" element={<NotUsedBranchUi />} />
-        <Route path="/items/notused" element={<ItemNotUsedListPage />} />
 
-
-        {/* 404 → /product (선택) */}
-        <Route path="*" element={<Navigate to="/product" replace />} />
+        {/* fallback */}
+        <Route path="*" element={<Navigate to="product" replace />} />
       </Route>
     </Routes>
   );
