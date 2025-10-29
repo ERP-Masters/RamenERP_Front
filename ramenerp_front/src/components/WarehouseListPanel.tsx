@@ -90,6 +90,21 @@ const reset_btn_style: React.CSSProperties = {
   background: "#6b7280",
   border: `1px solid ${ui_tok.border}`,
 };
+
+/* ✅ 추가: 거래처 화면의 ‘거래처 ID 조회’ 버튼과 동일한 스타일 */
+const quick_btn_style: React.CSSProperties = {
+  height: 40,
+  padding: "0 12px",
+  borderRadius: 10,
+  border: `1px solid ${ui_tok.border}`,
+  background: "#111827",
+  color: "#fff",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  transform: "translateY(-0.8px)",
+  marginLeft: 12, // ⬅ 초기화 버튼보다 약간 오른쪽으로 띄워 붙이기
+};
+
 const create_btn_style: React.CSSProperties = {
   height: 40,
   padding: "0 16px",
@@ -157,7 +172,7 @@ const delete_btn_style: React.CSSProperties = {
   color: "#fff",
   border: "none",
 };
-/* ✅ 추가: 아이콘 버튼 공통 스타일 */
+/* ✅ 아이콘 버튼 공통 스타일 */
 const icon_btn_style: React.CSSProperties = {
   background: "transparent",
   border: "none",
@@ -169,10 +184,6 @@ const icon_btn_style: React.CSSProperties = {
 const empty_style = { textAlign: "center", padding: 24, color: ui_tok.label } as const;
 
 /* ===== 유틸 ===== */
-/** ✅ 서버 값이 숫자/문자 어떤 형태든
- *  - 요청용: 숫자 ID(끝자리 숫자 추출)
- *  - 표시용: 문자열 ID 유지
- */
 const to_row = (w: ApiWarehouse): Row => {
   const toIdNum = (v: any): number => {
     if (typeof v === "number") return v;
@@ -180,7 +191,6 @@ const to_row = (w: ApiWarehouse): Row => {
     return m ? Number(m[0]) : NaN;
   };
 
-  // 화면에 보여줄 문자열 ID 후보
   const display =
     (typeof (w as any)?.display_warehouse_id === "string" && (w as any).display_warehouse_id) ||
     (typeof (w as any)?.warehouse_id === "string" && String((w as any).warehouse_id)) ||
@@ -188,11 +198,10 @@ const to_row = (w: ApiWarehouse): Row => {
     String((w as any)?.warehouse_id ?? "");
 
   return {
-    warehouse_id: toIdNum((w as any).warehouse_id), // ← API 요청용 숫자
+    warehouse_id: toIdNum((w as any).warehouse_id),
     name: String(w.name ?? "").trim(),
     location: String(w.location ?? "").trim(),
     created_at: String(w.created_at ?? "").trim(),
-    // 화면표시용 문자열 ID를 런타임 속성으로 보강
     ...(display ? { display_warehouse_id: display } : {}),
   } as Row & { display_warehouse_id?: string };
 };
@@ -285,7 +294,7 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
   };
   const closeEdit = () => set_editOpen(false);
 
-  // ✅ 여기만 보강: 숫자 ID가 안 맞으면 표시용 문자열 ID로도 매칭
+  // ✅ 숫자 ID/표시용 ID 둘 다 매칭
   const handleSaved = (updated: ApiWarehouse) => {
     set_rows(prev =>
       prev.map((r: any) => {
@@ -330,6 +339,15 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({ filterLocation 
               />
               <button type="button" style={search_btn_style} onClick={() => set_query(query.trim())}>검색</button>
               <button type="button" style={reset_btn_style} onClick={() => set_query("")}>초기화</button>
+
+              {/* ✅ 추가 버튼: 초기화 오른쪽에 배치, 동일 디자인 */}
+              <button
+                type="button"
+                style={quick_btn_style}
+                onClick={() => window.dispatchEvent(new Event("warehouse:summary-open"))}
+              >
+                창고 ID 조회
+              </button>
             </div>
 
             <button type="button" style={create_btn_style} onClick={() => set_regOpen(true)}>
