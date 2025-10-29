@@ -12,6 +12,9 @@ import { deleteUnitWithAlerts, type UnitDeleteTarget } from "../pages/UnitDelete
 // ✅ 모달로 띄울 등록 페이지 (기존 페이지를 그대로 사용)
 import UnitRegisterPage from "../pages/UnitRegisterPage";
 
+// ✅ 단위 ID 요약 조회 모달(이전 단계에서 만든 컴포넌트 사용 중이라면)
+import UnitSummarySearch from "../components/UnitSummarySearch";
+
 type ApiUnit = { unit_id: number | string; code: string; name: string; is_active?: boolean | null; };
 
 // 👉 내부 로우: 요청/로직용은 숫자 ID 유지
@@ -58,7 +61,27 @@ const top_row_style: React.CSSProperties = {
   gap: 12,
   marginTop: -8,
 };
-const top_controls_style: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8 };
+
+// (좌측 자리 채우는 블록이 필요 없으면 비워둠)
+// const top_controls_style: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8 };
+
+// ✅ 두 버튼(단위 ID 조회, 신규 단위 등록)을 같은 줄에 붙여 배치
+const right_actions_style: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8, // 버튼 간 간격
+};
+
+const quick_btn_style: React.CSSProperties = {
+  height: 40,
+  padding: "0 12px",
+  borderRadius: 10,
+  border: `1px solid ${ui_tok.border}`,
+  background: "#111827",
+  color: "#fff",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
 
 const create_btn_style: React.CSSProperties = {
   height: 40, padding: "0 16px", borderRadius: 999,
@@ -125,6 +148,9 @@ const UnitListPanel: React.FC = () => {
 
   // ✅ 등록 모달
   const [reg_open, set_reg_open] = useState(false);
+
+  // ✅ 단위 ID 조회 모달
+  const [summary_open, set_summary_open] = useState(false);
 
   const load = async (signal?: AbortSignal) => {
     set_is_loading(true);
@@ -197,14 +223,20 @@ const UnitListPanel: React.FC = () => {
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        {/* 상단 타이틀 & 우측 ‘신규 단위 등록’ 버튼 (박스 밖) */}
+        {/* 상단 타이틀 & 우측 버튼들(같은 줄) */}
         <div style={controls_block_style}>
           <div style={controls_title_style}>단위 조회</div>
           <div style={top_row_style}>
-            <div style={top_controls_style} />
-            <button type="button" style={create_btn_style} onClick={() => set_reg_open(true)}>
-              신규 단위 등록
-            </button>
+            {/* 왼쪽은 비워두고, 오른쪽에 두 버튼을 붙여 배치 */}
+            <div />
+            <div style={right_actions_style}>
+              <button type="button" style={quick_btn_style} onClick={() => set_summary_open(true)}>
+                단위 ID 조회
+              </button>
+              <button type="button" style={create_btn_style} onClick={() => set_reg_open(true)}>
+                신규 단위 등록
+              </button>
+            </div>
           </div>
         </div>
 
@@ -330,6 +362,9 @@ const UnitListPanel: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* ✅ 단위 ID 요약 조회 모달 마운트(사용 중일 때만 표시) */}
+        <UnitSummarySearch open={summary_open} onClose={() => set_summary_open(false)} />
       </div>
     </div>
   );
