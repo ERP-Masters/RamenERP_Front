@@ -273,3 +273,65 @@ export async function fetch_items(): Promise<ItemOption[]> {
       (it: ItemOption | null): it is ItemOption => it !== null,
     );
 }
+
+// notuesed item search helper
+// src/api/master_data.ts 안의 기존 fetch_item_name_by_id를 이 버전으로 교체
+
+const __itemNameCache = new Map<number, string>();
+
+function pickItemId(row: any): number | undefined {
+  const cand = row?.id ?? row?.item_pk ?? row?.itemPk ?? row?.item_pk_id ?? row?.itemId;
+  const n = Number(cand);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function pickItemName(row: any): string | undefined {
+  const name =
+    row?.name ??
+    row?.item_name ??
+    row?.itemName ??
+    row?.title ??
+    row?.data?.name ??
+    row?.data?.item_name;
+  return name && String(name).trim() ? String(name).trim() : undefined;
+}
+
+//fetch_item_name_by_id 수정
+export async function fetch_item_name_by_id(id: number): Promise<string | undefined> {
+  if (__itemNameCache.has(id)) return __itemNameCache.get(id);
+
+  // ✅ 프록시 경로만 사용 (404 노이즈 제거)
+  const candidates = [
+    "/api/items",
+    "/api/items/state?isused=NOTUSED",
+    "/api/items?state=NOTUSED",
+    "/api/items?isused=NOTUSED",
+  ];
+
+  for (const url of candidates) {
+    const j = await safeFetchJSON(url);
+    if (!j) continue;
+    const arr = toArray(j);
+
+    for (const row of arr) {
+      const rowId = pickItemId(row);
+      if (rowId !== id) continue;
+
+      const nm = pickItemName(row);
+      if (nm) {
+        __itemNameCache.set(id, nm);
+        return nm;
+      }
+    }
+  }
+  return undefined;
+}
+
+// 캐시 미리 채우기 유틸
+export function prime_item_name_cache(items: ItemOption[]) {
+  for (const it of items) {
+    if (Number.isFinite(it.id as any) && it.name) {
+      __itemNameCache.set(it.id, it.name);
+    }
+  }
+}
