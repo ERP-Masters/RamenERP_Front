@@ -166,6 +166,25 @@ const CategorySummarySearch: React.FC<Props> = ({ open, onClose }) => {
     });
   }, [list, query]);
 
+  // 🔽🔽🔽 추가: 카테고리 이름으로도 검색되는 목록 (기존 filtered는 그대로 둠) 🔽🔽🔽
+  const filteredByName = useMemo(() => {
+    const q = query.trim();
+    if (!q) return [] as Row[];
+    const lower = q.toLowerCase();
+    return list.filter((r) => r.category_name.toLowerCase().includes(lower));
+  }, [list, query]);
+
+  // ID 중복 방지용 Set (기존 filtered 기반)
+  const filteredKeySet = useMemo(() => {
+    const s = new Set<string>();
+    filtered.forEach((r) => {
+      const key = (r as any).display_category_id ?? String(r.category_id);
+      s.add(String(key));
+    });
+    return s;
+  }, [filtered]);
+  // 🔼🔼🔼 여기까지 "추가된" 코드, 기존 로직은 그대로 🔼🔼🔼
+
   if (!open) return null;
 
   return (
@@ -185,7 +204,7 @@ const CategorySummarySearch: React.FC<Props> = ({ open, onClose }) => {
         <div style={input_row_style}>
           <input
             style={input_style}
-            placeholder="예) C / CT_ / CT_0001 / 0001"
+            placeholder="예) C / CT_ / CT_0001 / 0001 / 카테고리명"
             value={query}
             onChange={(e) => set_query(e.target.value)}
           />
@@ -214,6 +233,18 @@ const CategorySummarySearch: React.FC<Props> = ({ open, onClose }) => {
                   <td style={td_style}>{r.category_name}</td>
                 </tr>
               ))}
+              {/* 🔽 추가: 이름으로만 매칭되는 행들 (ID 중복은 제외) */}
+              {filteredByName.map((r, idx) => {
+                const key = (r as any).display_category_id ?? r.category_id;
+                if (filteredKeySet.has(String(key))) return null;
+                return (
+                  <tr key={`name-${key}-${idx}`} style={{ background: "#fdf2ff" }}>
+                    <td style={td_style}>{(r as any).display_category_id ?? r.category_id}</td>
+                    <td style={td_style}>{r.group}</td>
+                    <td style={td_style}>{r.category_name}</td>
+                  </tr>
+                );
+              })}
               {!filtered.length && !is_loading && !error_message && (
                 <tr>
                   <td colSpan={3} style={empty_style}>검색 결과가 없습니다.</td>

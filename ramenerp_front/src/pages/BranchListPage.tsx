@@ -23,8 +23,11 @@ import BranchSummarySearch from "../components/BranchSummarySearch";
 const BR_API = "/api/branches";
 
 /* ===== 타입 ===== */
+// ⚠️ 내부 DB PK는 id, 화면 표시용 ID는 branch_id
 type ApiBranch = {
-  branch_id: number;
+  branch_id: number | string;
+  /** 백엔드가 내려줄 수 있는 실제 PK */
+  id?: number;
   name: string;
   location: string;
   detail_address: string;
@@ -33,8 +36,12 @@ type ApiBranch = {
   isused?: string | null;
   created_at: string;
 };
+
 type Row = {
+  /** ✅ 항상 DB PK(id)를 숫자로 보관 (즉시 반영용 기준 키) */
   branch_id: number;
+  /** 화면 표시용 문자열 ID(코드) */
+  display_branch_id: string;
   name: string;
   location: string;
   detail_address: string;
@@ -113,7 +120,7 @@ const reset_btn_style: React.CSSProperties = {
   background: "#6b7280",
 };
 
-/* ✅ 변경: 창고의 quick_btn_style과 완전히 동일한 스타일(화면 비율 변화에도 위치 고정) */
+/* ✅ 창고와 동일 quick 버튼 스타일 */
 const id_btn_style: React.CSSProperties = {
   height: 40,
   padding: "0 12px",
@@ -124,7 +131,7 @@ const id_btn_style: React.CSSProperties = {
   cursor: "pointer",
   whiteSpace: "nowrap",
   transform: "translateY(-0.8px)",
-  marginLeft: 12, // 초기화 버튼 오른쪽으로 일정 간격 고정
+  marginLeft: 12,
 };
 
 const create_btn_style: React.CSSProperties = {
@@ -187,21 +194,22 @@ const icon_btn_style: React.CSSProperties = {
 const empty_style = { padding: 24, textAlign: "center", color: ui_tok.label } as const;
 
 /* ===== 유틸 ===== */
+/** ✅ 거래처 리스트와 동일한 개념:
+ *  - row.branch_id: 항상 DB PK(id)
+ *  - row.display_branch_id: 화면에 보이는 코드(branch_id)
+ */
 const to_row = (b: ApiBranch): Row => {
-  const toIdNum = (v: any): number => {
-    if (typeof v === "number") return v;
-    const m = String(v ?? "").match(/\d+$/);
-    return m ? Number(m[0]) : NaN;
-  };
+  const apiAny = b as any;
 
-  const display =
-    (typeof (b as any)?.display_branch_id === "string" && (b as any).display_branch_id) ||
-    (typeof (b as any)?.branch_id === "string" && String((b as any).branch_id)) ||
-    (typeof (b as any)?.id === "string" && String((b as any).id)) ||
-    String((b as any)?.branch_id ?? "");
+  const pk = Number(apiAny.id ?? apiAny.branch_id); // id 우선, 없으면 숫자로 해석 가능한 branch_id
+  const stringId =
+    (typeof apiAny.branch_id === "string" && apiAny.branch_id) ||
+    (typeof apiAny.id === "string" && apiAny.id) ||
+    String(apiAny.branch_id ?? apiAny.id ?? "");
 
   return {
-    branch_id: toIdNum((b as any).branch_id),
+    branch_id: pk,
+    display_branch_id: stringId,
     name: String(b.name ?? "").trim(),
     location: String(b.location ?? "").trim(),
     detail_address: String(b.detail_address ?? "").trim(),
@@ -209,8 +217,7 @@ const to_row = (b: ApiBranch): Row => {
     contact: String(b.contact ?? "").trim(),
     isused: b.isused ?? null,
     created_at: String(b.created_at ?? "").trim(),
-    ...(display ? { display_branch_id: display } : {}),
-  } as Row & { display_branch_id?: string };
+  };
 };
 
 const safeJson = async (res: Response) => {
@@ -240,7 +247,11 @@ const BranchListPage: React.FC = () => {
     set_is_loading(true);
     set_error_message("");
     try {
-      const res = await fetch(`${BR_API}`, { method: "GET", headers: { Accept: "application/json" }, signal });
+      const res = await fetch(`${BR_API}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal,
+      });
       const j: ApiBranch[] = (await safeJson(res)) ?? [];
       if (!res.ok) throw new Error((j as any)?.message || `HTTP ${res.status}`);
       set_rows((Array.isArray(j) ? j.map(to_row) : []).filter((r) => r.isused !== "NOTUSED"));
@@ -258,7 +269,10 @@ const BranchListPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const onCreated = () => { set_regOpen(false); load(); };
+    const onCreated = () => {
+      set_regOpen(false);
+      load();
+    };
     const onCancel = () => set_regOpen(false);
     window.addEventListener("branch:created", onCreated);
     window.addEventListener("branch:register:cancel", onCancel);
@@ -278,6 +292,7 @@ const BranchListPage: React.FC = () => {
     };
   }, []);
 
+  // ✅ 다른 페이지에서 branch:edited 이벤트를 쏠 수도 있으니 그대로 유지
   useEffect(() => {
     const onEdited = (e: Event) => {
       const v = (e as CustomEvent).detail as Partial<BranchEditTarget> | undefined;
@@ -311,14 +326,21 @@ const BranchListPage: React.FC = () => {
 
   const handle_search = async () => {
     const q = query.trim();
-    if (!q) { load(); return; }
+    if (!q) {
+      load();
+      return;
+    }
 
     set_is_loading(true);
     set_error_message("");
     try {
-      let res = await fetch(`${BR_API}/search/name/${encodeURIComponent(q)}`, { headers: { Accept: "application/json" } });
+      let res = await fetch(`${BR_API}/search/name/${encodeURIComponent(q)}`, {
+        headers: { Accept: "application/json" },
+      });
       if (!res.ok) {
-        res = await fetch(`${BR_API}/search/location/${encodeURIComponent(q)}`, { headers: { Accept: "application/json" } });
+        res = await fetch(`${BR_API}/search/location/${encodeURIComponent(q)}`, {
+          headers: { Accept: "application/json" },
+        });
       }
       if (res.status === 404) {
         set_rows([]);
@@ -351,7 +373,9 @@ const BranchListPage: React.FC = () => {
     set_is_loading(true);
     set_error_message("");
     try {
-      const res = await fetch(`${BR_API}/${encodeURIComponent(id)}`, { headers: { Accept: "application/json" } });
+      const res = await fetch(`${BR_API}/${encodeURIComponent(id)}`, {
+        headers: { Accept: "application/json" },
+      });
       if (res.status === 404) {
         set_rows([]);
       } else {
@@ -369,6 +393,7 @@ const BranchListPage: React.FC = () => {
 
   /* ===== 수정 아이콘 동작 ===== */
   const openEdit = (r: Row) => {
+    // ✅ target.branch_id는 PK(id)를 그대로 넘김
     const tgt: BranchEditTarget = {
       branch_id: r.branch_id,
       name: r.name,
@@ -384,24 +409,46 @@ const BranchListPage: React.FC = () => {
   };
   const closeEdit = () => set_editOpen(false);
 
-  const handleSaved = (updated: BranchEditTarget) => {
-    const uid = Number((updated as any)?.branch_id);
+  /** ✅ 거래처 리스트의 handleSaved 패턴을 브랜치에 맞게 적용
+   *  - 먼저 PK(id) 기준으로 찾고
+   *  - 필요하면 표시 ID(branch_id) suffix로 보조 매칭
+   */
+  const handleSaved = (updated: Partial<ApiBranch> & { id?: number; branch_id?: number | string }) => {
+    const pk = Number((updated as any).id ?? (updated as any).branch_id);
+    const display = String(
+      (updated as any).display_branch_id ??
+        (updated as any).branch_id ??
+        ""
+    );
+    const suffix = (display.match(/\d+$/) || [])[0] || "";
+
     set_rows((prev) =>
       prev
-        .map((r) =>
-          Number(r.branch_id) === uid
-            ? {
-                ...r,
-                name: updated.name ?? r.name,
-                location: updated.location ?? r.location,
-                detail_address: updated.detail_address ?? r.detail_address,
-                store_owner: updated.store_owner ?? r.store_owner,
-                contact: updated.contact ?? r.contact,
-                isused: (updated as any)?.issued ?? r.isused ?? null,
-                created_at: (updated as any)?.created_at || r.created_at,
-              }
-            : r
-        )
+        .map((r) => {
+          const matchByPk = Number.isFinite(pk) && r.branch_id === pk;
+          const matchBySuffix =
+            !Number.isFinite(pk) &&
+            suffix &&
+            String(r.display_branch_id).endsWith(suffix);
+
+          if (matchByPk || matchBySuffix) {
+            return {
+              ...r,
+              name: updated.name ?? r.name,
+              location: updated.location ?? r.location,
+              detail_address: updated.detail_address ?? r.detail_address,
+              store_owner: updated.store_owner ?? r.store_owner,
+              contact: updated.contact ?? r.contact,
+              isused: updated.isused ?? r.isused ?? null,
+              created_at: updated.created_at ?? r.created_at,
+              display_branch_id:
+                updated.branch_id !== undefined
+                  ? String(updated.branch_id)
+                  : r.display_branch_id,
+            };
+          }
+          return r;
+        })
         .filter((r) => r.isused !== "NOTUSED")
     );
   };
@@ -421,8 +468,12 @@ const BranchListPage: React.FC = () => {
                 placeholder="예) 마포구 / 강서방화사거리점"
                 style={input_style}
               />
-              <button type="button" style={search_btn_style} onClick={handle_search}>검색</button>
-              <button type="button" style={reset_btn_style} onClick={handle_reset}>초기화</button>
+              <button type="button" style={search_btn_style} onClick={handle_search}>
+                검색
+              </button>
+              <button type="button" style={reset_btn_style} onClick={handle_reset}>
+                초기화
+              </button>
 
               {/* ✅ 창고와 동일한 디자인/배치의 ID 조회 버튼 → 모달 오픈 */}
               <button
@@ -434,15 +485,27 @@ const BranchListPage: React.FC = () => {
               </button>
             </div>
 
-            <button type="button" style={create_btn_style} onClick={() => set_regOpen(true)}>
+            <button
+              type="button"
+              style={create_btn_style}
+              onClick={() => set_regOpen(true)}
+            >
               신규 지점 등록
             </button>
           </div>
         </div>
 
         {/* 에러/로딩 */}
-        {is_loading && <div style={{ margin: "8px 12px", color: ui_tok.label }}>불러오는 중…</div>}
-        {error_message && <div style={{ color: "#c62828", margin: "8px 12px" }}>{error_message}</div>}
+        {is_loading && (
+          <div style={{ margin: "8px 12px", color: ui_tok.label }}>
+            불러오는 중…
+          </div>
+        )}
+        {error_message && (
+          <div style={{ color: "#c62828", margin: "8px 12px" }}>
+            {error_message}
+          </div>
+        )}
 
         {/* 네모 박스 테이블 */}
         <div style={table_card_style}>
@@ -463,11 +526,11 @@ const BranchListPage: React.FC = () => {
               <tbody>
                 {rows.map((r, idx) => (
                   <tr
-                    key={Number.isFinite(r.branch_id) ? `n-${r.branch_id}` : `s-${(r as any).display_branch_id || 'unknown'}`}
+                    key={r.branch_id}
                     title={`${r.name} · ${r.location} · ${r.detail_address}`}
                     style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                   >
-                    <td style={td_style}>{(r as any).display_branch_id ?? r.branch_id}</td>
+                    <td style={td_style}>{r.display_branch_id}</td>
                     <td style={td_style}>{r.name}</td>
                     <td style={td_style}>{r.location}</td>
                     <td style={td_style}>{r.detail_address}</td>
@@ -482,7 +545,13 @@ const BranchListPage: React.FC = () => {
                         title="수정"
                         aria-label="수정"
                       >
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          aria-hidden="true"
+                        >
                           <path
                             d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z"
                             stroke="#374151"
@@ -490,7 +559,12 @@ const BranchListPage: React.FC = () => {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           />
-                          <path d="M12 5l3 3" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" />
+                          <path
+                            d="M12 5l3 3"
+                            stroke="#374151"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                          />
                         </svg>
                       </button>
 
@@ -500,13 +574,31 @@ const BranchListPage: React.FC = () => {
                         title="미사용 등록"
                         aria-label="미사용 등록"
                         onClick={() => {
-                          set_notUsedTarget({ branch_id: r.branch_id, name: r.name });
+                          set_notUsedTarget({
+                            branch_id: r.branch_id,
+                            name: r.name,
+                          });
                           set_notUsedOpen(true);
                         }}
                       >
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                          <path d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z" stroke="#ef4444" strokeWidth="1.5" />
-                          <path d="M4 7h12M8 7V4h4v3" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z"
+                            stroke="#ef4444"
+                            strokeWidth="1.5"
+                          />
+                          <path
+                            d="M4 7h12M8 7V4h4v3"
+                            stroke="#ef4444"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                          />
                         </svg>
                       </button>
                     </td>
@@ -515,7 +607,9 @@ const BranchListPage: React.FC = () => {
 
                 {rows.length === 0 && !is_loading && !error_message && (
                   <tr>
-                    <td colSpan={8} style={empty_style}>등록된 지점이 없습니다.</td>
+                    <td colSpan={8} style={empty_style}>
+                      등록된 지점이 없습니다.
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -529,9 +623,23 @@ const BranchListPage: React.FC = () => {
           target={editTarget}
           onClose={closeEdit}
           onSubmit={async (data) => {
+            // ✅ 1단계: 즉시 낙관적 갱신 (PK = data.branch_id)
+            handleSaved({
+              id: Number(data.branch_id),
+              branch_id: data.branch_id,
+              name: data.name,
+              location: data.location,
+              detail_address: data.detail_address,
+              store_owner: data.store_owner,
+              contact: String(data.contact ?? ""),
+              isused: "USED",
+              created_at: data.created_at ?? "",
+            });
+
             try {
-              const updated = await putBranch(data);
-              handleSaved(updated);
+              // ✅ 2단계: 서버 응답으로 한 번 더 확정 반영
+              const raw = await putBranch(data); // ApiBranch
+              handleSaved(raw);
               set_editOpen(false);
               alert("지점 정보가 수정되었습니다.");
             } catch (e: any) {
@@ -588,11 +696,26 @@ const BranchListPage: React.FC = () => {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>신규 지점 등록</h2>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>
+                  신규 지점 등록
+                </h2>
                 <button
                   type="button"
-                  style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${ui_tok.border}`, background: "#fff", cursor: "pointer" }}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: `1px solid ${ui_tok.border}`,
+                    background: "#fff",
+                    cursor: "pointer",
+                  }}
                   onClick={() => set_regOpen(false)}
                 >
                   닫기

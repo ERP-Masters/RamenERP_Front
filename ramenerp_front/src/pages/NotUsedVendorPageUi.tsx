@@ -3,17 +3,18 @@ import React, { useEffect, useState } from "react";
 import { fetchNotUsedVendors, type ApiVendor } from "../pages/VendorNotUsedFunction";
 import { markManyVendorsUsed } from "../pages/VendorUsedFunction";
 
-/** 화면 표시에만 쓰는 행 타입 */
+/** 화면 표시에만 쓰는 행 타입
+ *  - id: 내부 DB PK
+ *  - vendor_id: 화면에 표시되는 문자열 ID
+ */
 type Row = {
-  /** 서버 요청/체크박스용 숫자형 ID (문자형이면 끝자리 숫자 추출) */
-  id_num: number;
-  /** 화면 표시용 문자열 ID */
-  display_vendor_id: string;
-
+  id?: number;            // 서버 PK
+  vendor_id: string;      // 화면 표시용 문자열 ID
   name: string;
   manager: string;
   contact: string;
   address: string;
+  created_at: string;
 };
 
 const ui_tok = {
@@ -111,40 +112,38 @@ const NotUsedVendorPageUi: React.FC = () => {
   const [rows, set_rows] = useState<Row[]>([]);
   const [loading, set_loading] = useState(false);
   const [error, set_error] = useState("");
-  const [selectMode, set_selectMode] = useState(false);
+  const [select_mode, set_select_mode] = useState(false);
 
-  /** ✅ 체크박스 상태를 '문자열 키'로 관리해서 NaN 충돌 제거 */
+  /** 체크박스 상태를 'vendor_id 문자열' 키로 관리 */
   const [checked, set_checked] = useState<Record<string, boolean>>({});
 
-  // 숫자/문자 어떤 값이 와도 숫자 id 추출
-  const toIdNum = (v: any): number => {
-    if (typeof v === "number") return v;
-    const m = String(v ?? "").match(/\d+$/);
-    return m ? Number(m[0]) : NaN;
-  };
+  // 각 행의 고유 키: 화면용 vendor_id 그대로 사용
+  const row_key = (r: Row) => r.vendor_id;
 
-  // ✅ 각 행의 고유 키 (숫자면 n-숫자, 아니면 s-문자ID)
-  const rowKey = (r: Row) =>
-    Number.isFinite(r.id_num) ? `n-${r.id_num}` : `s-${r.display_vendor_id}`;
-
+  /** ApiVendor → Row 변환
+   *  - id: 응답 JSON 의 id (PK) 있으면 보관
+   *  - vendor_id: 화면에 보이는 문자열 코드
+   */
   const to_row = (v: ApiVendor): Row => {
-    const id_num = toIdNum((v as any).vendor_id);
-    const display =
-      typeof (v as any).display_vendor_id === "string" && (v as any).display_vendor_id
-        ? (v as any).display_vendor_id
-        : typeof (v as any).vendor_id === "string"
-        ? (v as any).vendor_id
-        : typeof (v as any).id === "string"
-        ? (v as any).id
-        : String((v as any).vendor_id ?? "");
+    const anyV = v as any;
+
+    let pk: number | undefined;
+    if (typeof anyV.id === "number") pk = anyV.id;
+    else if (typeof anyV.id === "string" && /^\d+$/.test(anyV.id)) pk = Number(anyV.id);
+
+    const code =
+      (typeof anyV.vendor_id === "string" && anyV.vendor_id) ||
+      (typeof anyV.display_vendor_id === "string" && anyV.display_vendor_id) ||
+      String(anyV.vendor_id ?? anyV.id ?? "");
 
     return {
-      id_num,
-      display_vendor_id: display,
-      name: String(v.name ?? "").trim(),
-      manager: String(v.manager ?? "").trim(),
-      contact: String(v.contact ?? "").trim(),
-      address: String(v.address ?? "").trim(),
+      id: pk,
+      vendor_id: code,
+      name: String(anyV.name ?? "").trim(),
+      manager: String(anyV.manager ?? "").trim(),
+      contact: String(anyV.contact ?? "").trim(),
+      address: String(anyV.address ?? "").trim(),
+      created_at: String(anyV.created_at ?? "").trim(),
     };
   };
 
@@ -162,45 +161,109 @@ const NotUsedVendorPageUi: React.FC = () => {
     }
   };
 
-  /** ✅ 선택된(숫자 ID가 있는) 행들의 숫자 ID 배열 */
-  const selectedIds = () =>
-    rows
-      .filter((r) => checked[rowKey(r)] && Number.isFinite(r.id_num))
-      .map((r) => r.id_num);
+  /** ✅ vendor_id(문자열 코드) 배열 → 실제 PK id 배열
+   *    여기서 /api/vendors/state 를 사용해서 매핑한다.
+   */
+  const resolvePkIds = async (codes: string[]): Promise<number[]> => {
+    const res = await fetch("/api/vendors/state", {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    const data = text ? JSON.parse(text) : null;
 
-  // ✅ “사용” — 낙관적 제거 + 서버 반영 + 재동기화
-  const handleRestoreUse = async () => {
-    const ids = selectedIds();
-    if (ids.length === 0) {
-      alert("사용으로 전환할 거래처를 선택하세요.");
+    const raw: any[] = Array.isArray(data)
+      ? data
+      : data && Array.isArray((data as any).items)
+      ? (data as any).items
+      : [];
+
+    // 코드 → PK(id) 매핑 (state 에서만 가져옴)
+    const map: Record<string, number> = {};
+    for (const v of raw) {
+      const anyV = v as any;
+
+      const code =
+        (typeof anyV.vendor_id === "string" && anyV.vendor_id) ||
+        (typeof anyV.display_vendor_id === "string" && anyV.display_vendor_id) ||
+        String(anyV.vendor_id ?? anyV.id ?? "");
+
+      let pk: number | null = null;
+      if (typeof anyV.id === "number") pk = anyV.id;
+      else if (typeof anyV.id === "string" && /^\d+$/.test(anyV.id)) pk = Number(anyV.id);
+      else if (typeof anyV.vendor_id === "number") pk = anyV.vendor_id;
+      else if (typeof anyV.vendor_id === "string" && /^\d+$/.test(anyV.vendor_id)) {
+        pk = Number(anyV.vendor_id);
+      }
+
+      if (code && pk !== null && Number.isFinite(pk)) {
+        map[code] = pk;
+      }
+    }
+
+    const result: number[] = [];
+    for (const c of codes) {
+      const pk = map[c];
+      if (Number.isFinite(pk)) result.push(pk);
+    }
+    return result;
+  };
+
+  /** 선택된 행들의 vendor_id(문자열 코드) 배열 */
+  const selected_codes = () =>
+    rows.filter((r) => checked[row_key(r)]).map((r) => r.vendor_id);
+
+  // “사용” — 낙관적 제거 + 서버 반영 + 재동기화
+  const handle_restore_use = async () => {
+    const codes = selected_codes();
+    if (codes.length === 0) {
+      alert("선택된 거래처가 없습니다. 선택을 확인해주세요.");
       return;
     }
+
+    // 1) /api/vendors/state 에서 같은 vendor_id 가진 레코드의 PK id 찾기
+    let ids: number[];
+    try {
+      ids = await resolvePkIds(codes);
+    } catch (e: any) {
+      alert(e?.message || "거래처 ID 해석 중 오류가 발생했습니다.");
+      return;
+    }
+
+    if (ids.length === 0) {
+      alert("숫자형 id 를 찾을 수 없습니다. (state 기준 매핑 실패)");
+      return;
+    }
+
     const msg =
       ids.length === 1
         ? "1개 거래처를 사용 등록하시겠습니까?"
         : `${ids.length}개 거래처를 사용 등록하시겠습니까?`;
     if (!window.confirm(msg)) return;
 
-    // 1) 화면 즉시 제거 (키 기반으로 안전하게 제거)
-    const removeKeys = new Set(ids.map((id) => `n-${id}`));
-    set_rows((prev) => prev.filter((r) => !removeKeys.has(rowKey(r))));
+    // 2) 화면 즉시 제거 — 체크된 행 전부 삭제 (vendor_id 기준)
+    const remove_keys = new Set<string>(codes);
+    set_rows((prev) => prev.filter((r) => !remove_keys.has(r.vendor_id)));
     set_checked((prev) => {
       const next = { ...prev };
-      [...removeKeys].forEach((k) => delete next[k]);
+      remove_keys.forEach((k) => delete next[k]);
       return next;
     });
 
     try {
       set_loading(true);
-      // 2) 서버 반영(USED) — 숫자형 ID로 전송
+      // 3) 서버 반영(USED) — PK id 로만 호출 (PUT /api/vendors/:id { isused: "USED" })
       await markManyVendorsUsed(ids);
-      // 3) 후행 동기화
-      void load();
-      set_selectMode(false);
+      // 4) 재동기화
+      await load();
+      set_select_mode(false);
       alert("사용으로 전환되었습니다.");
     } catch (e: any) {
       alert(e?.message || "전환 중 오류가 발생했습니다.");
-      void load();
+      await load();
     } finally {
       set_loading(false);
     }
@@ -218,6 +281,15 @@ const NotUsedVendorPageUi: React.FC = () => {
     };
   }, []);
 
+  // 선택 모드 토글 시 체크 초기화 (UX 개선)
+  const toggle_select_mode = () => {
+    set_select_mode((v) => {
+      const next = !v;
+      if (!next) set_checked({});
+      return next;
+    });
+  };
+
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
@@ -227,22 +299,22 @@ const NotUsedVendorPageUi: React.FC = () => {
           <button
             type="button"
             style={select_btn_style}
-            onClick={() => set_selectMode((v) => !v)}
+            onClick={toggle_select_mode}
             title="선택 모드"
           >
-            {selectMode ? "선택 해제" : "선택"}
+            {select_mode ? "선택 해제" : "선택"}
           </button>
 
-        {selectMode && (
-          <button
-            type="button"
-            style={use_btn_style}
-            onClick={handleRestoreUse}
-            title="사용으로 전환"
-          >
-            사용
-          </button>
-        )}
+          {select_mode && (
+            <button
+              type="button"
+              style={use_btn_style}
+              onClick={handle_restore_use}
+              title="사용으로 전환"
+            >
+              사용
+            </button>
+          )}
         </div>
 
         <div style={table_card_style}>
@@ -250,49 +322,50 @@ const NotUsedVendorPageUi: React.FC = () => {
             <table style={table_style}>
               <thead>
                 <tr>
-                  {selectMode && <th style={th_style} />}
+                  {select_mode && <th style={th_style} />}
                   <th style={th_style}>vendor_id</th>
                   <th style={th_style}>name</th>
                   <th style={th_style}>manager</th>
                   <th style={th_style}>contact</th>
                   <th style={th_style}>address</th>
+                  <th style={th_style}>created_at</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, idx) => {
-                  const key = rowKey(r);
-                  const validId = Number.isFinite(r.id_num);
+                  const key = row_key(r);
                   return (
                     <tr
                       key={key}
                       style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                       title={`${r.name} · ${r.manager} · ${r.contact} · ${r.address}`}
                     >
-                      {selectMode && (
-                        <td style={td_style}>
+                      {select_mode && (
+                        <td style={{ ...td_style, position: "relative" }}>
                           <input
                             type="checkbox"
-                            disabled={!validId}
                             checked={!!checked[key]}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               set_checked((prev) => ({ ...prev, [key]: e.target.checked }))
                             }
                           />
                         </td>
                       )}
-                      <td style={td_style}>{r.display_vendor_id}</td>
+                      <td style={td_style}>{r.vendor_id}</td>
                       <td style={td_style}>{r.name}</td>
                       <td style={td_style}>{r.manager}</td>
                       <td style={td_style}>{r.contact}</td>
                       <td style={td_style}>{r.address}</td>
+                      <td style={td_style}>{r.created_at}</td>
                     </tr>
                   );
                 })}
 
                 {rows.length === 0 && !loading && !error && (
                   <tr>
-                    {/* 열 개수: 선택모드 6, 기본 5 */}
-                    <td style={empty_style} colSpan={selectMode ? 6 : 5}>
+                    {/* 열 개수: 선택모드 7, 기본 6 */}
+                    <td style={empty_style} colSpan={select_mode ? 7 : 6}>
                       미사용으로 등록된 거래처가 없습니다.
                     </td>
                   </tr>

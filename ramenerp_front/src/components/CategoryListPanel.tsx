@@ -2,17 +2,17 @@
 import React, { useEffect, useState } from "react";
 import CategoryEditPage, { CategoryEditTarget } from "./CategoryEditPage";
 
-// 삭제 모달 UI & 서비스 (기존)
-import CategoryDeleteUI from "../components/CategoryDeleteUi";
-import { deleteCategoryWithAlerts } from "../pages/CategoryDeleteFunction";
+// ✅ 미사용(삭제) 확인 모달 UI
+import CategoryDeleteUI from "../components/NotUsedCategoryUi";
 
 // ✅ 모달로 띄울 등록 페이지 (기존 페이지 그대로 사용)
 import CategoryRegisterPage from "../pages/CategoryRegisterPage";
 
-// ✅ 추가: 카테고리 ID 조회 모달
+// ✅ 카테고리 ID 조회 모달
 import CategorySummarySearch from "../components/CategorySummarySearch";
 
 type ApiCategory = {
+  id?: number; // ✅ DB PK (서버가 내려주면 사용)
   category_id: number | string;
   group: string;
   category_name: string;
@@ -20,6 +20,7 @@ type ApiCategory = {
 };
 
 type CategoryRow = {
+  id_pk: number; // ✅ DB PK
   category_id: number;
   group: string;
   category_name: string;
@@ -43,7 +44,11 @@ const ui_tok = {
 } as const;
 
 /* ===== 페이지 레이아웃 ===== */
-const page_wrap_style: React.CSSProperties = { background: ui_tok.bg_page, minHeight: "100%", padding: "24px 16px" };
+const page_wrap_style: React.CSSProperties = {
+  background: ui_tok.bg_page,
+  minHeight: "100%",
+  padding: "24px 16px",
+};
 const page_style = { padding: 16, maxWidth: 1200, margin: "0 auto" } as const;
 
 /* ===== 제목/컨트롤 라인 (박스 밖) ===== */
@@ -71,7 +76,7 @@ const top_controls_style: React.CSSProperties = {
 const right_actions_style: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 8, // 버튼 간격
+  gap: 8,
 };
 
 const quick_btn_style: React.CSSProperties = {
@@ -110,7 +115,11 @@ const table_card_style: React.CSSProperties = {
 };
 const table_scroll_style = { flex: 1, overflowY: "auto", overflowX: "auto" } as const;
 
-const table_style = { width: "100%", borderCollapse: "separate" as const, borderSpacing: 0 } as const;
+const table_style = {
+  width: "100%",
+  borderCollapse: "separate" as const,
+  borderSpacing: 0,
+} as const;
 const th_style = {
   padding: "12px 10px",
   textAlign: "left" as const,
@@ -122,8 +131,17 @@ const th_style = {
   top: 0,
   zIndex: 1,
 } as const;
-const td_style = { borderBottom: `1px solid ${ui_tok.border}`, padding: 12, textAlign: "left" as const, whiteSpace: "nowrap" as const } as const;
-const empty_style = { padding: 24, textAlign: "center", color: ui_tok.label } as const;
+const td_style = {
+  borderBottom: `1px solid ${ui_tok.border}`,
+  padding: 12,
+  textAlign: "left" as const,
+  whiteSpace: "nowrap" as const,
+} as const;
+const empty_style = {
+  padding: 24,
+  textAlign: "center",
+  color: ui_tok.label,
+} as const;
 
 const name_cell_style: React.CSSProperties = {
   ...td_style,
@@ -132,7 +150,13 @@ const name_cell_style: React.CSSProperties = {
   justifyContent: "space-between",
   gap: 8,
 };
-const icon_btn_style: React.CSSProperties = { background: "transparent", border: "none", padding: 4, cursor: "pointer", lineHeight: 0 };
+const icon_btn_style: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
+  padding: 4,
+  cursor: "pointer",
+  lineHeight: 0,
+};
 
 const numId = (v: any): number => {
   if (typeof v === "number") return v;
@@ -142,12 +166,19 @@ const numId = (v: any): number => {
 
 const to_row = (c: ApiCategory): CategoryRow => {
   const display =
-    (typeof (c as any)?.display_category_id === "string" && (c as any).display_category_id) ||
+    (typeof (c as any)?.display_category_id === "string" &&
+      (c as any).display_category_id) ||
     (typeof c.category_id === "string" && String(c.category_id)) ||
     (typeof (c as any)?.id === "string" && String((c as any).id)) ||
     String(c.category_id ?? "");
 
+  const pk =
+    typeof (c as any).id === "number"
+      ? (c as any).id // ✅ 서버가 PK를 내려주면 그걸 우선 사용
+      : numId(c.category_id); // 없으면 예비용 숫자 부분
+
   return {
+    id_pk: pk,
     category_id: numId(c.category_id),
     group: String(c.group ?? "").trim(),
     category_name: String(c.category_name ?? "").trim(),
@@ -165,28 +196,37 @@ const CategoryListPanel: React.FC = () => {
   const [edit_target, set_edit_target] = useState<CategoryEditTarget | null>(null);
 
   const [del_open, set_del_open] = useState<boolean>(false);
-  const [del_target, set_del_target] = useState<{ category_id: number; category_name: string } | null>(null);
+  const [del_target, set_del_target] = useState<{ id: number; category_name: string } | null>(null);
 
   const [reg_open, set_reg_open] = useState(false);
 
-  // ✅ 추가: 카테고리 ID 조회 모달
+  // ✅ 카테고리 ID 조회 모달
   const [summary_open, set_summary_open] = useState(false);
 
   const load = async (signal?: AbortSignal) => {
     set_is_loading(true);
     set_error_message("");
     try {
-      const res = await fetch("/api/category", { method: "GET", headers: { Accept: "application/json" }, signal });
+      const res = await fetch("/api/category", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal,
+      });
       const raw = await res.text();
       if (!res.ok) {
         let msg = `HTTP ${res.status}`;
-        try { msg = (raw ? JSON.parse(raw) : null)?.message || msg; } catch {}
+        try {
+          msg = (raw ? JSON.parse(raw) : null)?.message || msg;
+        } catch {}
         throw new Error(msg);
       }
       const list: ApiCategory[] = raw ? JSON.parse(raw) : [];
       set_rows(Array.isArray(list) ? list.map(to_row) : []);
     } catch (e: any) {
-      if (e?.name !== "AbortError") set_error_message(e?.message || "카테고리 목록을 불러오는 중 오류가 발생했습니다.");
+      if (e?.name !== "AbortError")
+        set_error_message(
+          e?.message || "카테고리 목록을 불러오는 중 오류가 발생했습니다.",
+        );
     } finally {
       set_is_loading(false);
     }
@@ -199,8 +239,13 @@ const CategoryListPanel: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const onCreated = () => { set_reg_open(false); load(); };
-    const onCancel = () => { set_reg_open(false); };
+    const onCreated = () => {
+      set_reg_open(false);
+      load();
+    };
+    const onCancel = () => {
+      set_reg_open(false);
+    };
     window.addEventListener("category:created", onCreated);
     window.addEventListener("category:register:cancel", onCancel);
     return () => {
@@ -210,7 +255,11 @@ const CategoryListPanel: React.FC = () => {
   }, []);
 
   const open_edit = (r: CategoryRow) => {
-    set_edit_target({ category_id: r.category_id, group: r.group, category_name: r.category_name });
+    set_edit_target({
+      category_id: r.category_id,
+      group: r.group,
+      category_name: r.category_name,
+    });
     set_edit_open(true);
   };
   const close_edit = () => set_edit_open(false);
@@ -220,14 +269,19 @@ const CategoryListPanel: React.FC = () => {
     set_rows((prev) =>
       prev.map((row) =>
         numId(row.category_id) === uid
-          ? { ...row, group: (updated as any).group, category_name: (updated as any).category_name }
-          : row
-      )
+          ? {
+              ...row,
+              group: (updated as any).group,
+              category_name: (updated as any).category_name,
+            }
+          : row,
+      ),
     );
   };
 
   const open_delete = (r: CategoryRow) => {
-    set_del_target({ category_id: r.category_id, category_name: r.category_name });
+    // ✅ 진짜 PK를 target으로 넘김
+    set_del_target({ id: r.id_pk, category_name: r.category_name });
     set_del_open(true);
   };
   const close_delete = () => set_del_open(false);
@@ -239,20 +293,21 @@ const CategoryListPanel: React.FC = () => {
       const vid = numId((v as any).category_id);
       if (!Number.isFinite(vid)) return;
 
-      set_rows(prev =>
-        prev.map(r =>
+      set_rows((prev) =>
+        prev.map((r) =>
           numId(r.category_id) === vid
             ? {
                 ...r,
                 group: (v as any).group ?? r.group,
                 category_name: (v as any).category_name ?? r.category_name,
               }
-            : r
-        )
+            : r,
+        ),
       );
     };
     window.addEventListener("category:edited", onEdited as EventListener);
-    return () => window.removeEventListener("category:edited", onEdited as EventListener);
+    return () =>
+      window.removeEventListener("category:edited", onEdited as EventListener);
   }, []);
 
   return (
@@ -264,10 +319,18 @@ const CategoryListPanel: React.FC = () => {
           <div style={top_row_style}>
             <div style={top_controls_style} />
             <div style={right_actions_style}>
-              <button type="button" style={quick_btn_style} onClick={() => set_summary_open(true)}>
+              <button
+                type="button"
+                style={quick_btn_style}
+                onClick={() => set_summary_open(true)}
+              >
                 카테고리 ID 조회
               </button>
-              <button type="button" style={create_btn_style} onClick={() => set_reg_open(true)}>
+              <button
+                type="button"
+                style={create_btn_style}
+                onClick={() => set_reg_open(true)}
+              >
                 신규 카테고리 등록
               </button>
             </div>
@@ -276,8 +339,16 @@ const CategoryListPanel: React.FC = () => {
 
         {/* 네모 박스(고정 높이 + 내부 스크롤) */}
         <div style={table_card_style}>
-          {is_loading && <div style={{ margin: "8px 12px", color: ui_tok.label }}>불러오는 중…</div>}
-          {error_message && <div style={{ color: "#c62828", margin: "8px 12px" }}>{error_message}</div>}
+          {is_loading && (
+            <div style={{ margin: "8px 12px", color: ui_tok.label }}>
+              불러오는 중…
+            </div>
+          )}
+          {error_message && (
+            <div style={{ color: "#c62828", margin: "8px 12px" }}>
+              {error_message}
+            </div>
+          )}
 
           <div style={table_scroll_style}>
             <table style={table_style}>
@@ -291,15 +362,32 @@ const CategoryListPanel: React.FC = () => {
               <tbody>
                 {rows.map((r, idx) => (
                   <tr
-                    key={r.category_id}
+                    key={`${r.id_pk}-${r.category_id}`}
                     title={`${r.group} · ${r.category_name}`}
-                    style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
+                    style={
+                      idx % 2 === 1 ? { background: ui_tok.zebra } : undefined
+                    }
                   >
-                    <td style={td_style}>{(r as any).display_category_id ?? r.category_id}</td>
+                    <td style={td_style}>
+                      {(r as any).display_category_id ?? r.category_id}
+                    </td>
                     <td style={td_style}>{r.group}</td>
                     <td style={name_cell_style}>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{r.category_name}</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {r.category_name}
+                      </span>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
                         <button
                           type="button"
                           style={icon_btn_style}
@@ -307,9 +395,26 @@ const CategoryListPanel: React.FC = () => {
                           title="수정"
                           aria-label="수정"
                         >
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M12 5l3 3" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" />
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z"
+                              stroke="#374151"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M12 5l3 3"
+                              stroke="#374151"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                            />
                           </svg>
                         </button>
                         <button
@@ -319,9 +424,24 @@ const CategoryListPanel: React.FC = () => {
                           title="삭제"
                           aria-label="삭제"
                         >
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z" stroke="#ef4444" strokeWidth="1.5" />
-                            <path d="M4 7h12M8 7V4h4v3" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z"
+                              stroke="#ef4444"
+                              strokeWidth="1.5"
+                            />
+                            <path
+                              d="M4 7h12M8 7V4h4v3"
+                              stroke="#ef4444"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                            />
                           </svg>
                         </button>
                       </div>
@@ -330,7 +450,9 @@ const CategoryListPanel: React.FC = () => {
                 ))}
                 {rows.length === 0 && !is_loading && !error_message && (
                   <tr>
-                    <td colSpan={3} style={empty_style}>등록된 카테고리가 없습니다.</td>
+                    <td colSpan={3} style={empty_style}>
+                      등록된 카테고리가 없습니다.
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -339,18 +461,20 @@ const CategoryListPanel: React.FC = () => {
         </div>
 
         {/* 수정 모달 */}
-        <CategoryEditPage open={edit_open} target={edit_target} onClose={close_edit} onSaved={handle_saved} />
+        <CategoryEditPage
+          open={edit_open}
+          target={edit_target}
+          onClose={close_edit}
+          onSaved={handle_saved}
+        />
 
-        {/* 삭제 모달 */}
+        {/* ✅ 미사용(삭제) 확인 모달 */}
         <CategoryDeleteUI
           open={del_open}
           target={del_target}
           onClose={close_delete}
-          onConfirm={async () => {
-            if (!del_target) return;
-            await deleteCategoryWithAlerts(del_target, (deletedId) => {
-              set_rows((prev) => prev.filter((c) => c.category_id !== deletedId));
-            });
+          onDone={() => {
+            void load();
             set_del_open(false);
           }}
         />
@@ -382,11 +506,32 @@ const CategoryListPanel: React.FC = () => {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>카테고리 등록</h2>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: 18,
+                    fontWeight: 800,
+                  }}
+                >
+                  카테고리 등록
+                </h2>
                 <button
                   type="button"
-                  style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${ui_tok.border}`, background: "#fff", cursor: "pointer" }}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: `1px solid ${ui_tok.border}`,
+                    background: "#fff",
+                    cursor: "pointer",
+                  }}
                   onClick={() => set_reg_open(false)}
                 >
                   닫기
@@ -398,7 +543,10 @@ const CategoryListPanel: React.FC = () => {
         )}
 
         {/* ✅ 카테고리 ID 조회 모달 마운트 */}
-        <CategorySummarySearch open={summary_open} onClose={() => set_summary_open(false)} />
+        <CategorySummarySearch
+          open={summary_open}
+          onClose={() => set_summary_open(false)}
+        />
       </div>
     </div>
   );

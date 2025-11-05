@@ -28,6 +28,9 @@ import WarehouseListPanel from "./components/WarehouseListPanel";
 import BranchRegisterPage from "./pages/BranchRegisterPage";
 import BranchListPage from "./pages/BranchListPage";
 import NotUsedBranchUi from "./components/NotUsedBranchPageUi";
+import NotUsedWarehousePageUi from "./components/NotUsedWarehousePageUi";
+import NotUsedUnitPageUi from "./components/NotUsedUnitPageUi";
+import NotUsedCategoryPageUi from "./components/NotUsedCategoryPageUi";
 
 const App: React.FC = () => {
   return (
@@ -55,14 +58,17 @@ const App: React.FC = () => {
         {/* 카테고리 */}
         <Route path="category/register" element={<CategoryRegisterPage />} />
         <Route path="category/list" element={<CategoryListPanel />} />
+        <Route path="category/state" element={<NotUsedCategoryPageUi />} />
 
         {/* 단위 */}
         <Route path="unit/register" element={<UnitRegisterPage />} />
         <Route path="unit/list" element={<UnitListPanel />} />
+        <Route path="unit/state" element={<NotUsedUnitPageUi />} />
 
         {/* 창고 */}
         <Route path="warehouse/register" element={<WarehouseRegister />} />
         <Route path="warehouse/list" element={<WarehouseListPanel />} />
+        <Route path="warehouse/state" element={<NotUsedWarehousePageUi />} />
 
         {/* 지점 */}
         <Route path="branch/register" element={<BranchRegisterPage />} />

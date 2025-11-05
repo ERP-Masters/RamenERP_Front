@@ -1,46 +1,47 @@
+// src/pages/WarehouseEditFunction.tsx
 export type WarehouseEditTarget = {
+  /** 실제 PK(id) */
   warehouse_id: number;
   name: string;
   location: string;
 };
 
 export type ApiWarehouse = {
+  id?: number;
   warehouse_id: number | string;
   name: string;
   location: string;
   created_at: string; // ISO
 };
 
-/**
- * 창고 수정 요청
- * - 서버가 isused 필드를 필수로 요구하므로 "USED"를 함께 전송
- */
 export async function putWarehouse(data: WarehouseEditTarget): Promise<ApiWarehouse> {
-  const { warehouse_id, name, location } = data;
+  const { warehouse_id: pk_id, name, location } = data;
 
-  const res = await fetch(`/api/warehouses/${warehouse_id}`, {
+  const id_num = Number(pk_id);
+  if (!Number.isFinite(id_num)) {
+    throw new Error("잘못된 창고 PK(id) 입니다.");
+  }
+
+  const url = `/api/warehouses/${id_num}`;
+  const res = await fetch(url, {
     method: "PUT",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      name,
-      location,
-      // ✅ 서버 검증 충족: 수정 시 상태 유지 용도로 기본 "USED" 전송
-      isused: "USED",
-    }),
+    // ✅ 요구사항: 수정 시에도 기본 isused는 "USED"로 전송
+    body: JSON.stringify({ name, location, isused: "USED" }),
   });
 
-  const text = await res.text();
+  const text = await res.text().catch(() => "");
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
       const j = text ? JSON.parse(text) : null;
       msg = j?.message || msg;
     } catch {}
+    if (res.status === 404) throw new Error(`창고(id=${id_num})를 찾을 수 없습니다.`);
     throw new Error(msg);
   }
 
-  // 서버가 문자열 ID를 돌려줄 수도 있어 Number 비교가 필요할 수 있어요(호출측에서 이미 처리 중).
   return text
     ? (JSON.parse(text) as ApiWarehouse)
-    : { warehouse_id, name, location, created_at: "" };
+    : ({ warehouse_id: pk_id, name, location, created_at: "" } as ApiWarehouse);
 }
