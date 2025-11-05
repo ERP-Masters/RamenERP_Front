@@ -79,6 +79,11 @@ export const sidebar_menu: MenuGroup[] = [
         label: "창고 리스트",
         path: "/warehouse/list",
       },
+       {
+        id: "inventory-list",
+        label: "재고 관리",
+        path: "/inventory/list",
+      },
     ],
   },
 

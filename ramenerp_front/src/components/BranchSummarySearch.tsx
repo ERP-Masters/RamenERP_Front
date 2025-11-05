@@ -24,7 +24,7 @@ const overlay: React.CSSProperties = {
 };
 
 const box: React.CSSProperties = {
-  width: 520,                 // 지점 필드가 많아 살짝 넓힘
+  width: 520, // 지점 필드가 많아 살짝 넓힘
   maxWidth: "92vw",
   background: "#fff",
   borderRadius: 8,
@@ -125,7 +125,9 @@ const BranchSummarySearch: React.FC<Props> = ({ open, onClose }) => {
         const txt = await res.text();
         if (!res.ok) {
           let msg = `HTTP ${res.status}`;
-          try { msg = (JSON.parse(txt)?.message as string) || msg; } catch {}
+          try {
+            msg = (JSON.parse(txt)?.message as string) || msg;
+          } catch {}
           throw new Error(msg);
         }
         const arr = txt ? JSON.parse(txt) : [];
@@ -158,16 +160,38 @@ const BranchSummarySearch: React.FC<Props> = ({ open, onClose }) => {
       .slice(0, 50);
   }, [query, branches]);
 
+  /* 🔽 추가: 점주(store_owner) 이름으로도 검색되는 후보 목록 */
+  const ownerCandidates = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [] as BranchFull[];
+    return branches
+      .filter((b) => (b.store_owner || "").toLowerCase().includes(q))
+      .slice(0, 50);
+  }, [query, branches]);
+
+  /* 🔽 추가: ID 중복 방지용 Set (기존 candidates 기준) */
+  const candidateIdSet = useMemo(() => {
+    const set = new Set<string>();
+    candidates.forEach((b) => set.add(String(b.branch_id)));
+    return set;
+  }, [candidates]);
+
   /* 입력이 정확히 일치하면 자동 상세 표시 */
   useEffect(() => {
     const q = query.trim().toLowerCase();
-    if (!q) { set_selectedId(""); return; }
+    if (!q) {
+      set_selectedId("");
+      return;
+    }
     const exact = branches.find((b) => String(b.branch_id).toLowerCase() === q);
     if (exact) set_selectedId(String(exact.branch_id));
     else set_selectedId("");
   }, [query, branches]);
 
-  const selectAndShow = (id: string) => { set_selectedId(id); set_query(id); };
+  const selectAndShow = (id: string) => {
+    set_selectedId(id);
+    set_query(id);
+  };
 
   const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === "Enter") {
@@ -193,7 +217,7 @@ const BranchSummarySearch: React.FC<Props> = ({ open, onClose }) => {
             value={query}
             onChange={(e) => set_query(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="지점 ID 입력 (예: BR_SEOUL_0001)"
+            placeholder="지점 ID 입력 (예: BR_SEOUL_0001 또는 점주명)"
             style={input_style}
           />
           <button
@@ -208,7 +232,10 @@ const BranchSummarySearch: React.FC<Props> = ({ open, onClose }) => {
           <button
             type="button"
             style={gray_btn}
-            onClick={() => { set_query(""); set_selectedId(""); }}
+            onClick={() => {
+              set_query("");
+              set_selectedId("");
+            }}
           >
             초기화
           </button>
@@ -222,18 +249,41 @@ const BranchSummarySearch: React.FC<Props> = ({ open, onClose }) => {
           <div style={detail_wrap}>
             <div style={detail_header}>
               <strong>상세 정보</strong>
-              <button type="button" style={tiny_btn} onClick={() => set_selectedId("")}>이전으로</button>
+              <button type="button" style={tiny_btn} onClick={() => set_selectedId("")}>
+                이전으로
+              </button>
             </div>
 
-            <div style={detail_row}><span style={detail_label}>branch_id</span><span style={detail_value}>{String(selected.branch_id)}</span></div>
-            <div style={detail_row}><span style={detail_label}>name</span><span style={detail_value}>{selected.name}</span></div>
-            <div style={detail_row}><span style={detail_label}>location</span><span style={detail_value}>{selected.location}</span></div>
-            <div style={detail_row}><span style={detail_label}>detail_address</span><span style={detail_value}>{selected.detail_address}</span></div>
-            <div style={detail_row}><span style={detail_label}>store_owner</span><span style={detail_value}>{selected.store_owner}</span></div>
-            <div style={detail_row}><span style={detail_label}>contact</span><span style={detail_value}>{selected.contact}</span></div>
+            <div style={detail_row}>
+              <span style={detail_label}>branch_id</span>
+              <span style={detail_value}>{String(selected.branch_id)}</span>
+            </div>
+            <div style={detail_row}>
+              <span style={detail_label}>name</span>
+              <span style={detail_value}>{selected.name}</span>
+            </div>
+            <div style={detail_row}>
+              <span style={detail_label}>location</span>
+              <span style={detail_value}>{selected.location}</span>
+            </div>
+            <div style={detail_row}>
+              <span style={detail_label}>detail_address</span>
+              <span style={detail_value}>{selected.detail_address}</span>
+            </div>
+            <div style={detail_row}>
+              <span style={detail_label}>store_owner</span>
+              <span style={detail_value}>{selected.store_owner}</span>
+            </div>
+            <div style={detail_row}>
+              <span style={detail_label}>contact</span>
+              <span style={detail_value}>{selected.contact}</span>
+            </div>
             {/* 스샷처럼 ISO 문자열 그대로 노출 */}
             {selected.created_at ? (
-              <div style={detail_row}><span style={detail_label}>created_at</span><span style={detail_value}>{selected.created_at}</span></div>
+              <div style={detail_row}>
+                <span style={detail_label}>created_at</span>
+                <span style={detail_value}>{selected.created_at}</span>
+              </div>
             ) : null}
           </div>
         ) : (
@@ -245,27 +295,71 @@ const BranchSummarySearch: React.FC<Props> = ({ open, onClose }) => {
                   const idStr = String(it.branch_id);
                   return (
                     <div key={`${idStr}-${it.name}`} style={row} title={`${idStr} · ${it.name}`}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 auto" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          minWidth: 0,
+                          flex: "1 1 auto",
+                        }}
+                      >
                         <span>#{idStr}</span>
                         <strong style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{it.name}</strong>
                       </div>
-                      <button type="button" style={tiny_btn} onClick={() => selectAndShow(idStr)}>상세</button>
+                      <button type="button" style={tiny_btn} onClick={() => selectAndShow(idStr)}>
+                        상세
+                      </button>
                     </div>
                   );
                 })
-              ) : (
+              ) : !ownerCandidates.length ? ( // 🔸 ownerCandidates도 없을 때만 "결과가 없습니다."
                 <div style={{ padding: 10, textAlign: "center", color: "#6b7280" }}>결과가 없습니다.</div>
-              )
+              ) : null
             ) : (
               <div style={{ padding: 10, textAlign: "center", color: "#6b7280" }}>
                 ID를 입력하면 결과가 표시됩니다.
               </div>
             )}
+
+            {/* 🔽 추가: 점주(store_owner) 이름으로만 매칭되는 후보들 (ID 중복 제외) */}
+            {query.trim() &&
+              ownerCandidates
+                .filter((b) => !candidateIdSet.has(String(b.branch_id)))
+                .map((it) => {
+                  const idStr = String(it.branch_id);
+                  return (
+                    <div
+                      key={`owner-${idStr}-${it.store_owner}`}
+                      style={{ ...row, background: "#f9fafb" }}
+                      title={`${idStr} · ${it.name} · ${it.store_owner}`}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          minWidth: 0,
+                          flex: "1 1 auto",
+                        }}
+                      >
+                        <span>#{idStr}</span>
+                        <strong style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{it.name}</strong>
+                        <span style={{ fontSize: 12, color: "#6b7280" }}>({it.store_owner})</span>
+                      </div>
+                      <button type="button" style={tiny_btn} onClick={() => selectAndShow(idStr)}>
+                        상세
+                      </button>
+                    </div>
+                  );
+                })}
           </div>
         )}
 
         <div style={{ marginTop: 10, textAlign: "right" }}>
-          <button type="button" style={gray_btn} onClick={onClose}>닫기</button>
+          <button type="button" style={gray_btn} onClick={onClose}>
+            닫기
+          </button>
         </div>
       </div>
     </div>

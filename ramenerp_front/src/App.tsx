@@ -31,6 +31,7 @@ import NotUsedBranchUi from "./components/NotUsedBranchPageUi";
 import NotUsedWarehousePageUi from "./components/NotUsedWarehousePageUi";
 import NotUsedUnitPageUi from "./components/NotUsedUnitPageUi";
 import NotUsedCategoryPageUi from "./components/NotUsedCategoryPageUi";
+import InventoryListUi from "./components/InventoryListUi";
 
 const App: React.FC = () => {
   return (
@@ -69,6 +70,7 @@ const App: React.FC = () => {
         <Route path="warehouse/register" element={<WarehouseRegister />} />
         <Route path="warehouse/list" element={<WarehouseListPanel />} />
         <Route path="warehouse/state" element={<NotUsedWarehousePageUi />} />
+        <Route path="inventory/list" element={<InventoryListUi />} />
 
         {/* 지점 */}
         <Route path="branch/register" element={<BranchRegisterPage />} />
