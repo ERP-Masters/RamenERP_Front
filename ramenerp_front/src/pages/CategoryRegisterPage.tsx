@@ -10,8 +10,10 @@ export enum MajorCategory {
   DAIRY = "DAIRY",
   EGGS = "EGGS",
   PROCESSED = "PROCESSED",
-  SAUCE = "SAUCE",
-  BROTH_SOUP = "BROTH_SOUP",
+  SAUCES = "SAUCES",
+  SEASONINGS = "SEASONINGS",
+  SOUPS = "SOUPS",
+  BROTH_BASE = "BROTH_BASE",
 }
 
 const NAME_MAX_BYTES = 20;

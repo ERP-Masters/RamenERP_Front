@@ -1,17 +1,61 @@
+// src/pages/CategoryEditPage.tsx
 import React, { useEffect, useState } from "react";
 
 export type CategoryEditTarget = {
-  category_id: number;               // 요청은 숫자 ID
+  /** 실제 PK(id) */
+  category_id: number;
   group: string;
   category_name: string;
 };
 
-type ApiCategory = {
-  category_id: number | string;      // 서버가 문자열 반환할 수도 있어서 유연하게
+export type ApiCategory = {
+  id?: number;
+  category_id: number | string;
   group: string;
   category_name: string;
   is_active?: boolean | null;
+  created_at: string; // ISO
 };
+
+/** 창고/단위 수정 기능 패턴 그대로 적용한 카테고리 수정 함수 */
+export async function putCategory(data: CategoryEditTarget): Promise<ApiCategory> {
+  const { category_id: pk_id, group, category_name } = data;
+
+  const id_num = Number(pk_id);
+  if (!Number.isFinite(id_num)) {
+    throw new Error("잘못된 카테고리 PK(id) 입니다.");
+  }
+
+  const url = `/api/category/${id_num}`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    // ✅ 단위/창고와 동일: 수정 시에도 기본 isused는 "USED"로 전송
+    body: JSON.stringify({ group, category_name, isused: "USED" }),
+  });
+
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = text ? JSON.parse(text) : null;
+      msg = j?.message || msg;
+    } catch {}
+    if (res.status === 404) {
+      throw new Error(`카테고리(id=${id_num})를 찾을 수 없습니다.`);
+    }
+    throw new Error(msg);
+  }
+
+  return text
+    ? (JSON.parse(text) as ApiCategory)
+    : ({
+        category_id: pk_id,
+        group,
+        category_name,
+        created_at: "",
+      } as ApiCategory);
+}
 
 type Props = {
   open: boolean;
@@ -21,16 +65,53 @@ type Props = {
 };
 
 const GROUP_OPTIONS = [
-  "MEAT","SEAFOOD","NOODLES","VEGETABLES","DAIRY","EGGS","PROCESSED","SAUCE","BROTH_SOUP",
+  "MEAT",
+  "SEAFOOD",
+  "NOODLES",
+  "VEGETABLES",
+  "DAIRY",
+  "EGGS",
+  "PROCESSED",
+  "SAUCE",
+  "BROTH_SOUP",
 ] as const;
 
 /* ===== UI ===== */
-const overlay_style: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 };
-const modal_style: React.CSSProperties = { width: 420, background: "#fff", borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,.25)", padding: 16, boxSizing: "border-box" };
-const field_wrap: React.CSSProperties = { display: "grid", gridTemplateRows: "auto auto", rowGap: 6, marginBottom: 12 };
+const overlay_style: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.35)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
+};
+const modal_style: React.CSSProperties = {
+  width: 420,
+  background: "#fff",
+  borderRadius: 10,
+  boxShadow: "0 12px 32px rgba(0,0,0,.25)",
+  padding: 16,
+  boxSizing: "border-box",
+};
+const field_wrap: React.CSSProperties = {
+  display: "grid",
+  gridTemplateRows: "auto auto",
+  rowGap: 6,
+  marginBottom: 12,
+};
 const label_block: React.CSSProperties = { fontWeight: 600, whiteSpace: "nowrap" };
-const control_block: React.CSSProperties = { width: "100%", padding: "6px 8px", boxSizing: "border-box" };
-const actions_row: React.CSSProperties = { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 };
+const control_block: React.CSSProperties = {
+  width: "100%",
+  padding: "6px 8px",
+  boxSizing: "border-box",
+};
+const actions_row: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  justifyContent: "flex-end",
+  marginTop: 6,
+};
 
 const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) => {
   const [group, set_group] = useState<string>("");
@@ -58,31 +139,16 @@ const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) =
       set_submitting(true);
       set_error("");
 
-      // ✅ 반드시 숫자 ID로 전송
-      const res = await fetch(`/api/category/${Number(target.category_id)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          group,
-          category_name: category_name.trim(),
-        }),
+      const updated = await putCategory({
+        category_id: target.category_id,
+        group,
+        category_name: category_name.trim(),
       });
 
-      const raw = await res.text();
-      if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try { msg = (raw ? JSON.parse(raw) : null)?.message || msg; } catch {}
-        throw new Error(msg);
-      }
-
-      const updated: ApiCategory =
-        raw ? JSON.parse(raw) : { category_id: target.category_id, group, category_name: category_name.trim() };
-
-      onSaved(updated);                                      // 리스트 즉시 반영
-      // ✅ 추가: 화면 전역에 즉시 반영되도록 브로드캐스트
+      onSaved(updated); // 리스트 즉시 반영
       window.dispatchEvent(new CustomEvent("category:edited", { detail: updated }));
-      alert("카테고리 수정이 완료되었습니다.");               // 안내
-      onClose();                                             // 모달 닫기
+      alert("카테고리 수정이 완료되었습니다.");
+      onClose();
     } catch (e: any) {
       set_error(e?.message || "수정에 실패했습니다.");
     } finally {
@@ -90,7 +156,9 @@ const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) =
     }
   };
 
-  const on_input_keydown: React.KeyboardEventHandler<HTMLInputElement | HTMLSelectElement> = (e) => {
+  const on_input_keydown: React.KeyboardEventHandler<
+    HTMLInputElement | HTMLSelectElement
+  > = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
@@ -105,10 +173,17 @@ const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) =
 
         <div style={field_wrap}>
           <label style={label_block}>group</label>
-          <select value={group} onChange={(e) => set_group(e.target.value)} onKeyDown={on_input_keydown} style={control_block}>
+          <select
+            value={group}
+            onChange={(e) => set_group(e.target.value)}
+            onKeyDown={on_input_keydown}
+            style={control_block}
+          >
             <option value="">선택</option>
             {GROUP_OPTIONS.map((g) => (
-              <option key={g} value={g}>{g}</option>
+              <option key={g} value={g}>
+                {g}
+              </option>
             ))}
           </select>
         </div>
@@ -125,15 +200,28 @@ const CategoryEditPage: React.FC<Props> = ({ open, target, onClose, onSaved }) =
           />
         </div>
 
-        {error && <div style={{ color: "crimson", fontSize: 12, marginBottom: 8 }}>{error}</div>}
+        {error && (
+          <div style={{ color: "crimson", fontSize: 12, marginBottom: 8 }}>
+            {error}
+          </div>
+        )}
 
         <div style={actions_row}>
-          <button type="button" onClick={onClose} disabled={submitting}>취소</button>
+          <button type="button" onClick={onClose} disabled={submitting}>
+            취소
+          </button>
           <button
             type="button"
             onClick={handle_save}
             disabled={submitting}
-            style={{ background: "#111827", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 6, opacity: submitting ? 0.7 : 1 }}
+            style={{
+              background: "#111827",
+              color: "#fff",
+              border: "none",
+              padding: "6px 12px",
+              borderRadius: 6,
+              opacity: submitting ? 0.7 : 1,
+            }}
           >
             {submitting ? "저장 중…" : "저장"}
           </button>

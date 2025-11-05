@@ -197,6 +197,27 @@ const WarehouseSummarySearch: React.FC<Props> = ({ open, onClose }) => {
     return source.filter((i) => i.warehouse_id.toLowerCase().startsWith(q)).slice(0, 50);
   }, [query, items, warehouses]);
 
+  // 🔽 추가: 창고 이름(name)으로도 검색되는 후보 목록
+  const nameCandidates = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [] as SummaryItem[];
+    const source: SummaryItem[] =
+      items.length > 0
+        ? items
+        : warehouses.map((w) => ({ warehouse_id: String(w.warehouse_id), name: String(w.name) }));
+    return source
+      .filter((i) => i.name.toLowerCase().includes(q))
+      .slice(0, 50);
+  }, [query, items, warehouses]);
+
+  // ID 중복 방지용 Set (기존 candidates 기반)
+  const candidateIdSet = useMemo(() => {
+    const set = new Set<string>();
+    candidates.forEach((c) => set.add(String(c.warehouse_id).toLowerCase()));
+    return set;
+  }, [candidates]);
+  // 🔼 여기까지 전부 "추가" 코드
+
   useEffect(() => {
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -237,7 +258,7 @@ const WarehouseSummarySearch: React.FC<Props> = ({ open, onClose }) => {
             value={query}
             onChange={(e) => set_query(e.target.value)}
             onKeyDown={on_key_down}
-            placeholder="창고 ID 입력 (예: WH_SEOUL_0001)"
+            placeholder="창고 ID 입력 (예: WH_SEOUL_0001 또는 창고명)"
             style={input_style}
           />
           <button
@@ -336,6 +357,45 @@ const WarehouseSummarySearch: React.FC<Props> = ({ open, onClose }) => {
                 ID를 입력하면 결과가 표시됩니다.
               </div>
             )}
+
+            {/* 🔽 이름으로만 매칭되는 결과 추가 (기존 candidates와 ID 중복 방지) */}
+            {query.trim() &&
+              nameCandidates
+                .filter(
+                  (it) => !candidateIdSet.has(String(it.warehouse_id).toLowerCase())
+                )
+                .map((it) => {
+                  const id_str = String(it.warehouse_id);
+                  return (
+                    <div
+                      key={`name-${id_str}-${it.name}`}
+                      style={{ ...row, background: "#f9fafb" }}
+                      title={`${id_str} · ${it.name}`}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          minWidth: 0,
+                          flex: "1 1 auto",
+                        }}
+                      >
+                        <span>#{id_str}</span>
+                        <strong style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{it.name}</strong>
+                      </div>
+                      <button
+                        type="button"
+                        style={tiny_btn}
+                        onClick={() => select_and_show(id_str)}
+                        title="상세 보기"
+                        aria-label="상세 보기"
+                      >
+                        상세
+                      </button>
+                    </div>
+                  );
+                })}
           </div>
         )}
 

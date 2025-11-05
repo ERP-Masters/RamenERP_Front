@@ -2,66 +2,104 @@
 import React from "react";
 
 export type VendorEditTarget = {
-  vendor_id: number;
+  // 호출부는 여전히 vendor_id를 넘깁니다(숫자 PK거나, 화면용 문자열 ID 둘 다 가능).
+  vendor_id: number | string;
   name: string;
   manager: string;
   contact: string;
   address: string;
 };
 
-// 서버에 PUT 요청: 수정 후 갱신된 벤더를 반환
-export async function putVendor(data: VendorEditTarget) {
-  // ✅ 문자열/숫자 어떤 형태로 와도 숫자 ID로 정규화
-  const to_id_num = (v: unknown): number => {
-    if (typeof v === "number") return v;
-    if (typeof v === "string") {
-      const m = v.match(/\d+$/);
-      if (m && m[0]) return Number(m[0]);
-    }
-    return NaN;
-  };
+export type ApiVendor = {
+  id?: number;                    // 실제 PK
+  vendor_id: number | string;     // 화면표시용(문자열/숫자)
+  name: string;
+  manager: string;
+  contact: string;
+  address: string;
+  created_at?: string;
+};
 
-  // 우선 vendor_id, 폴백으로 display_vendor_id 같은 화면용 ID도 시도
-  const idNum =
-    to_id_num((data as any)?.vendor_id) ??
-    to_id_num((data as any)?.display_vendor_id);
+/* ─────────────────────────────
+ * 내부 PK(id) 해석기
+ * 1) 숫자면 그대로
+ * 2) 숫자 형태의 문자열이면 Number()
+ * 3) 그 외(예: "VD_SEOUL_0001")면 /api/vendors 를 조회하여
+ *    동일한 vendor_id(문자열) 레코드의 id를 찾음
+ * ───────────────────────────── */
+async function resolvePkId(input: number | string): Promise<number> {
+  // 1) number
+  if (typeof input === "number" && Number.isFinite(input)) return input;
 
-  if (!Number.isFinite(idNum)) {
-    throw new Error("유효하지 않은 vendor_id 입니다. (숫자 ID 필요)");
+  // 2) "123" 같은 순수 숫자 문자열
+  if (typeof input === "string" && /^\d+$/.test(input)) return Number(input);
+
+  // 3) 화면용 문자열 ID → 목록에서 매칭해 실제 PK(id) 찾기
+  //    (다른 파일은 수정하지 않기 위해 여기서만 보조 조회 수행)
+  const res = await fetch("/api/vendors", { headers: { Accept: "application/json" } });
+  const txt = await res.text();
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} (vendor 목록 조회 실패)`);
   }
+  const list = txt ? (JSON.parse(txt) as any[]) : [];
+  // 백엔드가 제공하는 필드 예시: { id: number, vendor_id: "VD_SEOUL_0001", ... }
+  const hit = list.find(
+    (v: any) => typeof v?.vendor_id === "string" && v.vendor_id === String(input)
+  );
+  const pk = hit?.id;
+  if (!Number.isFinite(pk)) {
+    throw new Error("잘못된 거래처 PK(id) 입니다. (화면 ID를 실제 id로 해석할 수 없음)");
+  }
+  return pk as number;
+}
 
-  const res = await fetch(`/api/vendors/${encodeURIComponent(idNum)}`, {
+/* ─────────────────────────────
+ * PUT /api/vendors/:id
+ * (창고 수정 흐름과 동일한 에러 처리/204 대응)
+ * ───────────────────────────── */
+export async function putVendor(data: VendorEditTarget): Promise<ApiVendor> {
+  const { vendor_id, name, manager, contact, address } = data;
+
+  // 화면용 문자열이 와도 내부에서 실제 PK(id)로 해석
+  const pk_id = await resolvePkId(vendor_id);
+
+  const url = `/api/vendors/${pk_id}`;
+  const res = await fetch(url, {
     method: "PUT",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
-      name: data.name?.trim() ?? "",
-      manager: data.manager?.trim() ?? "",
-      contact: String(data.contact ?? "").trim(),
-      address: data.address?.trim() ?? "",
+      name,
+      manager,
+      contact,
+      address,
     }),
   });
 
-  const raw = await res.text().catch(() => "");
+  const text = await res.text().catch(() => "");
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
-      const j = raw ? JSON.parse(raw) : null;
+      const j = text ? JSON.parse(text) : null;
       msg = j?.message || msg;
     } catch {}
+    if (res.status === 404) throw new Error(`거래처(id=${pk_id})를 찾을 수 없습니다.`);
     throw new Error(msg);
   }
 
-  // 204(No Content) 처리: 성공 시 기존 데이터 + 변경값 합성 반환
-  if (!raw) {
-    return {
-      ...data,
-      vendor_id: idNum, // 내부적으로 숫자화된 id 반영
-    };
-  }
-  return JSON.parse(raw);
+  // 204(No Content) 대응
+  return text
+    ? (JSON.parse(text) as ApiVendor)
+    : ({
+        id: pk_id,
+        vendor_id, // 화면표시용은 호출 입력값 유지
+        name,
+        manager,
+        contact,
+        address,
+      } as ApiVendor);
 }
 
-// ===== 수정 모달 UI =====
+/* ───────── 기존 UI는 그대로 ───────── */
 type EditUiProps = {
   open: boolean;
   target: VendorEditTarget | null;
@@ -92,11 +130,7 @@ const input_style: React.CSSProperties = { width: "100%", padding: "6px 8px", bo
 
 export const VendorEditUi: React.FC<EditUiProps> = ({ open, target, onClose, onSubmit }) => {
   const [local, set_local] = React.useState<VendorEditTarget | null>(target);
-
-  React.useEffect(() => {
-    set_local(target);
-  }, [target, open]);
-
+  React.useEffect(() => { set_local(target); }, [target, open]);
   if (!open || !local) return null;
 
   return (
@@ -145,19 +179,11 @@ export const VendorEditUi: React.FC<EditUiProps> = ({ open, target, onClose, onS
         </div>
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-          <button type="button" onClick={onClose}>
-            취소
-          </button>
+          <button type="button" onClick={onClose}>취소</button>
           <button
             type="button"
             onClick={() => onSubmit(local)}
-            style={{
-              background: "#111827",
-              color: "#fff",
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "1px solid #111827",
-            }}
+            style={{ background: "#111827", color: "#fff", padding: "6px 12px", borderRadius: 6, border: "1px solid #111827" }}
           >
             저장
           </button>

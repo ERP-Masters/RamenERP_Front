@@ -173,6 +173,18 @@ export default function UnitSummarySearch({
     }
   }, [all, query]);
 
+  // 🔽🔽🔽 단위 이름(name)으로도 검색되는 결과 추가 (기존 로직 유지 + 추가만) 🔽🔽🔽
+  const filteredByName = useMemo(() => {
+    const q = query.trim();
+    if (!q) return [] as ApiUnit[];
+
+    const lower = q.toLowerCase();
+
+    // 이름에 query 포함되는 항목 (문자/숫자 상관없이)
+    return all.filter((u) => (u.name ?? "").toLowerCase().includes(lower));
+  }, [all, query]);
+  // 🔼🔼🔼 여기까지 추가 코드 🔼🔼🔼
+
   // 숫자만 입력했을 때 Enter를 치면 서버 단건 조회도 병행 (정확도 보강)
   const preciseFetch = async () => {
     const q = query.trim();
@@ -241,6 +253,17 @@ export default function UnitSummarySearch({
               <tbody>
                 {filtered.map((u, idx) => (
                   <tr key={`${toDisplayId(u)}-${idx}`} style={idx % 2 === 1 ? { background: "#fafafa" } : undefined}>
+                    <td style={td_style}>{toDisplayId(u)}</td>
+                    <td style={td_style}>{u.code}</td>
+                    <td style={td_style}>{u.name}</td>
+                  </tr>
+                ))}
+                {/* 🔽 이름으로만 매칭되는 항목 추가 렌더링 (기존 코드 아래에 추가) */}
+                {filteredByName.map((u, idx) => (
+                  <tr
+                    key={`name-${toDisplayId(u)}-${idx}`}
+                    style={{ background: "#fdf2f8" }} // 살짝 구분되게 해도 되고, 지워도 됨
+                  >
                     <td style={td_style}>{toDisplayId(u)}</td>
                     <td style={td_style}>{u.code}</td>
                     <td style={td_style}>{u.name}</td>

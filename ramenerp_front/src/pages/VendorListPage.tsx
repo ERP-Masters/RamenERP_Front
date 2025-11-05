@@ -10,34 +10,34 @@ import {
 } from "./VendorEditFunction";
 
 import VendorNotUsedUi from "../components/VendorNotUsedUi";
-
-// ✅ 이미 사용 중인 미사용 등록 기능이 있다면 그대로 유지
 import { markVendorNotUsed } from "./VendorNotUsedFunction";
-
-// ✅ 등록 페이지 모달
 import VendorRegisterPage from "./VendorRegisterPage";
 
 interface ApiVendor {
-  vendor_id: number;
+  vendor_id: number | string;
+  /** 백엔드가 내려줄 수 있는 실제 PK */
+  id?: number;
   name: string;
   manager: string;
   contact: string;
   address: string;
   is_active?: boolean | null;
-  identification_number?: string | null; // ✅ 추가: 사업자등록번호(선택)
+  identification_number?: string | null;
 }
+
 interface VendorRow {
+  /** ✅ 항상 DB PK를 보관 (즉시 반영용 키) */
   vendor_id: number;
+  /** 화면 표시용 문자열 ID(코드) */
   display_vendor_id: string;
   name: string;
   manager: string;
   contact: string;
   address: string;
   is_active?: boolean;
-  identification_number?: string; // ✅ 추가
+  identification_number?: string;
 }
 
-/** ✅ 로컬로 타겟 타입만 유지 (예전 VendorDeleteTarget 대체) */
 type VendorDeleteTarget = { vendor_id: number; name: string };
 
 const ui_tok = {
@@ -87,7 +87,6 @@ const top_controls_style: React.CSSProperties = {
   justifyContent: "flex-start",
 };
 
-/* ✅ 창고/지점과 동일한 ‘ID 조회’ 버튼 스타일로 통일 (위치 고정) */
 const quick_btn_style: React.CSSProperties = {
   height: 40,
   padding: "0 12px",
@@ -98,7 +97,7 @@ const quick_btn_style: React.CSSProperties = {
   cursor: "pointer",
   whiteSpace: "nowrap",
   transform: "translateY(-0.8px)",
-  marginLeft: 12, // 초기화 버튼과 간격
+  marginLeft: 12,
 };
 
 const create_btn_style: React.CSSProperties = {
@@ -155,7 +154,6 @@ const icon_bar_style: React.CSSProperties = { display: "inline-flex", alignItems
 const icon_btn_style: React.CSSProperties = { background: "transparent", border: "none", padding: 4, cursor: "pointer", lineHeight: 0 };
 const empty_cell_style = { textAlign: "center", padding: 24, color: ui_tok.label } as const;
 
-// ✅ 이름 셀 내부 구성용 (줄바꿈/뱃지)
 const name_cell_wrap_style: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, minWidth: 0 };
 const name_text_style: React.CSSProperties = { overflow: "hidden", textOverflow: "ellipsis" };
 const id_badge_style: React.CSSProperties = {
@@ -173,23 +171,26 @@ const id_badge_style: React.CSSProperties = {
   textOverflow: "ellipsis",
 };
 
-const to_vendor_row = (v: ApiVendor) => {
-  const apiAny = v as unknown as Record<string, any>;
+/** ✅ 핵심 수정: vendor_id는 항상 DB PK(id)로 저장하고,
+ *  display_vendor_id는 화면에만 사용 */
+const to_vendor_row = (v: ApiVendor): VendorRow => {
+  const apiAny = v as Record<string, any>;
+  const pk = Number(apiAny.id ?? apiAny.vendor_id); // ← id 우선, 없으면 숫자로 해석 가능한 케이스 보조
   const stringId =
-    (apiAny.vendor_id && typeof apiAny.vendor_id === "string" && apiAny.vendor_id) ||
-    (apiAny.id && typeof apiAny.id === "string" && apiAny.id) ||
-    String(v.vendor_id);
+    (typeof apiAny.vendor_id === "string" && apiAny.vendor_id) ||
+    (typeof apiAny.id === "string" && apiAny.id) ||
+    String(apiAny.vendor_id ?? apiAny.id ?? "");
 
   return {
-    vendor_id: v.vendor_id,
-    display_vendor_id: stringId,
-    name: v.name?.trim() ?? "",
-    manager: v.manager?.trim() ?? "",
+    vendor_id: pk,                 // ✅ 리스트의 기준키 = PK
+    display_vendor_id: stringId,   // ✅ 표시는 코드 유지
+    name: String(v.name ?? "").trim(),
+    manager: String(v.manager ?? "").trim(),
     contact: String(v.contact ?? "").trim(),
-    address: v.address?.trim() ?? "",
+    address: String(v.address ?? "").trim(),
     is_active: v.is_active ?? true,
     identification_number: (v.identification_number ?? undefined) || undefined,
-  } as VendorRow;
+  };
 };
 
 const VendorListPage: React.FC = () => {
@@ -208,7 +209,6 @@ const VendorListPage: React.FC = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<VendorEditTarget | null>(null);
 
-  // ✅ 미사용 등록 모달을 위한 상태(타겟 구조만 유지)
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<VendorDeleteTarget | null>(null);
 
@@ -297,17 +297,34 @@ const VendorListPage: React.FC = () => {
   }, [vendors, submitted]);
 
   const openEdit = (row: VendorRow) => {
+    // target.vendor_id는 PK를 그대로 넘김
     setEditTarget({ vendor_id: row.vendor_id, name: row.name, manager: row.manager, contact: row.contact, address: row.address });
     setEditOpen(true);
   };
   const closeEdit = () => setEditOpen(false);
-  const handleSaved = (updated: ApiVendor) => {
-    set_vendors((prev) =>
-      prev.map((v) =>
-        v.vendor_id === updated.vendor_id
-          ? { ...v, name: updated.name, manager: updated.manager, contact: updated.contact, address: updated.address }
-          : v
-      )
+
+  // 낙관적/확정 반영 공용
+  const handleSaved = (updated: Partial<ApiVendor> & { id?: number; vendor_id?: number | string }) => {
+    // 우선순위: 응답 id(숫자 PK) → 현재 target의 vendor_id(숫자 PK) → 표시용 숫자 suffix
+    const pk = Number((updated as any).id ?? (updated as any).vendor_id);
+    const display = String((updated as any).display_vendor_id ?? (updated as any).vendor_id ?? "");
+    const suffix = (display.match(/\d+$/) || [])[0] || "";
+
+    set_vendors(prev =>
+      prev.map(v => {
+        const matchByPk = Number.isFinite(pk) && v.vendor_id === pk;
+        const matchBySuffix = !Number.isFinite(pk) && suffix && String(v.display_vendor_id).endsWith(suffix);
+        if (matchByPk || matchBySuffix) {
+          return {
+            ...v,
+            name: updated.name ?? v.name,
+            manager: updated.manager ?? v.manager,
+            contact: updated.contact ?? v.contact,
+            address: updated.address ?? v.address,
+          };
+        }
+        return v;
+      })
     );
   };
 
@@ -334,7 +351,6 @@ const VendorListPage: React.FC = () => {
 
           <div style={top_row_style}>
             <div style={top_controls_style}>
-              {/* ⬇️ 검색 바가 먼저, 빠른 조회 버튼은 오른쪽(초기화 버튼 옆) */}
               <VendorSearchBar
                 nameValue={nameQuery}
                 managerValue={managerQuery}
@@ -343,7 +359,6 @@ const VendorListPage: React.FC = () => {
                 onSearch={handle_search_click}
                 onReset={handle_reset_click}
               />
-
               <button type="button" style={quick_btn_style} onClick={open_summary_modal}>
                 거래처 ID 조회
               </button>
@@ -382,22 +397,16 @@ const VendorListPage: React.FC = () => {
                     style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
                   >
                     <td style={td_style}>{v.display_vendor_id}</td>
-
-                    {/* ✅ 이름 셀 내부에 사업자등록번호 배지 표시 */}
                     <td style={td_style}>
                       <div style={name_cell_wrap_style}>
                         <span style={name_text_style}>{v.name}</span>
                         {v.identification_number && (
-                          <span
-                            style={id_badge_style}
-                            title={`사업자등록번호 ${v.identification_number}`}
-                          >
+                          <span style={id_badge_style} title={`사업자등록번호 ${v.identification_number}`}>
                             사업자번호 {v.identification_number}
                           </span>
                         )}
                       </div>
                     </td>
-
                     <td style={td_style}>{v.manager}</td>
                     <td style={td_contact_style}>{v.contact}</td>
                     <td style={td_addr_flex_style}>
@@ -411,13 +420,8 @@ const VendorListPage: React.FC = () => {
                           aria-label="수정"
                         >
                           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path
-                              d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z"
-                              stroke="#374151"
-                              strokeWidth="1.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
+                            <path d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z"
+                              stroke="#374151" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             <path d="M12 5l3 3" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
                         </button>
@@ -429,7 +433,8 @@ const VendorListPage: React.FC = () => {
                           aria-label="미사용"
                         >
                           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z" stroke="#ef4444" strokeWidth="1.5" />
+                            <path d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z"
+                              stroke="#ef4444" strokeWidth="1.5" />
                             <path d="M4 7h12M8 7V4h4v3" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
                         </button>
@@ -437,7 +442,6 @@ const VendorListPage: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-
                 {filtered.length === 0 && !is_loading && !error_message && (
                   <tr>
                     <td colSpan={5} style={empty_cell_style}>검색 결과가 없습니다.</td>
@@ -455,9 +459,26 @@ const VendorListPage: React.FC = () => {
           target={editTarget}
           onClose={closeEdit}
           onSubmit={async (data) => {
+            // 1) 즉시 낙관적 갱신 (PK = data.vendor_id)
+            handleSaved({
+              id: Number(data.vendor_id),
+              name: data.name,
+              manager: data.manager,
+              contact: String(data.contact ?? ""),
+              address: data.address,
+            });
+
             try {
-              const updated = await putVendor(data);
-              handleSaved(updated);
+              const raw = await putVendor(data);
+              // 2) 확정 갱신: 응답의 id(또는 vendor_id)로 다시 한 번 보강
+              handleSaved({
+                id: Number((raw as any).id ?? (raw as any).vendor_id ?? data.vendor_id),
+                name: String((raw as any).name ?? data.name),
+                manager: String((raw as any).manager ?? data.manager),
+                contact: String((raw as any).contact ?? data.contact),
+                address: String((raw as any).address ?? data.address),
+                vendor_id: String((raw as any).vendor_id ?? ""), // 표시용 코드가 응답에 있으면 보조 매칭 가능
+              });
               closeEdit();
               alert("수정이 완료되었습니다.");
             } catch (e: any) {
@@ -466,7 +487,6 @@ const VendorListPage: React.FC = () => {
           }}
         />
 
-        {/* ✅ 확인 모달은 그대로 사용. 내부 기능은 '미사용 등록' */}
         <VendorNotUsedUi
           open={deleteOpen}
           target={deleteTarget}
@@ -475,9 +495,10 @@ const VendorListPage: React.FC = () => {
             if (!deleteTarget) return;
             try {
               await markVendorNotUsed(deleteTarget.vendor_id);
-              set_vendors((prev) => prev.filter((v) => v.vendor_id !== deleteTarget.vendor_id));
+              // 상태만 NOTUSED로 바뀌므로 메인 목록에서는 즉시 제거
+              set_vendors(prev => prev.filter(v => v.vendor_id !== deleteTarget.vendor_id));
               alert("미사용으로 등록되었습니다.");
-              closeDelete(); // ✅ 확인 누르는 즉시 모달 닫기
+              closeDelete();
             } catch (e: any) {
               alert(e?.message || "미사용 등록에 실패했습니다.");
             }

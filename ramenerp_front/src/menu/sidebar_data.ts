@@ -104,7 +104,7 @@ export const sidebar_menu: MenuGroup[] = [
         id: "warehouse-notused",
         label: "미사용 창고 리스트",
         // TODO: 실제 '미사용 창고' 라우트가 따로 생기면 그걸로 바꿔
-        path: "/branch/list",
+        path: "/warehouse/state",
       },
       {
         id: "branch-notused",
@@ -119,12 +119,12 @@ export const sidebar_menu: MenuGroup[] = [
       {
         id: "unit-notused",
         label: "미사용 단위 리스트",
-        path: "/unit/list",
+        path: "/unit/state",
       },
       {
         id: "category-notused",
         label: "미사용 카테고리 리스트",
-        path: "/category/list",
+        path: "/category/state",
       },
     ],
   },

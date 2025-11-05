@@ -1,20 +1,17 @@
-// src/pages/NotUsedBranchPageUi.tsx
+// src/pages/NotUsedWarehousePageUi.tsx
 import React, { useEffect, useState } from "react";
-import { fetchNotUsedBranches, type ApiBranch } from "../pages/BranchNotUsedFunction";
-import { markManyBranchesUsed } from "../pages/BranchUsedFunction";
+import { fetchNotUsedWarehouses, type ApiWarehouse } from "../pages/WarehouseNotUsedFunction";
+import { markManyWarehousesUsed } from "../pages/WarehouseUsedFunction";
 
 /** 화면 표시에만 쓰는 행 타입
  *  - id: 내부 DB PK
- *  - branch_id: 화면에 표시되는 문자열 ID
+ *  - warehouse_id: 화면에 표시되는 문자열 ID
  */
 type Row = {
-  id?: number;            // 서버 PK (PUT 에 쓸 값은 나중에 branch_id -> id 매핑에서 얻음)
-  branch_id: string;      // 화면 표시용 문자열 ID
+  id?: number;            // 서버 PK (PUT 에 쓸 값은 나중에 warehouse_id -> id 매핑에서 얻음)
+  warehouse_id: string;   // 화면 표시용 문자열 ID
   name: string;
   location: string;
-  detail_address: string;
-  store_owner: string;
-  contact: string;
   created_at: string;
 };
 
@@ -109,44 +106,38 @@ const use_btn_style: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const NotUsedBranchPageUi: React.FC = () => {
+const NotUsedWarehousePageUi: React.FC = () => {
   const [rows, set_rows] = useState<Row[]>([]);
   const [loading, set_loading] = useState(false);
   const [error, set_error] = useState("");
   const [select_mode, set_select_mode] = useState(false);
 
-  /** 체크박스 상태를 'branch_id 문자열' 키로 관리 */
+  /** 체크박스 상태를 'warehouse_id 문자열' 키로 관리 */
   const [checked, set_checked] = useState<Record<string, boolean>>({});
 
-  // 각 행의 고유 키: 화면용 branch_id 그대로 사용
-  const row_key = (r: Row) => r.branch_id;
+  // 각 행의 고유 키: 화면용 warehouse_id 그대로 사용
+  const row_key = (r: Row) => r.warehouse_id;
 
-  /** ApiBranch → Row 변환
-   *  - id: 응답 JSON 의 id (PK) 있으면 보관
-   *  - branch_id: 화면에 보이는 문자열 코드
-   */
-  const to_row = (b: ApiBranch): Row => {
-    const anyB = b as any;
+  /** ApiWarehouse → Row 변환 */
+  const to_row = (w: ApiWarehouse): Row => {
+    const anyW = w as any;
 
     // 내부 PK (있으면 저장)
     let pk: number | undefined;
-    if (typeof anyB.id === "number") pk = anyB.id;
-    else if (typeof anyB.id === "string" && /^\d+$/.test(anyB.id)) pk = Number(anyB.id);
+    if (typeof anyW.id === "number") pk = anyW.id;
+    else if (typeof anyW.id === "string" && /^\d+$/.test(anyW.id)) pk = Number(anyW.id);
 
     const code =
-      (typeof anyB.branch_id === "string" && anyB.branch_id) ||
-      (typeof anyB.display_branch_id === "string" && anyB.display_branch_id) ||
-      String(anyB.branch_id ?? anyB.id ?? "");
+      (typeof anyW.warehouse_id === "string" && anyW.warehouse_id) ||
+      (typeof anyW.display_warehouse_id === "string" && anyW.display_warehouse_id) ||
+      String(anyW.warehouse_id ?? anyW.id ?? "");
 
     return {
       id: pk,
-      branch_id: code,
-      name: String(anyB.name ?? "").trim(),
-      location: String(anyB.location ?? "").trim(),
-      detail_address: String(anyB.detail_address ?? "").trim(),
-      store_owner: String(anyB.store_owner ?? "").trim(),
-      contact: String(anyB.contact ?? "").trim(),
-      created_at: String(anyB.created_at ?? "").trim(),
+      warehouse_id: code,
+      name: String(anyW.name ?? "").trim(),
+      location: String(anyW.location ?? "").trim(),
+      created_at: String(anyW.created_at ?? "").trim(),
     };
   };
 
@@ -154,21 +145,21 @@ const NotUsedBranchPageUi: React.FC = () => {
     set_loading(true);
     set_error("");
     try {
-      const list = await fetchNotUsedBranches();
+      const list = await fetchNotUsedWarehouses();
       set_rows((Array.isArray(list) ? list : []).map(to_row));
       set_checked({});
     } catch (e: any) {
-      set_error(e?.message || "미사용 직영점 목록을 불러오지 못했습니다.");
+      set_error(e?.message || "미사용 창고 목록을 불러오지 못했습니다.");
     } finally {
       set_loading(false);
     }
   };
 
-  /** ✅ branch_id(문자열 코드) 배열 → 실제 PK id 배열
-   *    여기서 /api/branches/state 를 사용해서 매핑한다.
+  /** warehouse_id(문자열 코드) 배열 → 실제 PK id 배열
+   *    여기서 /api/warehouses/state 를 사용해서 매핑한다.
    */
   const resolvePkIds = async (codes: string[]): Promise<number[]> => {
-    const res = await fetch("/api/branches/state", {
+    const res = await fetch("/api/warehouses/state", {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -184,22 +175,22 @@ const NotUsedBranchPageUi: React.FC = () => {
       ? (data as any).items
       : [];
 
-    // 코드 → PK(id) 매핑 (state 에서만 가져옴)
+    // 코드 → PK(id) 매핑
     const map: Record<string, number> = {};
-    for (const b of raw) {
-      const anyB = b as any;
+    for (const w of raw) {
+      const anyW = w as any;
 
       const code =
-        (typeof anyB.branch_id === "string" && anyB.branch_id) ||
-        (typeof anyB.display_branch_id === "string" && anyB.display_branch_id) ||
-        String(anyB.branch_id ?? anyB.id ?? "");
+        (typeof anyW.warehouse_id === "string" && anyW.warehouse_id) ||
+        (typeof anyW.display_warehouse_id === "string" && anyW.display_warehouse_id) ||
+        String(anyW.warehouse_id ?? anyW.id ?? "");
 
       let pk: number | null = null;
-      if (typeof anyB.id === "number") pk = anyB.id;
-      else if (typeof anyB.id === "string" && /^\d+$/.test(anyB.id)) pk = Number(anyB.id);
-      else if (typeof anyB.branch_id === "number") pk = anyB.branch_id;
-      else if (typeof anyB.branch_id === "string" && /^\d+$/.test(anyB.branch_id)) {
-        pk = Number(anyB.branch_id);
+      if (typeof anyW.id === "number") pk = anyW.id;
+      else if (typeof anyW.id === "string" && /^\d+$/.test(anyW.id)) pk = Number(anyW.id);
+      else if (typeof anyW.warehouse_id === "number") pk = anyW.warehouse_id;
+      else if (typeof anyW.warehouse_id === "string" && /^\d+$/.test(anyW.warehouse_id)) {
+        pk = Number(anyW.warehouse_id);
       }
 
       if (code && pk !== null && Number.isFinite(pk)) {
@@ -215,24 +206,24 @@ const NotUsedBranchPageUi: React.FC = () => {
     return result;
   };
 
-  /** 선택된 행들의 branch_id(문자열 코드) 배열 */
+  /** 선택된 행들의 warehouse_id(문자열 코드) 배열 */
   const selected_codes = () =>
-    rows.filter((r) => checked[row_key(r)]).map((r) => r.branch_id);
+    rows.filter((r) => checked[row_key(r)]).map((r) => r.warehouse_id);
 
   // “사용” — 낙관적 제거 + 서버 반영 + 재동기화
   const handle_restore_use = async () => {
     const codes = selected_codes();
     if (codes.length === 0) {
-      alert("선택된 지점이 없습니다. 선택을 확인해주세요.");
+      alert("선택된 창고가 없습니다. 선택을 확인해주세요.");
       return;
     }
 
-    // 1) /api/branches/state 에서 같은 branch_id 가진 레코드의 PK id 찾기
+    // 1) /api/warehouses/state 에서 같은 warehouse_id 가진 레코드의 PK id 찾기
     let ids: number[];
     try {
       ids = await resolvePkIds(codes);
     } catch (e: any) {
-      alert(e?.message || "지점 ID 해석 중 오류가 발생했습니다.");
+      alert(e?.message || "창고 ID 해석 중 오류가 발생했습니다.");
       return;
     }
 
@@ -243,13 +234,13 @@ const NotUsedBranchPageUi: React.FC = () => {
 
     const msg =
       ids.length === 1
-        ? "1개 지점을 사용 등록하시겠습니까?"
-        : `${ids.length}개 지점을 사용 등록하시겠습니까?`;
+        ? "1개 창고를 사용 등록하시겠습니까?"
+        : `${ids.length}개 창고를 사용 등록하시겠습니까?`;
     if (!window.confirm(msg)) return;
 
-    // 2) 화면 즉시 제거 — 체크된 행 전부 삭제 (branch_id 기준)
+    // 2) 화면 즉시 제거 — 체크된 행 전부 삭제 (warehouse_id 기준)
     const remove_keys = new Set<string>(codes);
-    set_rows((prev) => prev.filter((r) => !remove_keys.has(r.branch_id)));
+    set_rows((prev) => prev.filter((r) => !remove_keys.has(r.warehouse_id)));
     set_checked((prev) => {
       const next = { ...prev };
       remove_keys.forEach((k) => delete next[k]);
@@ -258,8 +249,8 @@ const NotUsedBranchPageUi: React.FC = () => {
 
     try {
       set_loading(true);
-      // 3) 서버 반영(USED) — PK id 로만 호출 (PUT /api/branches/:id { isused: "USED" })
-      await markManyBranchesUsed(ids);
+      // 3) 서버 반영(USED) — PK id 로만 호출
+      await markManyWarehousesUsed(ids);
       // 4) 재동기화
       await load();
       set_select_mode(false);
@@ -276,15 +267,15 @@ const NotUsedBranchPageUi: React.FC = () => {
     load();
     const onNotUsed = () => load();
     const onRestored = () => load();
-    window.addEventListener("branch:notused:updated", onNotUsed);
-    window.addEventListener("branch:used:restored", onRestored);
+    window.addEventListener("warehouse:notused:updated", onNotUsed);
+    window.addEventListener("warehouse:used:restored", onRestored);
     return () => {
-      window.removeEventListener("branch:notused:updated", onNotUsed);
-      window.removeEventListener("branch:used:restored", onRestored);
+      window.removeEventListener("warehouse:notused:updated", onNotUsed);
+      window.removeEventListener("warehouse:used:restored", onRestored);
     };
   }, []);
 
-  // 선택 모드 토글 시 체크 초기화 (UX 개선)
+  // 선택 모드 토글 시 체크 초기화
   const toggle_select_mode = () => {
     set_select_mode((v) => {
       const next = !v;
@@ -296,7 +287,7 @@ const NotUsedBranchPageUi: React.FC = () => {
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        <div style={title_style}>미사용 직영점 조회</div>
+        <div style={title_style}>미사용 창고 조회</div>
 
         <div style={top_bar_style}>
           <button
@@ -326,12 +317,9 @@ const NotUsedBranchPageUi: React.FC = () => {
               <thead>
                 <tr>
                   {select_mode && <th style={th_style} />}
-                  <th style={th_style}>branch_id</th>
+                  <th style={th_style}>warehouse_id</th>
                   <th style={th_style}>name</th>
                   <th style={th_style}>location</th>
-                  <th style={th_style}>detail_address</th>
-                  <th style={th_style}>store_owner</th>
-                  <th style={th_style}>contact</th>
                   <th style={th_style}>created_at</th>
                 </tr>
               </thead>
@@ -342,7 +330,7 @@ const NotUsedBranchPageUi: React.FC = () => {
                     <tr
                       key={key}
                       style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
-                      title={`${r.name} · ${r.location} · ${r.detail_address}`}
+                      title={`${r.name} · ${r.location}`}
                     >
                       {select_mode && (
                         <td style={{ ...td_style, position: "relative" }}>
@@ -356,12 +344,9 @@ const NotUsedBranchPageUi: React.FC = () => {
                           />
                         </td>
                       )}
-                      <td style={td_style}>{r.branch_id}</td>
+                      <td style={td_style}>{r.warehouse_id}</td>
                       <td style={td_style}>{r.name}</td>
                       <td style={td_style}>{r.location}</td>
-                      <td style={td_style}>{r.detail_address}</td>
-                      <td style={td_style}>{r.store_owner}</td>
-                      <td style={td_style}>{r.contact}</td>
                       <td style={td_style}>{r.created_at}</td>
                     </tr>
                   );
@@ -369,9 +354,9 @@ const NotUsedBranchPageUi: React.FC = () => {
 
                 {rows.length === 0 && !loading && !error && (
                   <tr>
-                    {/* 열 개수: 선택모드 8, 기본 7 */}
-                    <td style={empty_style} colSpan={select_mode ? 8 : 7}>
-                      미사용으로 등록된 지점이 없습니다.
+                    {/* 열 개수: 선택모드 5, 기본 4 */}
+                    <td style={empty_style} colSpan={select_mode ? 5 : 4}>
+                      미사용으로 등록된 창고가 없습니다.
                     </td>
                   </tr>
                 )}
@@ -387,4 +372,4 @@ const NotUsedBranchPageUi: React.FC = () => {
   );
 };
 
-export default NotUsedBranchPageUi;
+export default NotUsedWarehousePageUi;

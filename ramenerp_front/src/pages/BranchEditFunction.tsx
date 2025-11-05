@@ -2,9 +2,10 @@
 /* @refresh reload */
 import React from "react";
 
-/* ===== 타입 ===== */
+/* ===== 타입 (직영점용) ===== */
 export type BranchEditTarget = {
-  branch_id: number;            // ← 전달/식별용(화면에는 표시하지 않음)
+  /** 실제 PK(id) */
+  branch_id: number;            // ← 내부 PK 용
   name: string;
   location: string;
   detail_address: string;
@@ -15,61 +16,76 @@ export type BranchEditTarget = {
   created_at?: string;
 };
 
-/* ===== 서버에 PUT 요청 ===== */
-export async function putBranch(data: BranchEditTarget) {
-  const res = await fetch(`/api/branches/${data.branch_id}`, {
+export type ApiBranch = {
+  id?: number;                  // 내부 DB PK(id)
+  branch_id: number | string;   // 화면에 표시되는 ID
+  name: string;
+  location: string;
+  detail_address: string;
+  store_owner: string;
+  contact: string;
+  created_at: string;           // ISO
+  isused?: string | null;
+};
+
+/* ===== 서버에 PUT 요청 (창고 로직 그대로 변형) ===== */
+export async function putBranch(data: BranchEditTarget): Promise<ApiBranch> {
+  const {
+    branch_id: pk_id,
+    name,
+    location,
+    detail_address,
+    store_owner,
+    contact,
+  } = data;
+
+  const id_num = Number(pk_id);
+  if (!Number.isFinite(id_num)) {
+    throw new Error("잘못된 지점 PK(id) 입니다.");
+  }
+
+  const url = `/api/branches/${id_num}`;
+  const res = await fetch(url, {
     method: "PUT",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
+    // ✅ 창고와 동일: 수정 시에도 기본 isused는 "USED"로 전송
     body: JSON.stringify({
-      // 수정 가능한 필드만 보냄
-      name: data.name?.trim() ?? "",
-      location: data.location?.trim() ?? "",
-      detail_address: data.detail_address?.trim() ?? "",
-      store_owner: data.store_owner?.trim() ?? "",
-      contact: String(data.contact ?? "").trim(),
-      // issued/created_at 은 서버에서 관리하므로 전송하지 않음
+      name,
+      location,
+      detail_address,
+      store_owner,
+      contact,
+      isused: "USED",
     }),
   });
 
-  const raw = await res.text().catch(() => "");
+  const text = await res.text().catch(() => "");
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
-      const j = raw ? JSON.parse(raw) : null;
+      const j = text ? JSON.parse(text) : null;
       msg = j?.message || msg;
     } catch {}
+    if (res.status === 404) throw new Error(`지점(id=${id_num})을 찾을 수 없습니다.`);
     throw new Error(msg);
   }
 
-  // ✅ 응답 파싱 (204 대비)
-  let updated: BranchEditTarget;
-  if (raw) {
-    try {
-      updated = JSON.parse(raw);
-    } catch {
-      // 예외적으로 잘못된 JSON이 오면 기존 값으로 대체
-      updated = { ...data };
-    }
-  } else {
-    // 204(No Content) → 기존 값으로 구성
-    updated = { ...data };
-  }
-
-  // ✅ branch_id 를 숫자로 ‘반드시’ 정규화 (문자열로 오면 리스트 갱신이 안 보일 수 있음)
-  const uid = Number((updated as any)?.branch_id ?? data.branch_id);
-  (updated as any).branch_id = uid;
-
-  // ✅ issued/created_at 이 응답에 없으면 기존 값 유지(선택)
-  if (updated.issued === undefined) updated.issued = data.issued ?? null;
-  if (!updated.created_at) updated.created_at = data.created_at;
-
-  /* ✅ 저장 즉시 리스트가 갱신되도록 브로드캐스트 */
-  window.dispatchEvent(new CustomEvent("branch:edited", { detail: updated }));
-
-  return updated;
+  // ✅ 창고 코드 패턴 그대로: 응답이 없으면 기본값으로 구성
+  return text
+    ? (JSON.parse(text) as ApiBranch)
+    : ({
+        branch_id: pk_id,
+        name,
+        location,
+        detail_address,
+        store_owner,
+        contact,
+        created_at: "",
+        isused: "USED",
+      } as ApiBranch);
 }
 
-/* ===== 수정 모달 UI ===== */
+/* ===== 수정 모달 UI (기존 코드 그대로) ===== */
 type EditUiProps = {
   open: boolean;
   target: BranchEditTarget | null;
@@ -109,7 +125,6 @@ const input_style: React.CSSProperties = {
   boxSizing: "border-box",
   background: "#fff",
 };
-const select_style: React.CSSProperties = { ...input_style, height: 40 };
 
 const foot_style: React.CSSProperties = {
   display: "flex",
@@ -170,7 +185,7 @@ const ensurePostcodeScript = () => {
   document.body.appendChild(s);
 };
 
-const BranchEditUi: React.FC<EditUiProps> = ({ open, target, onClose, onSubmit }) => {
+const BranchEditFunction: React.FC<EditUiProps> = ({ open, target, onClose, onSubmit }) => {
   const [local, set_local] = React.useState<BranchEditTarget | null>(target);
   const [submitting, set_submitting] = React.useState(false);
   const detailRef = React.useRef<HTMLInputElement>(null);
@@ -210,7 +225,13 @@ const BranchEditUi: React.FC<EditUiProps> = ({ open, target, onClose, onSubmit }
       store_owner: local.store_owner.trim(),
       contact: String(local.contact ?? "").trim(),
     };
-    if (!trimmed.name || !trimmed.location || !trimmed.detail_address || !trimmed.store_owner || !trimmed.contact) {
+    if (
+      !trimmed.name ||
+      !trimmed.location ||
+      !trimmed.detail_address ||
+      !trimmed.store_owner ||
+      !trimmed.contact
+    ) {
       alert("필수 항목을 모두 입력해 주세요.");
       return;
     }
@@ -263,7 +284,9 @@ const BranchEditUi: React.FC<EditUiProps> = ({ open, target, onClose, onSubmit }
             style={input_style}
             type="text"
             value={local.detail_address}
-            onChange={(e) => set_local({ ...local, detail_address: e.target.value })}
+            onChange={(e) =>
+              set_local({ ...local, detail_address: e.target.value })
+            }
             placeholder="예) 10길 32, 3층"
           />
         </div>
@@ -275,7 +298,9 @@ const BranchEditUi: React.FC<EditUiProps> = ({ open, target, onClose, onSubmit }
               style={input_style}
               type="text"
               value={local.store_owner}
-              onChange={(e) => set_local({ ...local, store_owner: e.target.value })}
+              onChange={(e) =>
+                set_local({ ...local, store_owner: e.target.value })
+              }
               placeholder="예) 한승훈"
             />
           </div>
@@ -286,14 +311,17 @@ const BranchEditUi: React.FC<EditUiProps> = ({ open, target, onClose, onSubmit }
               style={input_style}
               type="text"
               value={local.contact}
-              onChange={(e) => set_local({ ...local, contact: e.target.value })}
+              onChange={(e) =>
+                set_local({ ...local, contact: e.target.value })
+              }
               placeholder="예) 010-1234-5678"
             />
           </div>
         </div>
 
         <div style={foot_style}>
-          <button type="button" style={ghost_btn} onClick={onClose}>취소</button>
+          <button type="button" style={ghost_btn} onClick={onClose}>
+            취소</button>
           <button
             type="button"
             style={{ ...dark_btn, opacity: submitting ? 0.7 : 1 }}
@@ -308,4 +336,4 @@ const BranchEditUi: React.FC<EditUiProps> = ({ open, target, onClose, onSubmit }
   );
 };
 
-export default BranchEditUi;
+export default BranchEditFunction;
