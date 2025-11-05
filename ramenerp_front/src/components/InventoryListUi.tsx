@@ -286,6 +286,9 @@ const InventoryListUi: React.FC = () => {
             <div style={search_row}>
               {tab === "ALL" && (
                 <>
+                  <span style={{ color: ui_tok.label, fontSize: 12 }}>
+                    전체 재고를 다시 불러옵니다.
+                  </span>
                   <button
                     type="button"
                     style={{
@@ -410,6 +413,8 @@ const InventoryListUi: React.FC = () => {
               <table style={table_style}>
                 <thead>
                   <tr>
+                    {/* ✅ lot_id 컬럼 추가 */}
+                    <th style={th_style}>lot_id</th>
                     <th style={th_style}>inventory_id</th>
                     <th style={th_style}>warehouse_id</th>
                     <th style={th_style}>item_id</th>
@@ -427,6 +432,11 @@ const InventoryListUi: React.FC = () => {
                         idx % 2 === 1 ? { background: ui_tok.zebra } : undefined
                       }
                     >
+                      <td style={td_style}>
+                        {row.lot_id ?? (
+                          <span style={{ color: ui_tok.label }}>-</span>
+                        )}
+                      </td>
                       <td style={td_style}>{row.inventory_id}</td>
                       <td style={td_style}>{row.warehouse_id}</td>
                       <td style={td_style}>{row.item_id}</td>
@@ -438,7 +448,8 @@ const InventoryListUi: React.FC = () => {
                   ))}
                   {!inventoryRows.length && !isLoading && !errorMsg && (
                     <tr>
-                      <td colSpan={7} style={empty_style}>
+                      {/* ✅ 컬럼 수 8개라 colSpan=8 */}
+                      <td colSpan={8} style={empty_style}>
                         조회된 인벤토리가 없습니다.
                       </td>
                     </tr>
