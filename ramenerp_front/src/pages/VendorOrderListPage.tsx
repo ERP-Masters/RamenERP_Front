@@ -7,6 +7,7 @@ import {
   fetch_vendor_orders_by_vendor,
   fetch_vendor_orders_by_status,
   fetch_vendor_orders_by_period,
+  complete_vendor_order,
   type VendorOrder,
 } from "@/api/vendor_orders";
 
@@ -20,6 +21,14 @@ import {
   type WarehouseOption,
   prime_item_name_cache,
 } from "@/api/master_data";
+
+/* ====== 추가: props 타입 ====== */
+type VendorOrderListPageProps = {
+  title?: string;
+  initialStatus?: string;       // 최초 상태 필터 값
+  fixedStatus?: string;         // 이 값이 있으면 상태 필터 고정 + select 비활성화
+  showCompleteButton?: boolean; // false면 "입고 완료" 버튼/컬럼 숨김
+};
 
 /* ===== UI ===== */
 const ui = {
@@ -49,7 +58,8 @@ const page_wrap: React.CSSProperties = {
 
 const header_row: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(160px,1fr) minmax(140px,1fr) minmax(160px,1fr) minmax(160px,1fr) minmax(240px,2fr) auto auto",
+  gridTemplateColumns:
+    "minmax(160px,1fr) minmax(140px,1fr) minmax(160px,1fr) minmax(160px,1fr) minmax(240px,2fr) auto auto",
   gap: 12,
   alignItems: "end",
   border: `1px solid ${ui.border}`,
@@ -179,7 +189,7 @@ function money(n: number) {
   return new Intl.NumberFormat("ko-KR").format(n);
 }
 
-// "VO_..._YYMMDD_XXX" 에서 날짜 추출 → YYYY-MM-DD
+// "VO_..._YYMMDD_XXX" → YYYY-MM-DD
 function infer_date_from_order_id(vendor_order_id?: string): string {
   if (!vendor_order_id) return "";
   const parts = vendor_order_id.split("_");
@@ -236,18 +246,29 @@ function build_header_rows(lines: VendorOrder[]): HeaderRow[] {
 }
 
 /* ===== 컴포넌트 ===== */
-const VendorOrderListPage: React.FC = () => {
+const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
+  title = "발주 내역 조회",
+  initialStatus,
+  fixedStatus,
+  showCompleteButton = true,
+}) => {
   const navigate = useNavigate();
 
   // 필터
   const [vendor_filter, set_vendor_filter] = useState<string>("");
-  const [status_filter, set_status_filter] = useState<string>("");
+  const [status_filter, set_status_filter] = useState<string>(
+    initialStatus ?? "",
+  ); // 🔹 초기값에 initialStatus 반영
   const [start_date, set_start_date] = useState<string>("");
   const [end_date, set_end_date] = useState<string>("");
   const [order_id_search, set_order_id_search] = useState<string>("");
 
+  const effectiveStatus = fixedStatus ?? status_filter; // 🔹 실제 필터에 쓸 값
+
   // 자동완성
-  const [order_id_suggestions, set_order_id_suggestions] = useState<string[]>([]);
+  const [order_id_suggestions, set_order_id_suggestions] = useState<string[]>(
+    [],
+  );
   const [show_suggest, set_show_suggest] = useState<boolean>(false);
   const suggest_wrap_ref = useRef<HTMLDivElement | null>(null);
 
@@ -257,6 +278,9 @@ const VendorOrderListPage: React.FC = () => {
   // 상태
   const [loading, set_loading] = useState<boolean>(false);
   const [error_msg, set_error_msg] = useState<string>("");
+
+  // 입고 완료 처리 중인 ID
+  const [completing_id, set_completing_id] = useState<number | null>(null);
 
   // 데이터
   const [orders, set_orders] = useState<VendorOrder[]>([]);
@@ -282,13 +306,16 @@ const VendorOrderListPage: React.FC = () => {
   }, [warehouses]);
 
   // 아이템명 보강 캐시
-  const [item_name_patch, set_item_name_patch] = useState<Map<number, string>>(new Map());
+  const [item_name_patch, set_item_name_patch] = useState<Map<number, string>>(
+    new Map(),
+  );
 
   // 라인뷰 렌더용
   const line_rows: VendorOrder[] = useMemo(() => {
     return orders.map((o) => ({
       ...o,
-      vendor_name: (o as any).vendor_name ?? vendor_name_by_id.get(o.vendor_id) ?? "",
+      vendor_name:
+        (o as any).vendor_name ?? vendor_name_by_id.get(o.vendor_id) ?? "",
       item_name:
         (o as any).item_name ??
         item_name_patch.get(o.item_id) ??
@@ -299,34 +326,47 @@ const VendorOrderListPage: React.FC = () => {
   }, [orders, vendor_name_by_id, item_name_by_id, wh_name_by_id, item_name_patch]);
 
   // 헤더뷰
-  const header_rows: HeaderRow[] = useMemo(() => build_header_rows(line_rows), [line_rows]);
+  const header_rows: HeaderRow[] = useMemo(
+    () => build_header_rows(line_rows),
+    [line_rows],
+  );
 
-  const status_options = ["", "PENDING", "INPROGRESS", "CANCELED"];
+  const status_options = [
+    "",
+    "PENDING",
+    "INPROGRESS",
+    "CANCELED",
+    "SHIPPING",
+    "PARTIALLY",
+    "COMPLETED",
+  ];
 
   // 마스터 로드
   useEffect(() => {
-  let cancelled = false;
+    let cancelled = false;
 
-  (async () => {
-    try {
-      const [ven, it, wh] = await Promise.all([
-        fetch_vendors(),
-        fetch_items(),
-        fetch_warehouses(),
-      ]);
+    (async () => {
+      try {
+        const [ven, it, wh] = await Promise.all([
+          fetch_vendors(),
+          fetch_items(),
+          fetch_warehouses(),
+        ]);
 
-      if (cancelled) return;
-      set_vendors(ven);
-      set_items(it);
-      set_warehouses(wh);
-      prime_item_name_cache(it);
-    } catch {
-    }
-  })();
+        if (cancelled) return;
+        set_vendors(ven);
+        set_items(it);
+        set_warehouses(wh);
+        prime_item_name_cache(it);
+      } catch {
+        /* ignore */
+      }
+    })();
 
-  return () => { cancelled = true; };
-}, []);
-
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 목록 로더
   const load_orders = async () => {
@@ -336,25 +376,26 @@ const VendorOrderListPage: React.FC = () => {
       let data: VendorOrder[] = [];
       if (start_date && end_date) {
         data = await fetch_vendor_orders_by_period(start_date, end_date);
-      } else if (vendor_filter && !status_filter) {
+      } else if (vendor_filter && !effectiveStatus) {
         data = await fetch_vendor_orders_by_vendor(Number(vendor_filter));
-      } else if (!vendor_filter && status_filter) {
-        data = await fetch_vendor_orders_by_status(status_filter);
-      } else if (vendor_filter && status_filter) {
+      } else if (!vendor_filter && effectiveStatus) {
+        data = await fetch_vendor_orders_by_status(effectiveStatus);
+      } else if (vendor_filter && effectiveStatus) {
         const tmp = await fetch_vendor_orders_by_vendor(Number(vendor_filter));
-        data = tmp.filter((r) => r.status === status_filter);
+        data = tmp.filter((r) => r.status === effectiveStatus);
       } else {
         data = await fetch_vendor_orders_all();
       }
 
       if (order_id_search.trim()) {
         const kw = order_id_search.trim().toLowerCase();
-        data = data.filter((r) => r.vendor_order_id.toLowerCase().includes(kw));
+        data = data.filter((r) =>
+          r.vendor_order_id.toLowerCase().includes(kw),
+        );
       }
 
       set_orders(data);
 
-      // 자동완성 원본 구성
       const uniq = Array.from(new Set(data.map((r) => r.vendor_order_id))).sort();
       set_order_id_suggestions(uniq);
     } catch (e: any) {
@@ -378,11 +419,12 @@ const VendorOrderListPage: React.FC = () => {
           .filter((o) => {
             const in_master = !!item_name_by_id.get(o.item_id);
             const in_patch = !!item_name_patch.get(o.item_id);
-            const empty = !(o as any).item_name || !String((o as any).item_name).trim();
+            const empty =
+              !(o as any).item_name || !String((o as any).item_name).trim();
             return empty && !in_master && !in_patch;
           })
-          .map((o) => o.item_id)
-      )
+          .map((o) => o.item_id),
+      ),
     );
     if (need_ids.length === 0) return;
 
@@ -415,8 +457,23 @@ const VendorOrderListPage: React.FC = () => {
       return;
     }
 
-    const cols_line = ["발주번호", "발주일자", "거래처명", "품목명", "창고명", "수량", "상태"];
-    const cols_header = ["발주번호", "발주일자", "거래처명", "창고명", "총 수량", "상태"];
+    const cols_line = [
+      "발주번호",
+      "발주일자",
+      "거래처명",
+      "품목명",
+      "창고명",
+      "수량",
+      "상태",
+    ];
+    const cols_header = [
+      "발주번호",
+      "발주일자",
+      "거래처명",
+      "창고명",
+      "총 수량",
+      "상태",
+    ];
     let csv = "";
 
     if (view_mode === "header") {
@@ -424,7 +481,10 @@ const VendorOrderListPage: React.FC = () => {
       header_rows.forEach((r) => {
         const line = [
           r.vendor_order_id,
-          display_date({ created_at: r.created_at, vendor_order_id: r.vendor_order_id }),
+          display_date({
+            created_at: r.created_at,
+            vendor_order_id: r.vendor_order_id,
+          }),
           r.vendor_name ?? "",
           r.wh_name ?? "",
           String(r.total_qty),
@@ -436,7 +496,7 @@ const VendorOrderListPage: React.FC = () => {
       });
     } else {
       csv += cols_line.join(",") + "\n";
-      line_rows.forEach((r: any) => {
+      (line_rows as any[]).forEach((r) => {
         const line = [
           r.vendor_order_id,
           display_date(r),
@@ -468,18 +528,58 @@ const VendorOrderListPage: React.FC = () => {
   const filtered_suggests = useMemo(() => {
     const kw = order_id_search.trim().toLowerCase();
     if (!kw) return [];
-    return order_id_suggestions.filter((s) => s.toLowerCase().includes(kw)).slice(0, 10);
+    return order_id_suggestions
+      .filter((s) => s.toLowerCase().includes(kw))
+      .slice(0, 10);
   }, [order_id_search, order_id_suggestions]);
 
   // 바깥 클릭 닫기
   useEffect(() => {
     const on_doc_click = (e: MouseEvent) => {
       if (!suggest_wrap_ref.current) return;
-      if (!suggest_wrap_ref.current.contains(e.target as Node)) set_show_suggest(false);
+      if (!suggest_wrap_ref.current.contains(e.target as Node))
+        set_show_suggest(false);
     };
     document.addEventListener("mousedown", on_doc_click);
     return () => document.removeEventListener("mousedown", on_doc_click);
   }, []);
+
+  // 입고 완료 처리
+  const handle_complete = async (order: VendorOrder) => {
+    if (!order.id) {
+      alert("내부 ID가 없어 입고 완료를 처리할 수 없습니다.");
+      return;
+    }
+    if (order.status === "COMPLETED") {
+      alert("이미 입고 완료된 발주입니다.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `발주 '${order.vendor_order_id}'를 입고 완료 처리하시겠습니까?`,
+      )
+    ) {
+      return;
+    }
+
+    set_completing_id(order.id);
+    try {
+      await complete_vendor_order(order.id);
+      set_orders((prev) =>
+        prev.map((o) =>
+          o.id === order.id ? { ...o, status: "COMPLETED" } : o,
+        ),
+      );
+    } catch (e: any) {
+      alert(e?.message || "입고 완료 처리 중 오류가 발생했습니다.");
+    } finally {
+      set_completing_id(null);
+    }
+  };
+
+  // 헤더/라인 뷰에 따른 colSpan
+  const colSpan_header = 6;
+  const colSpan_line = showCompleteButton ? 8 : 7; // 🔹 버튼 유무에 따라 다름
 
   // 테이블 헤더
   const thead =
@@ -501,6 +601,7 @@ const VendorOrderListPage: React.FC = () => {
         <th style={th_style}>창고명</th>
         <th style={th_style}>수량</th>
         <th style={th_style}>상태</th>
+        {showCompleteButton && <th style={th_style}>관리</th>}
       </tr>
     );
 
@@ -512,16 +613,29 @@ const VendorOrderListPage: React.FC = () => {
           return (
             <tr key={r.vendor_order_id} style={bg}>
               <td style={td_style}>{r.vendor_order_id}</td>
-              <td style={td_style}>{display_date({ created_at: r.created_at, vendor_order_id: r.vendor_order_id })}</td>
+              <td style={td_style}>
+                {display_date({
+                  created_at: r.created_at,
+                  vendor_order_id: r.vendor_order_id,
+                })}
+              </td>
               <td style={td_style}>{r.vendor_name ?? ""}</td>
               <td style={td_style}>{r.wh_name ?? ""}</td>
               <td style={td_style}>{money(r.total_qty)}</td>
-              <td style={td_style}><span style={badge_style()}>{r.status}</span></td>
+              <td style={td_style}>
+                <span style={badge_style()}>{r.status}</span>
+              </td>
             </tr>
           );
         })
       : line_rows.map((o: any, idx) => {
           const bg = idx % 2 === 1 ? { background: ui.zebra } : undefined;
+          const can_complete =
+            showCompleteButton &&
+            o.id &&
+            o.status !== "COMPLETED" &&
+            o.status !== "CANCELED";
+
           return (
             <tr key={`${o.vendor_order_id}_${idx}`} style={bg}>
               <td style={td_style}>{o.vendor_order_id}</td>
@@ -530,59 +644,168 @@ const VendorOrderListPage: React.FC = () => {
               <td style={td_style}>{o.item_name}</td>
               <td style={td_style}>{o.wh_name}</td>
               <td style={td_style}>{money(o.quantity ?? 0)}</td>
-              <td style={td_style}><span style={badge_style()}>{o.status}</span></td>
+              <td style={td_style}>
+                <span style={badge_style()}>{o.status}</span>
+              </td>
+              {showCompleteButton && (
+                <td style={td_style}>
+                  {can_complete ? (
+                    <button
+                      type="button"
+                      style={{
+                        border: `1px solid ${ui.border}`,
+                        borderRadius: 8,
+                        padding: "6px 10px",
+                        fontSize: 13,
+                        background: "#fff",
+                        cursor: "pointer",
+                      }}
+                      disabled={completing_id === o.id}
+                      onClick={() => handle_complete(o)}
+                    >
+                      {completing_id === o.id ? "처리 중..." : "입고 완료"}
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 12, color: ui.muted }}>
+                      {o.status === "COMPLETED" ? "완료" : o.status === "CANCELED" ? "취소됨" : "-"}
+                    </span>
+                  )}
+                </td>
+              )}
             </tr>
           );
         });
 
   return (
     <div style={page_wrap}>
-      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>발주 내역 조회</h1>
+      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{title}</h1>
 
       {/* 필터 */}
       <div style={header_row}>
         {/* 거래처 */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <label style={{ color: ui.muted, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>거래처</label>
-          <select style={select_style} value={vendor_filter} onChange={(e) => set_vendor_filter(e.target.value)}>
+          <label
+            style={{
+              color: ui.muted,
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            거래처
+          </label>
+          <select
+            style={select_style}
+            value={vendor_filter}
+            onChange={(e) => set_vendor_filter(e.target.value)}
+          >
             <option value="">전체</option>
             {vendors.map((v) => (
-              <option key={v.id} value={String(v.id)}>{v.name}</option>
+              <option key={v.id} value={String(v.id)}>
+                {v.name}
+              </option>
             ))}
           </select>
         </div>
 
         {/* 상태 */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <label style={{ color: ui.muted, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>상태</label>
-          <select style={select_style} value={status_filter} onChange={(e) => set_status_filter(e.target.value)}>
+          <label
+            style={{
+              color: ui.muted,
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            상태
+          </label>
+          <select
+            style={select_style}
+            value={effectiveStatus}
+            onChange={(e) =>
+              fixedStatus ? null : set_status_filter(e.target.value)
+            }
+            disabled={!!fixedStatus} // 🔹 고정이면 수정 불가
+          >
             <option value="">전체</option>
-            {status_options.filter(Boolean).map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
+            {status_options
+              .filter(Boolean)
+              .map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
           </select>
         </div>
 
         {/* 기간 시작 */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <label style={{ color: ui.muted, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>기간 시작</label>
-          <input type="date" style={input_style} value={start_date} onChange={(e) => set_start_date(e.target.value)} />
+          <label
+            style={{
+              color: ui.muted,
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            기간 시작
+          </label>
+          <input
+            type="date"
+            style={input_style}
+            value={start_date}
+            onChange={(e) => set_start_date(e.target.value)}
+          />
         </div>
 
         {/* 기간 종료 */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <label style={{ color: ui.muted, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>기간 종료</label>
-          <input type="date" style={input_style} value={end_date} onChange={(e) => set_end_date(e.target.value)} />
+          <label
+            style={{
+              color: ui.muted,
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            기간 종료
+          </label>
+          <input
+            type="date"
+            style={input_style}
+            value={end_date}
+            onChange={(e) => set_end_date(e.target.value)}
+          />
         </div>
 
         {/* 발주번호 + 자동완성 */}
-        <div style={{ display: "flex", flexDirection: "column", position: "relative" }} ref={suggest_wrap_ref}>
-          <label style={{ color: ui.muted, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>발주번호</label>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            position: "relative",
+          }}
+          ref={suggest_wrap_ref}
+        >
+          <label
+            style={{
+              color: ui.muted,
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            발주번호
+          </label>
           <input
             style={{ ...input_style, width: "100%" }}
             placeholder={`예: VO_VD_SEOUL`}
             value={order_id_search}
-            onChange={(e) => { set_order_id_search(e.target.value); set_show_suggest(true); }}
+            onChange={(e) => {
+              set_order_id_search(e.target.value);
+              set_show_suggest(true);
+            }}
             onFocus={() => set_show_suggest(true)}
           />
           {show_suggest && filtered_suggests.length > 0 && (
@@ -623,25 +846,74 @@ const VendorOrderListPage: React.FC = () => {
 
         {/* 검색 */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "transparent" }}>검색</label>
-          <button type="button" style={search_btn} onClick={on_click_search} disabled={loading}>검색</button>
+          <label
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "transparent",
+            }}
+          >
+            검색
+          </label>
+          <button
+            type="button"
+            style={search_btn}
+            onClick={on_click_search}
+            disabled={loading}
+          >
+            검색
+          </button>
         </div>
 
         {/* 등록 */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "transparent" }}>등록</label>
-          <button type="button" style={primary_btn} onClick={go_new_order}>신규 발주 등록</button>
+          <label
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "transparent",
+            }}
+          >
+            등록
+          </label>
+          <button type="button" style={primary_btn} onClick={go_new_order}>
+            신규 발주 등록
+          </button>
         </div>
 
         {/* 2행: 보기/CSV */}
         <div style={{ gridColumn: "1 / -1" }}>
           <div style={sub_row}>
-            <div style={{ fontWeight: 600, color: "#0f172a" }}>보기 / 내보내기</div>
-            <button type="button" style={small_btn} onClick={() => set_view_mode(view_mode === "line" ? "header" : "line")}>
+            <div style={{ fontWeight: 600, color: "#0f172a" }}>
+              보기 / 내보내기
+            </div>
+            <button
+              type="button"
+              style={small_btn}
+              onClick={() =>
+                set_view_mode(view_mode === "line" ? "header" : "line")
+              }
+            >
               {view_mode === "line" ? "헤더 뷰" : "라인 뷰"}
             </button>
-            <button type="button" style={csv_btn} onClick={on_download_csv}>CSV 다운로드</button>
-            {error_msg && <div style={{ color: ui.danger, fontSize: 13, fontWeight: 600 }}>{error_msg}</div>}
+            <button
+              type="button"
+              style={csv_btn}
+              onClick={on_download_csv}
+            >
+              CSV 다운로드
+            </button>
+            {error_msg && (
+              <div
+                style={{
+                  color: ui.danger,
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                {error_msg}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -654,15 +926,44 @@ const VendorOrderListPage: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td style={{ ...td_style, textAlign: "center", color: ui.muted }} colSpan={7}>불러오는 중…</td>
+                  <td
+                    style={{
+                      ...td_style,
+                      textAlign: "center",
+                      color: ui.muted,
+                    }}
+                    colSpan={
+                      view_mode === "header" ? colSpan_header : colSpan_line
+                    }
+                  >
+                    불러오는 중…
+                  </td>
                 </tr>
               ) : view_mode === "header" && header_rows.length === 0 ? (
                 <tr>
-                  <td style={{ ...td_style, textAlign: "center", color: ui.muted }} colSpan={7}>데이터 없음</td>
+                  <td
+                    style={{
+                      ...td_style,
+                      textAlign: "center",
+                      color: ui.muted,
+                    }}
+                    colSpan={colSpan_header}
+                  >
+                    데이터 없음
+                  </td>
                 </tr>
               ) : view_mode === "line" && line_rows.length === 0 ? (
                 <tr>
-                  <td style={{ ...td_style, textAlign: "center", color: ui.muted }} colSpan={7}>데이터 없음</td>
+                  <td
+                    style={{
+                      ...td_style,
+                      textAlign: "center",
+                      color: ui.muted,
+                    }}
+                    colSpan={colSpan_line}
+                  >
+                    데이터 없음
+                  </td>
                 </tr>
               ) : (
                 tbody

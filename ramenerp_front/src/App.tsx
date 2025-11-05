@@ -13,6 +13,8 @@ import NotUsedVendorPageUi from "./pages/NotUsedVendorPageUi";
 
 import VendorOrderListPage from "./pages/VendorOrderListPage";
 import VendorOrderNewPage from "./pages/VendorOrderNewPage";
+import VendorOrderCompletedPage from "./pages/VendorOrderCompletedPage";
+
 
 import CategoryRegisterPage from "./pages/CategoryRegisterPage";
 import CategoryListPanel from "./components/CategoryListPanel";
@@ -47,6 +49,8 @@ const App: React.FC = () => {
         {/* ✅ 발주 */}
         <Route path="vendor-order" element={<VendorOrderListPage />} />
         <Route path="vendor-order/new" element={<VendorOrderNewPage />} />
+        <Route path="vendor-order/completed" element={<VendorOrderCompletedPage />} />
+
 
         {/* 카테고리 */}
         <Route path="category/register" element={<CategoryRegisterPage />} />

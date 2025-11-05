@@ -63,6 +63,10 @@ export const sidebar_menu: MenuGroup[] = [
         label: "신규 발주 등록",
         path: "/vendor-order/new",
       },
+      { id: "vendors-inbound",
+        label: "입고 내역",  
+        path: "/vendor-order/completed",
+     },
     ],
   },
 
