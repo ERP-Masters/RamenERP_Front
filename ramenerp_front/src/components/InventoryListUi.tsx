@@ -11,7 +11,7 @@ import {
 
 import InventoryWarehouseIdSearch from "./InventoryWarehouseIdSearch";
 import InventoryWarehouseNameSearch from "./InventoryWarehouseNameSearch";
-import InventoryLotSearch from "./InventoryLOTSearch";
+import InventoryLotSearch from "./InventoryLotSearch";
 
 type Tab = "ALL" | "WAREHOUSE_ID" | "WAREHOUSE_NAME" | "LOT";
 
@@ -286,9 +286,6 @@ const InventoryListUi: React.FC = () => {
             <div style={search_row}>
               {tab === "ALL" && (
                 <>
-                  <span style={{ color: ui_tok.label, fontSize: 12 }}>
-                    전체 재고를 다시 불러옵니다.
-                  </span>
                   <button
                     type="button"
                     style={{
@@ -368,14 +365,14 @@ const InventoryListUi: React.FC = () => {
               <table style={table_style}>
                 <thead>
                   <tr>
-                    <th style={th_style}>lot_id</th>
-                    <th style={th_style}>item_id</th>
-                    <th style={th_style}>warehouse_id</th>
-                    <th style={th_style}>inventory_id</th>
-                    <th style={th_style}>manufacture_date</th>
-                    <th style={th_style}>expiry_date</th>
-                    <th style={th_style}>received_date</th>
-                    <th style={th_style}>shipment_id</th>
+                    <th style={th_style}>lot 추적 id</th>
+                    <th style={th_style}>품목 id</th>
+                    <th style={th_style}>창고 id</th>
+                    <th style={th_style}>재고 품목 id</th>
+                    <th style={th_style}>제조 일자</th>
+                    <th style={th_style}>만료 일자</th>
+                    <th style={th_style}>입고 일자</th>
+                    <th style={th_style}>운송 상태 id</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -414,14 +411,14 @@ const InventoryListUi: React.FC = () => {
                 <thead>
                   <tr>
                     {/* ✅ lot_id 컬럼 추가 */}
-                    <th style={th_style}>lot_id</th>
-                    <th style={th_style}>inventory_id</th>
-                    <th style={th_style}>warehouse_id</th>
-                    <th style={th_style}>item_id</th>
-                    <th style={th_style}>quantity</th>
-                    <th style={th_style}>safety_stock</th>
-                    <th style={th_style}>store_date</th>
-                    <th style={th_style}>expiry_date</th>
+                    <th style={th_style}>lot 추적 id</th>
+                    <th style={th_style}>재고 품목 id</th>
+                    <th style={th_style}>창고 id</th>
+                    <th style={th_style}>품목 id</th>
+                    <th style={th_style}>수량</th>
+                    <th style={th_style}>안전 재고</th>
+                    <th style={th_style}>창고 입고 일시</th>
+                    <th style={th_style}>만료 기일</th>
                   </tr>
                 </thead>
                 <tbody>
