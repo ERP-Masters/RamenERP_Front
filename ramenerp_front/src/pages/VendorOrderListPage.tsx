@@ -8,6 +8,7 @@ import {
   fetch_vendor_orders_by_status,
   fetch_vendor_orders_by_period,
   complete_vendor_order,
+  partial_vendor_order,
   type VendorOrder,
 } from "@/api/vendor_orders";
 
@@ -22,12 +23,28 @@ import {
   prime_item_name_cache,
 } from "@/api/master_data";
 
-/* ====== 추가: props 타입 ====== */
+/* ===== props ===== */
 type VendorOrderListPageProps = {
+  /** 화면 상단 제목 (기본: "발주 내역 조회") */
   title?: string;
-  initialStatus?: string;       // 최초 상태 필터 값
-  fixedStatus?: string;         // 이 값이 있으면 상태 필터 고정 + select 비활성화
-  showCompleteButton?: boolean; // false면 "입고 완료" 버튼/컬럼 숨김
+  /** 최초 상태 필터값 (예: "COMPLETED") */
+  initialStatus?: string;
+  /**
+   * 상태를 고정하고 싶을 때 사용
+   * - 값이 있으면 상태 select는 disabled, 항상 이 값으로만 조회
+   */
+  fixedStatus?: string;
+  /**
+   * "입고 완료 / 부분 입고" 버튼 노출 여부
+   * - 입고 내역(완료 페이지)에서는 false로 사용
+   */
+  showCompleteButton?: boolean;
+  /**
+   * COMPLETED 상태를 기본적으로 숨길지 여부
+   * - 발주 내역: true (완료건은 안 보이게)
+   * - 입고 내역: false (완료건만 보이게)
+   */
+  hideCompleted?: boolean;
 };
 
 /* ===== UI ===== */
@@ -189,7 +206,7 @@ function money(n: number) {
   return new Intl.NumberFormat("ko-KR").format(n);
 }
 
-// "VO_..._YYMMDD_XXX" → YYYY-MM-DD
+// "VO_..._YYMMDD_XXX" 에서 날짜 추출 → YYYY-MM-DD
 function infer_date_from_order_id(vendor_order_id?: string): string {
   if (!vendor_order_id) return "";
   const parts = vendor_order_id.split("_");
@@ -232,9 +249,9 @@ function build_header_rows(lines: VendorOrder[]): HeaderRow[] {
     if (!prev) {
       m.set(k, {
         vendor_order_id: r.vendor_order_id,
-        created_at: (r as any).created_at,
-        vendor_name: (r as any).vendor_name,
-        wh_name: (r as any).wh_name,
+        created_at: r.created_at,
+        vendor_name: r.vendor_name,
+        wh_name: r.wh_name,
         total_qty: r.quantity ?? 0,
         status: r.status,
       });
@@ -251,24 +268,21 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
   initialStatus,
   fixedStatus,
   showCompleteButton = true,
+  hideCompleted = true,
 }) => {
   const navigate = useNavigate();
 
+  const isCompletedView = fixedStatus === "COMPLETED";
+
   // 필터
   const [vendor_filter, set_vendor_filter] = useState<string>("");
-  const [status_filter, set_status_filter] = useState<string>(
-    initialStatus ?? "",
-  ); // 🔹 초기값에 initialStatus 반영
+  const [status_filter, set_status_filter] = useState<string>(initialStatus ?? "");
   const [start_date, set_start_date] = useState<string>("");
   const [end_date, set_end_date] = useState<string>("");
   const [order_id_search, set_order_id_search] = useState<string>("");
 
-  const effectiveStatus = fixedStatus ?? status_filter; // 🔹 실제 필터에 쓸 값
-
   // 자동완성
-  const [order_id_suggestions, set_order_id_suggestions] = useState<string[]>(
-    [],
-  );
+  const [order_id_suggestions, set_order_id_suggestions] = useState<string[]>([]);
   const [show_suggest, set_show_suggest] = useState<boolean>(false);
   const suggest_wrap_ref = useRef<HTMLDivElement | null>(null);
 
@@ -278,9 +292,6 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
   // 상태
   const [loading, set_loading] = useState<boolean>(false);
   const [error_msg, set_error_msg] = useState<string>("");
-
-  // 입고 완료 처리 중인 ID
-  const [completing_id, set_completing_id] = useState<number | null>(null);
 
   // 데이터
   const [orders, set_orders] = useState<VendorOrder[]>([]);
@@ -294,11 +305,13 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
     vendors.forEach((v) => m.set(v.id, v.name));
     return m;
   }, [vendors]);
+
   const item_name_by_id = useMemo(() => {
     const m = new Map<number, string>();
     items.forEach((it) => m.set(it.id, it.name));
     return m;
   }, [items]);
+
   const wh_name_by_id = useMemo(() => {
     const m = new Map<number, string>();
     warehouses.forEach((w) => m.set(w.id, w.name));
@@ -307,21 +320,20 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
 
   // 아이템명 보강 캐시
   const [item_name_patch, set_item_name_patch] = useState<Map<number, string>>(
-    new Map(),
+    () => new Map(),
   );
 
   // 라인뷰 렌더용
   const line_rows: VendorOrder[] = useMemo(() => {
     return orders.map((o) => ({
       ...o,
-      vendor_name:
-        (o as any).vendor_name ?? vendor_name_by_id.get(o.vendor_id) ?? "",
+      vendor_name: o.vendor_name ?? vendor_name_by_id.get(o.vendor_id) ?? "",
       item_name:
-        (o as any).item_name ??
+        o.item_name ??
         item_name_patch.get(o.item_id) ??
         item_name_by_id.get(o.item_id) ??
         "",
-      wh_name: (o as any).wh_name ?? wh_name_by_id.get(o.wh_id) ?? "",
+      wh_name: o.wh_name ?? wh_name_by_id.get(o.wh_id) ?? "",
     }));
   }, [orders, vendor_name_by_id, item_name_by_id, wh_name_by_id, item_name_patch]);
 
@@ -331,20 +343,11 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
     [line_rows],
   );
 
-  const status_options = [
-    "",
-    "PENDING",
-    "INPROGRESS",
-    "CANCELED",
-    "SHIPPING",
-    "PARTIALLY",
-    "COMPLETED",
-  ];
+  const status_options = ["", "PENDING", "INPROGRESS", "PARTIALLY", "CANCELED", "COMPLETED"];
 
   // 마스터 로드
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       try {
         const [ven, it, wh] = await Promise.all([
@@ -352,7 +355,6 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
           fetch_items(),
           fetch_warehouses(),
         ]);
-
         if (cancelled) return;
         set_vendors(ven);
         set_items(it);
@@ -362,7 +364,6 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
         /* ignore */
       }
     })();
-
     return () => {
       cancelled = true;
     };
@@ -374,28 +375,43 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
     set_error_msg("");
     try {
       let data: VendorOrder[] = [];
+
+      // 1) API 호출 (기간 / 거래처 / 상태)
       if (start_date && end_date) {
         data = await fetch_vendor_orders_by_period(start_date, end_date);
-      } else if (vendor_filter && !effectiveStatus) {
+      } else if (fixedStatus) {
+        // 상태 고정 모드 (입고 내역 등)
+        if (vendor_filter) {
+          const tmp = await fetch_vendor_orders_by_vendor(Number(vendor_filter));
+          data = tmp.filter((r) => r.status === fixedStatus);
+        } else {
+          data = await fetch_vendor_orders_by_status(fixedStatus);
+        }
+      } else if (vendor_filter && !status_filter) {
         data = await fetch_vendor_orders_by_vendor(Number(vendor_filter));
-      } else if (!vendor_filter && effectiveStatus) {
-        data = await fetch_vendor_orders_by_status(effectiveStatus);
-      } else if (vendor_filter && effectiveStatus) {
+      } else if (!vendor_filter && status_filter) {
+        data = await fetch_vendor_orders_by_status(status_filter);
+      } else if (vendor_filter && status_filter) {
         const tmp = await fetch_vendor_orders_by_vendor(Number(vendor_filter));
-        data = tmp.filter((r) => r.status === effectiveStatus);
+        data = tmp.filter((r) => r.status === status_filter);
       } else {
         data = await fetch_vendor_orders_all();
       }
 
+      // 2) 발주번호 부분검색(프론트 필터)
       if (order_id_search.trim()) {
         const kw = order_id_search.trim().toLowerCase();
-        data = data.filter((r) =>
-          r.vendor_order_id.toLowerCase().includes(kw),
-        );
+        data = data.filter((r) => r.vendor_order_id.toLowerCase().includes(kw));
+      }
+
+      // 3) 발주 내역 화면에서는 COMPLETED 숨김
+      if (hideCompleted && !fixedStatus) {
+        data = data.filter((r) => r.status !== "COMPLETED");
       }
 
       set_orders(data);
 
+      // 자동완성용
       const uniq = Array.from(new Set(data.map((r) => r.vendor_order_id))).sort();
       set_order_id_suggestions(uniq);
     } catch (e: any) {
@@ -419,8 +435,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
           .filter((o) => {
             const in_master = !!item_name_by_id.get(o.item_id);
             const in_patch = !!item_name_patch.get(o.item_id);
-            const empty =
-              !(o as any).item_name || !String((o as any).item_name).trim();
+            const empty = !o.item_name || !String(o.item_name).trim();
             return empty && !in_master && !in_patch;
           })
           .map((o) => o.item_id),
@@ -447,7 +462,9 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
   }, [orders, item_name_by_id, item_name_patch]);
 
   // 검색
-  const on_click_search = () => load_orders();
+  const on_click_search = () => {
+    load_orders();
+  };
 
   // CSV
   const on_download_csv = () => {
@@ -457,23 +474,11 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
       return;
     }
 
-    const cols_line = [
-      "발주번호",
-      "발주일자",
-      "거래처명",
-      "품목명",
-      "창고명",
-      "수량",
-      "상태",
-    ];
-    const cols_header = [
-      "발주번호",
-      "발주일자",
-      "거래처명",
-      "창고명",
-      "총 수량",
-      "상태",
-    ];
+    const cols_line = isCompletedView
+      ? ["발주번호", "발주일자", "거래처명", "품목명", "창고명", "입고 수량", "상태"]
+      : ["발주번호", "발주일자", "거래처명", "품목명", "창고명", "발주 수량", "잔여 수량", "상태"];
+
+    const cols_header = ["발주번호", "발주일자", "거래처명", "창고명", "총 수량", "상태"];
     let csv = "";
 
     if (view_mode === "header") {
@@ -481,10 +486,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
       header_rows.forEach((r) => {
         const line = [
           r.vendor_order_id,
-          display_date({
-            created_at: r.created_at,
-            vendor_order_id: r.vendor_order_id,
-          }),
+          display_date({ created_at: r.created_at, vendor_order_id: r.vendor_order_id }),
           r.vendor_name ?? "",
           r.wh_name ?? "",
           String(r.total_qty),
@@ -496,16 +498,33 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
       });
     } else {
       csv += cols_line.join(",") + "\n";
-      (line_rows as any[]).forEach((r) => {
-        const line = [
-          r.vendor_order_id,
-          display_date(r),
-          r.vendor_name ?? "",
-          r.item_name ?? "",
-          r.wh_name ?? "",
-          String(r.quantity ?? 0),
-          r.status ?? "",
-        ]
+      line_rows.forEach((r) => {
+        const ordered = r.quantity ?? 0;
+        const received = r.received_quantity ?? 0;
+        const remaining = Math.max(0, ordered - received);
+
+        const lineValues = isCompletedView
+          ? [
+              r.vendor_order_id,
+              display_date(r),
+              r.vendor_name ?? "",
+              r.item_name ?? "",
+              r.wh_name ?? "",
+              String(received),
+              r.status ?? "",
+            ]
+          : [
+              r.vendor_order_id,
+              display_date(r),
+              r.vendor_name ?? "",
+              r.item_name ?? "",
+              r.wh_name ?? "",
+              String(ordered),
+              String(remaining),
+              r.status ?? "",
+            ];
+
+        const line = lineValues
           .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
           .join(",");
         csv += line + "\n";
@@ -524,7 +543,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
   // 신규 등록
   const go_new_order = () => navigate("/vendor-order/new");
 
-  // 자동완성 드롭다운 필터
+  // 자동완성 필터
   const filtered_suggests = useMemo(() => {
     const kw = order_id_search.trim().toLowerCase();
     if (!kw) return [];
@@ -533,55 +552,76 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
       .slice(0, 10);
   }, [order_id_search, order_id_suggestions]);
 
-  // 바깥 클릭 닫기
+  // 바깥 클릭 → 자동완성 닫기
   useEffect(() => {
     const on_doc_click = (e: MouseEvent) => {
       if (!suggest_wrap_ref.current) return;
-      if (!suggest_wrap_ref.current.contains(e.target as Node))
+      if (!suggest_wrap_ref.current.contains(e.target as Node)) {
         set_show_suggest(false);
+      }
     };
     document.addEventListener("mousedown", on_doc_click);
     return () => document.removeEventListener("mousedown", on_doc_click);
   }, []);
 
-  // 입고 완료 처리
-  const handle_complete = async (order: VendorOrder) => {
-    if (!order.id) {
-      alert("내부 ID가 없어 입고 완료를 처리할 수 없습니다.");
+  // 입고 완료
+  const handle_complete = async (row: VendorOrder) => {
+    if (!row.id) {
+      alert("내부 ID가 없어 입고 처리를 할 수 없습니다.");
       return;
     }
-    if (order.status === "COMPLETED") {
-      alert("이미 입고 완료된 발주입니다.");
+    if (!window.confirm(`발주 '${row.vendor_order_id}'를 입고 완료 처리할까요?`)) {
       return;
     }
-    if (
-      !window.confirm(
-        `발주 '${order.vendor_order_id}'를 입고 완료 처리하시겠습니까?`,
-      )
-    ) {
-      return;
-    }
-
-    set_completing_id(order.id);
     try {
-      await complete_vendor_order(order.id);
-      set_orders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? { ...o, status: "COMPLETED" } : o,
-        ),
-      );
+      await complete_vendor_order(row.id);
+      await load_orders();
     } catch (e: any) {
       alert(e?.message || "입고 완료 처리 중 오류가 발생했습니다.");
-    } finally {
-      set_completing_id(null);
     }
   };
 
-  // 헤더/라인 뷰에 따른 colSpan
-  const colSpan_header = 6;
-  const colSpan_line = showCompleteButton ? 8 : 7; // 🔹 버튼 유무에 따라 다름
+  // 부분 입고
+  const handle_partial = async (row: VendorOrder) => {
+    if (!row.id) {
+      alert("내부 ID가 없어 부분 입고를 처리할 수 없습니다.");
+      return;
+    }
 
-  // 테이블 헤더
+    const ordered = row.quantity ?? 0;
+    const received = row.received_quantity ?? 0;
+    const remaining = Math.max(0, ordered - received);
+
+    if (remaining <= 0) {
+      alert("잔여 수량이 없습니다.");
+      return;
+    }
+
+    const input = window.prompt(
+      `부분 입고 수량을 입력하세요 (잔여 수량: ${remaining}개)`,
+      "",
+    );
+    if (input === null) return;
+
+    const qty = Number(input);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      alert("올바른 수량을 입력하세요.");
+      return;
+    }
+    if (qty > remaining) {
+      alert("잔여 수량을 초과할 수 없습니다.");
+      return;
+    }
+
+    try {
+      await partial_vendor_order(row.id, qty);
+      await load_orders();
+    } catch (e: any) {
+      alert(e?.message || "부분 입고 처리 중 오류가 발생했습니다.");
+    }
+  };
+
+  /* ===== 테이블 헤더 ===== */
   const thead =
     view_mode === "header" ? (
       <tr>
@@ -599,13 +639,18 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
         <th style={th_style}>거래처명</th>
         <th style={th_style}>품목명</th>
         <th style={th_style}>창고명</th>
-        <th style={th_style}>수량</th>
+        <th style={th_style}>
+          {isCompletedView ? "수량(입고)" : "발주 수량"}
+        </th>
+        {!isCompletedView && <th style={th_style}>잔여 수량</th>}
         <th style={th_style}>상태</th>
-        {showCompleteButton && <th style={th_style}>관리</th>}
+        {showCompleteButton && !isCompletedView && (
+          <th style={th_style}>관리</th>
+        )}
       </tr>
     );
 
-  // 테이블 바디
+  /* ===== 테이블 바디 ===== */
   const tbody =
     view_mode === "header"
       ? header_rows.map((r, idx) => {
@@ -628,13 +673,11 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
             </tr>
           );
         })
-      : line_rows.map((o: any, idx) => {
+      : line_rows.map((o, idx) => {
           const bg = idx % 2 === 1 ? { background: ui.zebra } : undefined;
-          const can_complete =
-            showCompleteButton &&
-            o.id &&
-            o.status !== "COMPLETED" &&
-            o.status !== "CANCELED";
+          const ordered = o.quantity ?? 0;
+          const received = o.received_quantity ?? 0;
+          const remaining = Math.max(0, ordered - received);
 
           return (
             <tr key={`${o.vendor_order_id}_${idx}`} style={bg}>
@@ -643,32 +686,42 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
               <td style={td_style}>{o.vendor_name}</td>
               <td style={td_style}>{o.item_name}</td>
               <td style={td_style}>{o.wh_name}</td>
-              <td style={td_style}>{money(o.quantity ?? 0)}</td>
+
+              {/* 수량 / 잔여 수량 */}
+              <td style={td_style}>
+                {money(isCompletedView ? received : ordered)}
+              </td>
+              {!isCompletedView && (
+                <td style={td_style}>{money(remaining)}</td>
+              )}
+
+              {/* 상태 */}
               <td style={td_style}>
                 <span style={badge_style()}>{o.status}</span>
               </td>
-              {showCompleteButton && (
+
+              {/* 관리(발주 내역에서만 노출) */}
+              {showCompleteButton && !isCompletedView && (
                 <td style={td_style}>
-                  {can_complete ? (
-                    <button
-                      type="button"
-                      style={{
-                        border: `1px solid ${ui.border}`,
-                        borderRadius: 8,
-                        padding: "6px 10px",
-                        fontSize: 13,
-                        background: "#fff",
-                        cursor: "pointer",
-                      }}
-                      disabled={completing_id === o.id}
-                      onClick={() => handle_complete(o)}
-                    >
-                      {completing_id === o.id ? "처리 중..." : "입고 완료"}
-                    </button>
+                  {o.status === "COMPLETED" ? (
+                    "-"
                   ) : (
-                    <span style={{ fontSize: 12, color: ui.muted }}>
-                      {o.status === "COMPLETED" ? "완료" : o.status === "CANCELED" ? "취소됨" : "-"}
-                    </span>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        type="button"
+                        style={small_btn}
+                        onClick={() => handle_partial(o)}
+                      >
+                        부분 입고
+                      </button>
+                      <button
+                        type="button"
+                        style={small_btn}
+                        onClick={() => handle_complete(o)}
+                      >
+                        입고 완료
+                      </button>
+                    </div>
                   )}
                 </td>
               )}
@@ -722,11 +775,13 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
           </label>
           <select
             style={select_style}
-            value={effectiveStatus}
-            onChange={(e) =>
-              fixedStatus ? null : set_status_filter(e.target.value)
+            value={fixedStatus ?? status_filter}
+            onChange={
+              fixedStatus
+                ? undefined
+                : (e) => set_status_filter(e.target.value)
             }
-            disabled={!!fixedStatus} // 🔹 고정이면 수정 불가
+            disabled={!!fixedStatus}
           >
             <option value="">전체</option>
             {status_options
@@ -781,11 +836,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
 
         {/* 발주번호 + 자동완성 */}
         <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            position: "relative",
-          }}
+          style={{ display: "flex", flexDirection: "column", position: "relative" }}
           ref={suggest_wrap_ref}
         >
           <label
@@ -876,9 +927,16 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
           >
             등록
           </label>
-          <button type="button" style={primary_btn} onClick={go_new_order}>
-            신규 발주 등록
-          </button>
+          {/* 입고 내역 화면에서는 신규 등록 버튼 숨김 */}
+          {!isCompletedView && (
+            <button
+              type="button"
+              style={primary_btn}
+              onClick={go_new_order}
+            >
+              신규 발주 등록
+            </button>
+          )}
         </div>
 
         {/* 2행: 보기/CSV */}
@@ -932,9 +990,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
                       textAlign: "center",
                       color: ui.muted,
                     }}
-                    colSpan={
-                      view_mode === "header" ? colSpan_header : colSpan_line
-                    }
+                    colSpan={9}
                   >
                     불러오는 중…
                   </td>
@@ -947,7 +1003,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
                       textAlign: "center",
                       color: ui.muted,
                     }}
-                    colSpan={colSpan_header}
+                    colSpan={9}
                   >
                     데이터 없음
                   </td>
@@ -960,7 +1016,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
                       textAlign: "center",
                       color: ui.muted,
                     }}
-                    colSpan={colSpan_line}
+                    colSpan={9}
                   >
                     데이터 없음
                   </td>
