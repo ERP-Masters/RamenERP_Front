@@ -101,11 +101,6 @@ export const sidebar_menu: MenuGroup[] = [
         label: "지점 리스트",
         path: "/branch/list",
       },
-      {
-        id: "sales",
-        label: "매출 관리",
-        path: "/",
-      },
     ],
   },
 
