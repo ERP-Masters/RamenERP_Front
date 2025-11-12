@@ -365,10 +365,10 @@ const InventoryListUi: React.FC = () => {
               <table style={table_style}>
                 <thead>
                   <tr>
-                    <th style={th_style}>lot 추적 id</th>
-                    <th style={th_style}>품목 id</th>
-                    <th style={th_style}>창고 id</th>
-                    <th style={th_style}>재고 품목 id</th>
+                    <th style={th_style}>LOT 코드</th>
+                    <th style={th_style}>품목 코드</th>
+                    <th style={th_style}>창고</th>
+                    <th style={th_style}>재고 품목 코드</th>
                     <th style={th_style}>제조 일자</th>
                     <th style={th_style}>만료 일자</th>
                     <th style={th_style}>입고 일자</th>
@@ -411,10 +411,10 @@ const InventoryListUi: React.FC = () => {
                 <thead>
                   <tr>
                     {/* ✅ lot_id 컬럼 추가 */}
-                    <th style={th_style}>lot 추적 id</th>
-                    <th style={th_style}>재고 품목 id</th>
-                    <th style={th_style}>창고 id</th>
-                    <th style={th_style}>품목 id</th>
+                    <th style={th_style}>LOT 코드</th>
+                    <th style={th_style}>재고 품목 코드</th>
+                    <th style={th_style}>창고</th>
+                    <th style={th_style}>품목</th>
                     <th style={th_style}>수량</th>
                     <th style={th_style}>안전 재고</th>
                     <th style={th_style}>창고 입고 일시</th>
