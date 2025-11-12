@@ -368,7 +368,7 @@ const InventoryListUi: React.FC = () => {
                     <th style={th_style}>LOT 코드</th>
                     <th style={th_style}>품목 코드</th>
                     <th style={th_style}>창고</th>
-                    <th style={th_style}>재고 품목 코드</th>
+                    {/* 🔻 재고 품목 코드 컬럼 제거 */}
                     <th style={th_style}>제조 일자</th>
                     <th style={th_style}>만료 일자</th>
                     <th style={th_style}>입고 일자</th>
@@ -386,7 +386,7 @@ const InventoryListUi: React.FC = () => {
                       <td style={td_style}>{row.lot_id}</td>
                       <td style={td_style}>{row.item_id}</td>
                       <td style={td_style}>{row.warehouse_id}</td>
-                      <td style={td_style}>{row.inventory_id}</td>
+                      {/* 🔻 inventory_id 셀 제거 */}
                       <td style={td_style}>{fmtDate(row.manufacture_date)}</td>
                       <td style={td_style}>{fmtDate(row.expiry_date)}</td>
                       <td style={td_style}>{fmtDate(row.received_date)}</td>
@@ -399,7 +399,8 @@ const InventoryListUi: React.FC = () => {
                   ))}
                   {!lotRows.length && !isLoading && !errorMsg && (
                     <tr>
-                      <td colSpan={8} style={empty_style}>
+                      {/* 🔻 컬럼 수 7개라 colSpan=7 */}
+                      <td colSpan={7} style={empty_style}>
                         조회된 LOT 정보가 없습니다.
                       </td>
                     </tr>
