@@ -102,8 +102,8 @@ export const sidebar_menu: MenuGroup[] = [
         path: "/branch/list",
       },
       {
-        id: "vendors-outbound",
-        label: "출고 내역 조회",
+        id: "sales",
+        label: "매출 관리",
         path: "/",
       },
     ],
