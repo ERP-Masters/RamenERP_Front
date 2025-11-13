@@ -5,7 +5,7 @@ import Sidebar from "@/components/Sidebar";
 
 const layout_grid_desktop: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "290px 1fr",  // 좌측 고정폭 + 본문
+  gridTemplateColumns: "290px 1fr", // 좌측 고정폭 + 본문
   minHeight: "100vh",
   background: "#f7f8fa",
   color: "#111",
@@ -48,6 +48,7 @@ const brand_link_style: React.CSSProperties = {
   textDecoration: "none",
   marginRight: 8,
   letterSpacing: 0.2,
+  cursor: "pointer",
 };
 
 const main_style: React.CSSProperties = {
@@ -60,7 +61,9 @@ const main_style: React.CSSProperties = {
 const Layout: React.FC = () => {
   const [is_sidebar_open, set_is_sidebar_open] = React.useState<boolean>(false);
   const [is_desktop, set_is_desktop] = React.useState<boolean>(() =>
-    typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
+    typeof window !== "undefined"
+      ? window.matchMedia("(min-width: 1024px)").matches
+      : true
   );
 
   React.useEffect(() => {
@@ -81,7 +84,7 @@ const Layout: React.FC = () => {
   return (
     <div style={is_desktop ? layout_grid_desktop : layout_grid_mobile}>
       {is_desktop ? (
-        // 고정(docked) 사이드바
+        // 데스크톱: 고정(docked) 사이드바
         <Sidebar is_open={true} set_is_open={() => {}} mode="docked" />
       ) : (
         // 모바일: 상단 바 + 오버레이 사이드바
@@ -96,7 +99,10 @@ const Layout: React.FC = () => {
             >
               ☰
             </button>
-            <Link to="/" style={brand_link_style}>라멘 ERP</Link>
+            {/* ✅ 좌측 상단 로고 클릭 시 메인(/)으로 이동 */}
+            <Link to="/" style={brand_link_style}>
+              라멘 ERP
+            </Link>
           </header>
           <Sidebar
             is_open={is_sidebar_open}
