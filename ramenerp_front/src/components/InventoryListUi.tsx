@@ -6,7 +6,16 @@ import {
   type LotRow,
 } from "../pages/InventoryListFunction";
 
+import WarehouseDetailInfo from "./WarehouseDetailInfo"; // ✅ 모달 UI
+// (기능 호출은 모달 내부에서 수행)
+
 type Tab = "ALL" | "WAREHOUSE";
+
+// ✅ 창고 조회 탭에서 사용할 "이름 + 내부 PK ID" 요약 타입
+type WarehouseSummary = {
+  name: string;   // 화면에 보여줄 이름
+  pk_id: number;  // 인벤토리에서 가져온 내부 숫자 PK (id)
+};
 
 /* ===== 공통 UI 토큰 ===== */
 const ui_tok = {
@@ -68,6 +77,10 @@ const InventoryListUi: React.FC = () => {
   const [isLoading, set_isLoading] = useState(false);
   const [errorMsg, set_errorMsg] = useState("");
 
+  // ✅ 상세 모달 상태
+  const [is_detail_open, set_is_detail_open] = useState(false);
+  const [selected_warehouse_id, set_selected_warehouse_id] = useState<number | null>(null);
+
   /* 전체 재고: 탭 진입 시 로드 */
   useEffect(() => {
     if (tab !== "ALL") return;
@@ -125,28 +138,66 @@ const InventoryListUi: React.FC = () => {
     );
   }, [inventoryRows, lotFilter]);
 
-  /* 창고 이름 목록(중복 제거) & 부분 일치 필터 (WAREHOUSE 탭) */
-  const uniqueWarehouseNames = useMemo(() => {
-    const names = warehouse_source_rows
-      .map((row) => {
-        const name = (row as any)?.warehouse?.name;
-        if (typeof name === "string" && name.trim()) return name.trim();
-        return String((row as any)?.warehouse_id ?? "");
-      })
-      .filter((v) => v) as string[];
+  /* 창고 이름 목록(중복 제거) & 부분 일치 필터 (WAREHOUSE 탭)
+   *  → 이제는 "이름 + 내부 PK id" 형태로 만들어 둔다.
+   */
+  const uniqueWarehouseNames = useMemo<WarehouseSummary[]>(() => {
+    const map = new Map<string, number>();
 
-    const uniq = Array.from(new Set(names));
+    warehouse_source_rows.forEach((row) => {
+      // 화면에 보여줄 이름 (이름이 없으면 warehouse_id 를 문자열로 사용)
+      const wh: any = (row as any).warehouse;
+      const name_raw =
+        (typeof wh?.name === "string" && wh.name.trim()) ||
+        (row as any).warehouse_name ||
+        String((row as any).warehouse_id ?? "");
+
+      const name = String(name_raw ?? "").trim();
+      if (!name) return;
+
+      // ❗ 여기서부터가 핵심: 인벤토리에서 가져온 "내부 PK id"를 고른다.
+      //   - row.id          : 인벤토리 내부 PK
+      //   - row.warehouse_id: 숫자형이면 창고 PK로 사용 가능
+      const pk_candidates = [
+        (row as any).id,
+        (row as any).warehouse_id,
+      ];
+
+      const pk_id = pk_candidates.find(
+        (v) => typeof v === "number" && !Number.isNaN(v)
+      );
+      if (typeof pk_id !== "number") return;
+
+      // 동일한 이름이 여러 번 나와도 첫 번째 PK만 쓰면 되므로, 한 번만 set
+      if (!map.has(name)) {
+        map.set(name, pk_id);
+      }
+    });
+
+    let list: WarehouseSummary[] = Array.from(map.entries()).map(
+      ([name, pk_id]) => ({ name, pk_id })
+    );
+
     const q = warehouse_name_filter.trim().toLowerCase();
-    if (!q) return uniq.sort((a, b) => a.localeCompare(b, "ko"));
-    return uniq
-      .filter((n) => n.toLowerCase().includes(q))
-      .sort((a, b) => a.localeCompare(b, "ko"));
+    if (q) {
+      list = list.filter((w) => w.name.toLowerCase().includes(q));
+    }
+
+    list.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    return list;
   }, [warehouse_source_rows, warehouse_name_filter]);
 
-  /* 상세 보기 버튼 클릭 (지금은 콘솔만) */
-  const handle_open_warehouse_detail = (warehouse_name: string) => {
-    // TODO: 여기서 모달/라우팅/필터 상세표 구현 가능
-    console.log("[상세 보기] 창고:", warehouse_name);
+  /* 🔑 상세 보기 버튼 클릭 → 모달 열기
+   *   - 이제는 이름이 아니라 "내부 PK id" 만 받는다.
+   */
+  const handle_open_warehouse_detail = (warehouse_pk_id: number) => {
+    if (typeof warehouse_pk_id !== "number" || Number.isNaN(warehouse_pk_id)) {
+      // eslint-disable-next-line no-console
+      console.warn("창고 내부 PK ID가 올바르지 않습니다:", warehouse_pk_id);
+      return;
+    }
+    set_selected_warehouse_id(warehouse_pk_id);
+    set_is_detail_open(true);
   };
 
   return (
@@ -294,13 +345,13 @@ const InventoryListUi: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {uniqueWarehouseNames.map((name, idx) => (
-                    <tr key={`${name}-${idx}`} style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}>
-                      <td style={td_style}>{name}</td>
+                  {uniqueWarehouseNames.map((w, idx) => (
+                    <tr key={`${w.pk_id}-${idx}`} style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}>
+                      <td style={td_style}>{w.name}</td>
                       <td style={{ ...td_style, textAlign: "right" }}>
                         <button
                           type="button"
-                          onClick={() => handle_open_warehouse_detail(name)}
+                          onClick={() => handle_open_warehouse_detail(w.pk_id)}
                           style={{
                             padding: "4px 10px",
                             borderRadius: 999,
@@ -326,6 +377,13 @@ const InventoryListUi: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ✅ 상세 모달 마운트 */}
+      <WarehouseDetailInfo
+        is_open={is_detail_open}
+        warehouse_id={selected_warehouse_id}
+        onClose={() => set_is_detail_open(false)}
+      />
     </div>
   );
 };
