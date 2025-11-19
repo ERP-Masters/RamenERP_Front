@@ -34,13 +34,14 @@ import NotUsedCategoryPageUi from "./components/NotUsedCategoryPageUi";
 import InventoryListUi from "./components/InventoryListUi";
 import BranchOrderListPage from "./pages/BranchOrderListPage";
 import BranchOrderNewPage from "./pages/BranchOrderNewPage";
-
+import LoginPageUi from "./components/LoginPageUi";
 const App: React.FC = () => {
   return (
     <Routes>
+      <Route path="/login" element={<LoginPageUi />} />
       <Route path="/" element={<Layout />}>
-        {/* index를 product로 보내고 싶으면 이거 활성화해도 됨 */}
-        {/* <Route index element={<Navigate to="product" replace />} /> */}
+        {/* 맨 처음 화면은 로그인 화면으로 */}
+        {<Route index element={<Navigate to="/login" replace />} />}
 
         {/* 품목/재고 */}
         <Route path="product" element={<ProductPage />} />
