@@ -11,10 +11,10 @@ import WarehouseDetailInfo from "./WarehouseDetailInfo"; // ✅ 모달 UI
 
 type Tab = "ALL" | "WAREHOUSE";
 
-// ✅ 창고 조회 탭에서 사용할 "이름 + 내부 PK ID" 요약 타입
+// ✅ 창고 조회 탭에서 사용할 "이름 + 창고 PK ID" 요약 타입
 type WarehouseSummary = {
   name: string;   // 화면에 보여줄 이름
-  pk_id: number;  // 인벤토리에서 가져온 내부 숫자 PK (id)
+  pk_id: number;  // /api/inventory/warehouse/:id 에 들어갈 창고 PK (warehouses.id)
 };
 
 /* ===== 공통 UI 토큰 ===== */
@@ -70,8 +70,8 @@ const InventoryListUi: React.FC = () => {
   const [lotRows] = useState<LotRow[]>([]); // 구조 유지용
   const [lotFilter, set_lotFilter] = useState("");
 
-  // ── 창고 조회: 동일 경로(/api/inventory)에서 가져온 데이터만 사용 ──
-  const [warehouse_source_rows, set_warehouse_source_rows] = useState<InventoryRow[]>([]);
+  // ── 창고 조회: 이제 /api/warehouses 에서 가져온 데이터 사용 ──
+  const [warehouse_source_rows, set_warehouse_source_rows] = useState<any[]>([]);
   const [warehouse_name_filter, set_warehouse_name_filter] = useState("");
 
   const [isLoading, set_isLoading] = useState(false);
@@ -88,18 +88,33 @@ const InventoryListUi: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  /* 창고 조회: 탭 진입 시에도 동일 경로 호출 */
+  /* 창고 조회: 탭 진입 시 /api/warehouses 호출 */
   useEffect(() => {
     if (tab !== "WAREHOUSE") return;
     set_errorMsg("");
     set_isLoading(true);
     (async () => {
       try {
-        const data = await fetchAllInventories(); // ✅ 동일 경로 사용
-        set_warehouse_source_rows(data);
+        const res = await fetch("/api/warehouses", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : null;
+
+        if (!res.ok) {
+          const msg = (data as any)?.message || `HTTP ${res.status}`;
+          throw new Error(msg);
+        }
+
+        const rows: any[] =
+          Array.isArray(data) ? data :
+          (data && Array.isArray((data as any).items) ? (data as any).items : []);
+
+        set_warehouse_source_rows(rows);
       } catch (e: any) {
         set_warehouse_source_rows([]);
-        set_errorMsg(e?.message || "인벤토리(창고 조회) 로드 중 오류가 발생했습니다.");
+        set_errorMsg(e?.message || "창고 목록 로드 중 오류가 발생했습니다.");
       } finally {
         set_isLoading(false);
       }
@@ -138,45 +153,18 @@ const InventoryListUi: React.FC = () => {
     );
   }, [inventoryRows, lotFilter]);
 
-  /* 창고 이름 목록(중복 제거) & 부분 일치 필터 (WAREHOUSE 탭)
-   *  → 이제는 "이름 + 내부 PK id" 형태로 만들어 둔다.
+  /* 창고 이름 목록 + 창고 PK id (WAREHOUSE 탭)
+   *  → /api/warehouses 응답의 { id, name } 를 그대로 사용
    */
   const uniqueWarehouseNames = useMemo<WarehouseSummary[]>(() => {
-    const map = new Map<string, number>();
-
-    warehouse_source_rows.forEach((row) => {
-      // 화면에 보여줄 이름 (이름이 없으면 warehouse_id 를 문자열로 사용)
-      const wh: any = (row as any).warehouse;
-      const name_raw =
-        (typeof wh?.name === "string" && wh.name.trim()) ||
-        (row as any).warehouse_name ||
-        String((row as any).warehouse_id ?? "");
-
-      const name = String(name_raw ?? "").trim();
-      if (!name) return;
-
-      // ❗ 여기서부터가 핵심: 인벤토리에서 가져온 "내부 PK id"를 고른다.
-      //   - row.id          : 인벤토리 내부 PK
-      //   - row.warehouse_id: 숫자형이면 창고 PK로 사용 가능
-      const pk_candidates = [
-        (row as any).id,
-        (row as any).warehouse_id,
-      ];
-
-      const pk_id = pk_candidates.find(
-        (v) => typeof v === "number" && !Number.isNaN(v)
-      );
-      if (typeof pk_id !== "number") return;
-
-      // 동일한 이름이 여러 번 나와도 첫 번째 PK만 쓰면 되므로, 한 번만 set
-      if (!map.has(name)) {
-        map.set(name, pk_id);
-      }
-    });
-
-    let list: WarehouseSummary[] = Array.from(map.entries()).map(
-      ([name, pk_id]) => ({ name, pk_id })
-    );
+    let list: WarehouseSummary[] = warehouse_source_rows
+      .map((row: any) => {
+        const name = String(row?.name ?? row?.warehouse_id ?? "").trim();
+        const pk_id = Number(row?.id);
+        if (!name || Number.isNaN(pk_id)) return null;
+        return { name, pk_id };
+      })
+      .filter((v): v is WarehouseSummary => v !== null);
 
     const q = warehouse_name_filter.trim().toLowerCase();
     if (q) {
@@ -188,7 +176,7 @@ const InventoryListUi: React.FC = () => {
   }, [warehouse_source_rows, warehouse_name_filter]);
 
   /* 🔑 상세 보기 버튼 클릭 → 모달 열기
-   *   - 이제는 이름이 아니라 "내부 PK id" 만 받는다.
+   *   - warehouses.id(숫자 PK)를 그대로 /inventory/warehouse/:id 에 사용
    */
   const handle_open_warehouse_detail = (warehouse_pk_id: number) => {
     if (typeof warehouse_pk_id !== "number" || Number.isNaN(warehouse_pk_id)) {
