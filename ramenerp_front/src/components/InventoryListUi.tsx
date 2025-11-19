@@ -199,7 +199,7 @@ const InventoryListUi: React.FC = () => {
             <div style={tabs_row}>
               {([
                 ["ALL", "전체 재고 현황"],
-                ["WAREHOUSE", "창고 조회"],
+                ["WAREHOUSE", "창고 별 조회"],
               ] as [Tab, string][]).map(([key, label]) => {
                 const active = tab === key;
                 return (

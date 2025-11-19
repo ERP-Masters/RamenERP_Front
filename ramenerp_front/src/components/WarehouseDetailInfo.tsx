@@ -154,9 +154,7 @@ const WarehouseDetailInfo: React.FC<WarehouseDetailInfoProps> = ({
       <div style={modal_style}>
         <div style={head_style}>
           <div>창고 상세 보기</div>
-          <button type="button" onClick={onClose} style={btn_style}>
-            닫기
-          </button>
+          {/* 상단 닫기 버튼 제거 (하단 버튼만 유지) */}
         </div>
 
         <div style={body_style}>
@@ -168,20 +166,20 @@ const WarehouseDetailInfo: React.FC<WarehouseDetailInfoProps> = ({
               <thead>
                 <tr>
                   <th style={th_style}>재고 코드</th>
-                  <th style={th_style}>창고</th>
+                  {/* 창고 컬럼 제거 */}
                   <th style={th_style}>품목</th>
                   <th style={th_style}>LOT 코드</th>
                   <th style={th_style}>수량</th>
                   <th style={th_style}>안전 재고</th>
                   <th style={th_style}>입고 일시</th>
-                  <th style={th_style}>만료 일시</th>
+                  <th style={th_style}>유통기한</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td style={td_style}>{r.inventory_id}</td>
-                    <td style={td_style}>{r.warehouse_id}</td>
+                    {/* <td style={td_style}>{r.warehouse_id}</td>  ← 제거 */}
                     <td style={td_style}>{r.item_id}</td>
                     <td style={td_style}>{r.lot_id}</td>
                     <td style={td_style}>{r.quantity}</td>
@@ -192,7 +190,10 @@ const WarehouseDetailInfo: React.FC<WarehouseDetailInfoProps> = ({
                 ))}
                 {!rows.length && (
                   <tr>
-                    <td colSpan={8} style={{ ...td_style, color: ui_tok.label, textAlign: "center" }}>
+                    <td
+                      colSpan={7}
+                      style={{ ...td_style, color: ui_tok.label, textAlign: "center" }}
+                    >
                       표시할 데이터가 없습니다.
                     </td>
                   </tr>
