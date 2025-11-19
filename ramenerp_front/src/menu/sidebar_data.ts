@@ -84,13 +84,26 @@ export const sidebar_menu: MenuGroup[] = [
         label: "재고 관리",
         path: "/inventory/list",
       },
-      {
-        id: "sales-order-management",
-        label: "수주 관리",
-        path: "/",
-      },
     ],
   },
+
+  {
+    id: "sales-order-management",
+    label: "수주 관리",
+    children: [
+      { 
+        id: "branch-order-list", 
+        label: "수주 내역", 
+        path: "/branch-order" 
+      },
+       { 
+        id: "branch-order-new", 
+        label: "수주 등록",
+        path: "/branch-order/new"
+      },
+  ],
+  },
+
 
   {
     id: "branches",

@@ -32,6 +32,8 @@ import NotUsedWarehousePageUi from "./components/NotUsedWarehousePageUi";
 import NotUsedUnitPageUi from "./components/NotUsedUnitPageUi";
 import NotUsedCategoryPageUi from "./components/NotUsedCategoryPageUi";
 import InventoryListUi from "./components/InventoryListUi";
+import BranchOrderListPage from "./pages/BranchOrderListPage";
+import BranchOrderNewPage from "./pages/BranchOrderNewPage";
 
 const App: React.FC = () => {
   return (
@@ -50,11 +52,14 @@ const App: React.FC = () => {
         <Route path="vendor/list" element={<VendorListPage />} />
         <Route path="vendor/state" element={<NotUsedVendorPageUi />} />
 
-        {/* ✅ 발주 */}
+        {/* 발주 */}
         <Route path="vendor-order" element={<VendorOrderListPage />} />
         <Route path="vendor-order/new" element={<VendorOrderNewPage />} />
         <Route path="vendor-order/completed" element={<VendorOrderCompletedPage />} />
 
+        {/* 수주 */}
+        <Route path="branch-order" element={<BranchOrderListPage />} />
+        <Route path="branch-order/new" element={<BranchOrderNewPage />} />
 
         {/* 카테고리 */}
         <Route path="category/register" element={<CategoryRegisterPage />} />
