@@ -171,9 +171,13 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           {group.children.map((item) => {
             // 현재 경로와 메뉴 path 비교해서 active 여부 판단
-            const is_active =
-              pathname === item.path ||
-              pathname.startsWith(item.path + "/");
+            // 정확한 매칭을 우선 확인하고, 같은 그룹 내에서 더 긴 경로가 정확히 일치하면 그것만 활성화
+            const exact_match = pathname === item.path;
+            const has_exact_match_in_group = group.children.some(
+              (other) => pathname === other.path
+            );
+            const is_active = exact_match || 
+              (!has_exact_match_in_group && pathname.startsWith(item.path + "/"));
 
             return (
               <NavLink
