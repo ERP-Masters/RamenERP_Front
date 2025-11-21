@@ -1,5 +1,6 @@
 // src/components/MainCalendarSection.tsx
 import React, { JSX } from "react";
+import { useNavigate } from "react-router-dom";
 import { use_main_calendar } from "../pages/MainDashBoardFunction";
 
 const ui_tok = {
@@ -214,8 +215,39 @@ const schedule_row_odd_style: React.CSSProperties = {
   background: "#f9fafb",
 };
 
+// 발주/수주 리스트 하단 '더 보기' 영역 스타일
+const more_link_row_style: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-end",
+  marginTop: 8,
+  fontSize: 11,
+};
+
+const more_link_style: React.CSSProperties = {
+  color: ui_tok.label,
+  textDecoration: "none",
+  cursor: "pointer",
+};
+
 const MainCalendarSection: React.FC = () => {
   const calendar = use_main_calendar();
+  const navigate = useNavigate();
+
+  const is_purchase_tab = calendar.active_tab === "purchase";
+
+  const handle_click_more_purchase = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+  ) => {
+    e.preventDefault();
+    navigate("/vendor-order");
+  };
+
+  const handle_click_more_sales = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+  ) => {
+    e.preventDefault();
+    navigate("/branch-order");
+  };
 
   const rows: JSX.Element[] = [];
   for (let row_index = 0; row_index < 6; row_index++) {
@@ -249,8 +281,6 @@ const MainCalendarSection: React.FC = () => {
       </tr>,
     );
   }
-
-  const is_purchase_tab = calendar.active_tab === "purchase";
 
   return (
     <section style={card_style}>
@@ -368,6 +398,16 @@ const MainCalendarSection: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+              {/* 발주 리스트 하단 '더 보기' */}
+              <div style={more_link_row_style}>
+                <a
+                  href="#"
+                  style={more_link_style}
+                  onClick={handle_click_more_purchase}
+                >
+                  더 보기
+                </a>
+              </div>
             </div>
           )}
 
@@ -399,6 +439,16 @@ const MainCalendarSection: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+              {/* 수주 리스트 하단 '더 보기' */}
+              <div style={more_link_row_style}>
+                <a
+                  href="#"
+                  style={more_link_style}
+                  onClick={handle_click_more_sales}
+                >
+                  더 보기
+                </a>
+              </div>
             </div>
           )}
         </div>

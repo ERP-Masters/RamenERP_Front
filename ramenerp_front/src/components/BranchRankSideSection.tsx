@@ -33,6 +33,12 @@ const title_style: React.CSSProperties = {
   fontWeight: 600,
 };
 
+const more_link_style: React.CSSProperties = {
+  fontSize: 11,
+  color: ui_tok.label,
+  textDecoration: "none",
+};
+
 const list_style: React.CSSProperties = {
   listStyle: "none",
   padding: 0,
@@ -70,6 +76,9 @@ const BranchRankSideSection: React.FC = () => {
     <div style={card_style}>
       <div style={header_style}>
         <div style={title_style}>이 달의 지점 TOP 5</div>
+        <a href="#" style={more_link_style}>
+          더 보기
+        </a>
       </div>
       <ul style={list_style}>
         {branch_rank_list.map((b) => (

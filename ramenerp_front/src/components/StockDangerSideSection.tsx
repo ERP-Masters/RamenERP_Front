@@ -1,5 +1,6 @@
 // src/components/StockDangerSideSection.tsx
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { stock_alert_list } from "../pages/MainDashBoardFunction";
 
 const ui_tok = {
@@ -42,6 +43,12 @@ const badge_style: React.CSSProperties = {
   color: "#1d4ed8",
 };
 
+const more_link_style: React.CSSProperties = {
+  fontSize: 11,
+  color: ui_tok.label,
+  textDecoration: "none",
+};
+
 const list_style: React.CSSProperties = {
   listStyle: "none",
   padding: 0,
@@ -77,11 +84,24 @@ const level_style: React.CSSProperties = {
 };
 
 const StockDangerSideSection: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handle_click_more = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    // ✅ 실제 재고 관리 페이지 경로로 수정해서 사용하면 됨
+    navigate("/inventory/list");
+  };
+
   return (
     <div style={card_style}>
       <div style={header_style}>
         <div style={title_style}>안전 재고 위험 알림</div>
-        <span style={badge_style}>LOW STOCK</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={badge_style}>LOW STOCK</span>
+          <a href="#" style={more_link_style} onClick={handle_click_more}>
+            더 보기
+          </a>
+        </div>
       </div>
       <ul style={list_style}>
         {stock_alert_list.map((s) => (

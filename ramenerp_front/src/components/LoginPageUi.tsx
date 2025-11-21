@@ -18,12 +18,12 @@ const ui_tok = {
 
 // ✅ 화면 정중앙보다 살짝 위에 오도록 수정
 const page_wrap_style: React.CSSProperties = {
-  minHeight: "100vh",
+  minHeight: "120vh",
   background: ui_tok.bg_page,
   display: "flex",
   justifyContent: "center",
   alignItems: "flex-start",        // center → flex-start
-  padding: "96px 16px 32px",      // 위쪽 여백을 넉넉하게
+  padding: "170px 16px 32px",      // 위쪽 여백을 넉넉하게
 };
 
 const card_style: React.CSSProperties = {
@@ -41,11 +41,6 @@ const title_style: React.CSSProperties = {
   fontSize: 22,
   fontWeight: 800,
   color: ui_tok.text,
-};
-
-const subtitle_style: React.CSSProperties = {
-  fontSize: 13,
-  color: ui_tok.label,
 };
 
 const form_style: React.CSSProperties = {
@@ -92,25 +87,10 @@ const btn_style_primary: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const helper_box_style: React.CSSProperties = {
-  marginTop: 4,
-  fontSize: 11,
-  color: ui_tok.label,
-  lineHeight: 1.4,
-};
-
 const error_style: React.CSSProperties = {
   marginTop: 4,
   fontSize: 12,
   color: ui_tok.danger,
-};
-
-const backend_note_style: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 11,
-  color: ui_tok.label,
-  borderTop: `1px dashed ${ui_tok.border}`,
-  paddingTop: 8,
 };
 
 const LoginPageUi: React.FC = () => {
@@ -139,8 +119,7 @@ const LoginPageUi: React.FC = () => {
       <div style={card_style}>
         {/* 헤더 */}
         <div>
-          <div style={title_style}>Ramen ERP 로그인</div>
-          <div style={subtitle_style}>가상의 라멘 프랜차이즈 본사 ERP에 접속합니다.</div>
+          <div style={title_style}>Ramen ERP</div>
         </div>
 
         {/* 로그인 폼 */}
@@ -183,17 +162,6 @@ const LoginPageUi: React.FC = () => {
           <button type="submit" style={btn_style_primary} disabled={is_submitting}>
             {is_submitting ? "확인 중..." : "로그인"}
           </button>
-
-          <div style={helper_box_style}>
-            <div>※ 현재는 더미 계정으로만 로그인 가능합니다.</div>
-            <div>
-              ID: <code>admin</code> / PW: <code>ramen1234</code>
-            </div>
-          </div>
-
-          <div style={backend_note_style}>
-            추후 백엔드 연동 시 사용할 로그인 API 경로: <strong>/api/auth/login</strong> (예시)
-          </div>
         </form>
       </div>
     </div>
