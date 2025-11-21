@@ -129,7 +129,7 @@ const LoginPageUi: React.FC = () => {
     e.preventDefault();
     void handle_submit({
       on_success: () => {
-        navigate("/product", { replace: true });
+        navigate("/dashboard", { replace: true });
       },
     });
   };

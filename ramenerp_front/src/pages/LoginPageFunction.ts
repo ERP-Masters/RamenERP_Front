@@ -2,6 +2,7 @@
 // 로그인 로직 & 더미 계정 검증 전용 훅
 
 import { useState, type ChangeEvent } from "react";
+import { useNavigate } from "react-router-dom";  // ✅ 추가
 
 const DUMMY_USER_ID = "admin";       // 임시 더미 아이디
 const DUMMY_PASSWORD = "ramen1234";  // 임시 더미 비밀번호
@@ -22,6 +23,8 @@ export function useLoginForm(): UseLoginFormReturn {
   const [password, set_password] = useState("");
   const [is_submitting, set_is_submitting] = useState(false);
   const [error_msg, set_error_msg] = useState("");
+
+  const navigate = useNavigate();  // ✅ 추가
 
   const handle_change_id = (e: ChangeEvent<HTMLInputElement>) => {
     set_user_id(e.target.value);
@@ -46,6 +49,10 @@ export function useLoginForm(): UseLoginFormReturn {
         // 간단 세션 플래그 (필요하면 나중에 교체)
         sessionStorage.setItem("ramenerp_login_ok", "1");
 
+        // ✅ 여기서 바로 대시보드로 이동
+        navigate("/dashboard", { replace: true });
+
+        // 필요하면 추가 콜백도 그대로 호출
         if (opts.on_success) {
           opts.on_success();
         }

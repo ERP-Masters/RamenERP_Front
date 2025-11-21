@@ -15,7 +15,6 @@ import VendorOrderListPage from "./pages/VendorOrderListPage";
 import VendorOrderNewPage from "./pages/VendorOrderNewPage";
 import VendorOrderCompletedPage from "./pages/VendorOrderCompletedPage";
 
-
 import CategoryRegisterPage from "./pages/CategoryRegisterPage";
 import CategoryListPanel from "./components/CategoryListPanel";
 
@@ -34,14 +33,23 @@ import NotUsedCategoryPageUi from "./components/NotUsedCategoryPageUi";
 import InventoryListUi from "./components/InventoryListUi";
 import BranchOrderListPage from "./pages/BranchOrderListPage";
 import BranchOrderNewPage from "./pages/BranchOrderNewPage";
+
 import LoginPageUi from "./components/LoginPageUi";
+import MainDashboardPageUi from "./components/MainDashBoardPageUi";
+
 const App: React.FC = () => {
   return (
     <Routes>
+      {/* 1) 로그인 화면: 레이아웃 없이 단독 */}
       <Route path="/login" element={<LoginPageUi />} />
+
+      {/* 2) 메인 대시보드: 레이아웃 없이 전체 화면 + 오버레이 사이드바 */}
+      <Route path="/dashboard" element={<MainDashboardPageUi />} />
+
+      {/* 3) 나머지는 예전처럼 Layout 아래에서 동작 */}
       <Route path="/" element={<Layout />}>
-        {/* 맨 처음 화면은 로그인 화면으로 */}
-        {<Route index element={<Navigate to="/login" replace />} />}
+        {/* ✅ 프로그램 처음 들어올 때(/)는 무조건 로그인으로 보냄 */}
+        <Route index element={<Navigate to="/login" replace />} />
 
         {/* 품목/재고 */}
         <Route path="product" element={<ProductPage />} />
@@ -83,7 +91,7 @@ const App: React.FC = () => {
         <Route path="branch/list" element={<BranchListPage />} />
         <Route path="branch/state" element={<NotUsedBranchUi />} />
 
-        {/* fallback */}
+        {/* fallback (예전 그대로) */}
         <Route path="*" element={<Navigate to="product" replace />} />
       </Route>
     </Routes>
