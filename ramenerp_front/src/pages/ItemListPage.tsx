@@ -103,6 +103,15 @@ const act = {
   cursor: "pointer",
 } as const;
 
+/* 👉 단위 패널에서 쓰던 아이콘 버튼 스타일과 동일 컨셉 */
+const icon_btn = {
+  background: "transparent",
+  border: "none",
+  padding: 4,
+  cursor: "pointer",
+  lineHeight: 0,
+} as const;
+
 /* ===================== 유틸 ===================== */
 const norm_id = (v: unknown): string => {
   const s = String(v ?? "").trim();
@@ -790,39 +799,88 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
                             : "")}
                       </td>
                       <td style={td}>
-                        <button
-                          onClick={() =>
-                            start_edit(
-                              r,
-                            )
-                          }
-                          disabled={Boolean(
-                            acting_id,
-                          )}
+                        <div
                           style={{
-                            ...act,
-                            marginRight: 6,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
                           }}
                         >
-                          수정
-                        </button>
-                        <button
-                          onClick={() =>
-                            void mark_notused(
-                              r,
-                            )
-                          }
-                          disabled={
-                            acting_id ===
-                            r.item_id
-                          }
-                          style={act}
-                        >
-                          {acting_id ===
-                          r.item_id
-                            ? "처리 중..."
-                            : "미사용"}
-                        </button>
+                          {/* ✏️ 수정 아이콘 버튼 */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              start_edit(
+                                r,
+                              )
+                            }
+                            disabled={Boolean(
+                              acting_id,
+                            )}
+                            style={icon_btn}
+                            title="수정"
+                            aria-label="수정"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 20 20"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z"
+                                stroke="#374151"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M12 5l3 3"
+                                stroke="#374151"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+
+                          {/* 🗑 미사용(휴지통) 아이콘 버튼 */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void mark_notused(
+                                r,
+                              )
+                            }
+                            disabled={
+                              acting_id ===
+                              r.item_id
+                            }
+                            style={icon_btn}
+                            title="미사용으로 전환"
+                            aria-label="미사용으로 전환"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 20 20"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z"
+                                stroke="#ef4444"
+                                strokeWidth="1.5"
+                              />
+                              <path
+                                d="M4 7h12M8 7V4h4v3"
+                                stroke="#ef4444"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
