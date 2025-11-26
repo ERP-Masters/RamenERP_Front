@@ -1,14 +1,7 @@
 // src/components/NoticeSideSection.tsx
 import React from "react";
 import { notice_list } from "../pages/MainDashBoardFunction";
-
-const ui_tok = {
-  surface: "#ffffff",
-  border: "#e5e7eb",
-  text: "#111827",
-  label: "#6b7280",
-  radius: 18,
-} as const;
+import { ui_tok } from "@/ui/ui_tok";
 
 const card_style: React.CSSProperties = {
   background: ui_tok.surface,

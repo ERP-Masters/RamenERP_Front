@@ -1,26 +1,15 @@
 // src/pages/BranchListPage.tsx
 import React, { useEffect, useState } from "react";
-
-// ✅ 지점 등록 모달(이미 사용 중이면 유지)
 import BranchRegisterPage from "./BranchRegisterPage";
-
-// ✅ 지점 수정 모달/서비스
 import BranchEditUi, {
   putBranch,
   type BranchEditTarget,
 } from "./BranchEditFunction";
-
-// ✅ 미사용 등록 모달(UI)
 import BranchNoutUsedUi from "../components/BranchNotUsedUi";
-
-// ✅ 추가: 미사용 전환 API (PUT isused=NOTUSED)
 import { markBranchNotUsed } from "./BranchNotUsedFunction";
-
-// ✅ 추가: 지점 ID 상세 검색 모달(창고와 동일 UX)
 import BranchSummarySearch from "../components/BranchSummarySearch";
-
-/* ===== 공통: API 베이스 ===== */
 const BR_API = "/api/branches";
+import { ui_tok } from "@/ui/ui_tok";
 
 /* ===== 타입 ===== */
 // ⚠️ 내부 DB PK는 id, 화면 표시용 ID는 branch_id
@@ -50,21 +39,6 @@ type Row = {
   isused?: string | null;
   created_at: string;
 };
-
-/* ===== UI 토큰 ===== */
-const ui_tok = {
-  bg_page: "#f6f7f9",
-  surface: "#ffffff",
-  border: "#e6e8ec",
-  header_bg: "#f8fafc",
-  zebra: "#fafafa",
-  text: "#111827",
-  label: "#6b7280",
-  radius: 12,
-  primary_bg: "#0ea5e9",
-  primary_border: "#0284c7",
-  primary_text: "#ffffff",
-} as const;
 
 /* ===== 레이아웃 ===== */
 const page_wrap_style: React.CSSProperties = {

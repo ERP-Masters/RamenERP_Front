@@ -1,18 +1,11 @@
 // src/components/UnitListPanel.tsx
 import React, { useEffect, useState } from "react";
-
-// 수정 UI/기능 (기존)
 import UnitEditUI from "../components/UnitEditUi";
 import { putUnit, type UnitEditTarget } from "../pages/UnitEditFunction";
-
-// ✅ 단위 미사용 등록 확인 UI (휴지통 클릭 시 띄울 모달)
 import UnitNotUsedUi from "../components/NotUsedUnitUi";
-
-// ✅ 모달로 띄울 등록 페이지 (기존 페이지를 그대로 사용)
 import UnitRegisterPage from "../pages/UnitRegisterPage";
-
-// ✅ 단위 ID 요약 조회 모달(이전 단계에서 만든 컴포넌트 사용 중이라면)
 import UnitSummarySearch from "../components/UnitSummarySearch";
+import { ui_tok } from "@/ui/ui_tok";
 
 type ApiUnit = {
   unit_id: number | string;
@@ -30,21 +23,6 @@ type UnitRow = {
   // 화면 표시용 문자열 ID (런타임 속성으로만 보강)
   display_unit_id?: string;
 };
-
-const ui_tok = {
-  bg_page: "#f6f7f9",
-  surface: "#ffffff",
-  border: "#e6e8ec",
-  header_bg: "#f8fafc",
-  zebra: "#fafafa",
-  text: "#111827",
-  label: "#6b7280",
-  radius: 12,
-  focus: "0 0 0 3px rgba(14,165,233,0.25)",
-  primary_bg: "#0ea5e9",
-  primary_border: "#0284c7",
-  primary_text: "#ffffff",
-} as const;
 
 const page_wrap_style: React.CSSProperties = {
   background: ui_tok.bg_page,

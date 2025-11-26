@@ -1,15 +1,10 @@
 // src/pages/CategoryListPanel.tsx
 import React, { useEffect, useState } from "react";
 import CategoryEditPage, { CategoryEditTarget } from "./CategoryEditPage";
-
-// ✅ 미사용(삭제) 확인 모달 UI
 import CategoryDeleteUI from "../components/NotUsedCategoryUi";
-
-// ✅ 모달로 띄울 등록 페이지 (기존 페이지 그대로 사용)
 import CategoryRegisterPage from "../pages/CategoryRegisterPage";
-
-// ✅ 카테고리 ID 조회 모달
 import CategorySummarySearch from "../components/CategorySummarySearch";
+import { ui_tok } from "@/ui/ui_tok";
 
 type ApiCategory = {
   id?: number; // ✅ DB PK (서버가 내려주면 사용)
@@ -26,22 +21,6 @@ type CategoryRow = {
   category_name: string;
   is_active?: boolean;
 } & { display_category_id?: string };
-
-/* ===== 화면 공통 토큰 ===== */
-const ui_tok = {
-  bg_page: "#f6f7f9",
-  surface: "#ffffff",
-  border: "#e6e8ec",
-  header_bg: "#f8fafc",
-  zebra: "#fafafa",
-  text: "#111827",
-  label: "#6b7280",
-  radius: 12,
-  focus: "0 0 0 3px rgba(14,165,233,0.25)",
-  primary_bg: "#0ea5e9",
-  primary_border: "#0284c7",
-  primary_text: "#ffffff",
-} as const;
 
 /* ===== 페이지 레이아웃 ===== */
 const page_wrap_style: React.CSSProperties = {

@@ -1,10 +1,13 @@
 // src/pages/NotUsedCategoryPageUi.tsx
 import React, { useEffect, useState } from "react";
+import { UsedIconButton } from "./common/IconButtons";
 import {
   fetchNotUsedCategories,
   type ApiCategory,
 } from "../pages/CategoryNotUsedFunction";
 import { markManyCategoriesUsed } from "../pages/CategoryUsedFunction";
+import { ui_tok } from "@/ui/ui_tok";
+
 
 /** 화면 표시에만 쓰는 행 타입 */
 type Row = {
@@ -13,17 +16,6 @@ type Row = {
   group: string;
   category_name: string;
 };
-
-const ui_tok = {
-  bg_page: "#f6f7f9",
-  surface: "#ffffff",
-  border: "#e6e8ec",
-  header_bg: "#f8fafc",
-  zebra: "#fafafa",
-  text: "#111827",
-  label: "#6b7280",
-  radius: 12,
-} as const;
 
 const page_wrap_style: React.CSSProperties = {
   background: ui_tok.bg_page,
@@ -222,16 +214,10 @@ const NotUsedCategoryPageUi: React.FC = () => {
           >
             {select_mode ? "선택 해제" : "선택"}
           </button>
-
           {select_mode && (
-            <button
-              type="button"
-              style={use_btn_style}
+            <UsedIconButton
               onClick={handle_restore_use}
-              title="사용으로 전환"
-            >
-              사용
-            </button>
+            />
           )}
         </div>
 

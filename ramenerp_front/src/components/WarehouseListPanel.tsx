@@ -1,18 +1,15 @@
 // src/components/WarehouseListPanel.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-// (기존) 수정 UI & 기능
 import WarehouseEditUi from "../components/WarehouseEditUi";
 import {
   putWarehouse,
   type WarehouseEditTarget,
   type ApiWarehouse,
 } from "../pages/WarehouseEditFunction";
-// (추가) 모달로 띄울 등록 폼(프로펠스 없이 사용)
 import WareHouseRegister from "../pages/WarehouseRegister";
-// ✅ 창고 ID 상세 검색 모달
 import WarehouseSummarySearch from "../components/WarehouseSummarySearch";
-// ✅ 미사용( NOTUSED ) 전환 기능 (실제 PUT은 WarehouseNotUsedUi 안에서 호출)
 import WarehouseNotUsedUi from "../components/NotUsedWarehouseUi";
+import { ui_tok } from "@/ui/ui_tok";
 
 type ApiWarehouseListItem = {
   id: number; // ✅ 실제 PK
@@ -35,22 +32,6 @@ type Row = {
 export interface WarehouseListPanelProps {
   filterLocation?: string;
 }
-
-/* ===== 거래처 화면과 동일 토큰 ===== */
-const ui_tok = {
-  bg_page: "#f6f7f9",
-  surface: "#ffffff",
-  border: "#e6e8ec",
-  header_bg: "#f8fafc",
-  zebra: "#fafafa",
-  text: "#111827",
-  label: "#6b7280",
-  radius: 12,
-  focus: "0 0 0 3px rgba(14,165,233,0.25)",
-  primary_bg: "#0ea5e9",
-  primary_border: "#0284c7",
-  primary_text: "#ffffff",
-} as const;
 
 /* ===== 페이지 여백/레이아웃(거래처와 동일) ===== */
 const page_wrap_style: React.CSSProperties = {

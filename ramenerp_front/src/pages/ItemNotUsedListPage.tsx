@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { change_item_use_state } from "@/api/items";
 import { fetch_vendors, type VendorOption } from "@/api/master_data";
 import { useNavigate } from "react-router-dom";
+import { UsedIconButton } from "@/components/common/IconButtons";
+
 
 type Row = {
   id: number; // DB PK
@@ -312,13 +314,9 @@ const ItemNotUsedListPage: React.FC = () => {
                       textAlign: "right",
                     }}
                   >
-                    <button
-                      type="button"
-                      style={act}
+                    <UsedIconButton
                       onClick={() => onUse(r)}
-                    >
-                      사용 전환
-                    </button>
+                    />
                   </td>
                 </tr>
               );

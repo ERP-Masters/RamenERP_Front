@@ -3,6 +3,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import ItemRegisterForm from "./ItemRegisterForm";
 import { change_item_use_state } from "@/api/items";
 import { fetch_vendors, type VendorOption } from "@/api/master_data";
+import {
+  EditIconButton,
+  NotUsedIconButton,
+} from "@/components/common/IconButtons";
 
 /* ===================== 타입 ===================== */
 export interface ProductRow {
@@ -790,39 +794,15 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
                             : "")}
                       </td>
                       <td style={td}>
-                        <button
-                          onClick={() =>
-                            start_edit(
-                              r,
-                            )
-                          }
-                          disabled={Boolean(
-                            acting_id,
-                          )}
-                          style={{
-                            ...act,
-                            marginRight: 6,
-                          }}
-                        >
-                          수정
-                        </button>
-                        <button
-                          onClick={() =>
-                            void mark_notused(
-                              r,
-                            )
-                          }
-                          disabled={
-                            acting_id ===
-                            r.item_id
-                          }
-                          style={act}
-                        >
-                          {acting_id ===
-                          r.item_id
-                            ? "처리 중..."
-                            : "미사용"}
-                        </button>
+                        <EditIconButton
+                          onClick={() => start_edit(r)}
+                          disabled={Boolean(acting_id)}
+                        />
+                        <NotUsedIconButton
+                          onClick={() => void mark_notused(r)}
+                          disabled={acting_id === r.item_id}
+                          is_loading={acting_id === r.item_id}
+                        />
                       </td>
                     </tr>
                   );

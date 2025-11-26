@@ -1,7 +1,9 @@
-// src/pages/NotUsedBranchPageUi.tsx
+// src/components/NotUsedBranchPageUi.tsx
 import React, { useEffect, useState } from "react";
 import { fetchNotUsedBranches, type ApiBranch } from "../pages/BranchNotUsedFunction";
 import { markManyBranchesUsed } from "../pages/BranchUsedFunction";
+import { UsedIconButton } from "./common/IconButtons";
+import { ui_tok } from "@/ui/ui_tok";
 
 /** 화면 표시에만 쓰는 행 타입
  *  - id: 내부 DB PK
@@ -17,17 +19,6 @@ type Row = {
   contact: string;
   created_at: string;
 };
-
-const ui_tok = {
-  bg_page: "#f6f7f9",
-  surface: "#ffffff",
-  border: "#e6e8ec",
-  header_bg: "#f8fafc",
-  zebra: "#fafafa",
-  text: "#111827",
-  label: "#6b7280",
-  radius: 12,
-} as const;
 
 const page_wrap_style: React.CSSProperties = {
   background: ui_tok.bg_page,
@@ -297,29 +288,11 @@ const NotUsedBranchPageUi: React.FC = () => {
     <div style={page_wrap_style}>
       <div style={page_style}>
         <div style={title_style}>미사용 직영점 조회</div>
-
-        <div style={top_bar_style}>
-          <button
-            type="button"
-            style={select_btn_style}
-            onClick={toggle_select_mode}
-            title="선택 모드"
-          >
-            {select_mode ? "선택 해제" : "선택"}
-          </button>
-
-          {select_mode && (
-            <button
-              type="button"
-              style={use_btn_style}
+        {select_mode && (
+            <UsedIconButton
               onClick={handle_restore_use}
-              title="사용으로 전환"
-            >
-              사용
-            </button>
-          )}
-        </div>
-
+            />
+            )}
         <div style={table_card_style}>
           <div style={table_scroll_style}>
             <table style={table_style}>

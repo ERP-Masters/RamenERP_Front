@@ -1,18 +1,15 @@
 // src/pages/MainDashboardPageUi.tsx
 // 달력 + 공지 + 지점 + 안전재고를 한 화면에 모은 메인 페이지 UI
-
+// src/components/MainDashBoardPageUi.tsx
 import React from "react";
 import Sidebar from "@/components/Sidebar";
 import MainCalendarSection from "../components/MainCalendarSection";
 import NoticeSideSection from "../components/NoticeSideSection";
 import BranchRankSideSection from "../components/BranchRankSideSection";
 import StockDangerSideSection from "../components/StockDangerSideSection";
-// ✅ 사이드바에서 사용 중인 액션 훅 재사용 (로그아웃용)
 import { useSidebarHeaderActions } from "../pages/SideabarHeaderActionsFunction";
+import { ui_tok } from "@/ui/ui_tok";
 
-const ui_tok = {
-  bg_page: "#f5f7fb",
-} as const;
 
 const page_wrap_style: React.CSSProperties = {
   padding: "8px 16px",

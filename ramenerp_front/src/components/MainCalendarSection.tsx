@@ -2,18 +2,7 @@
 import React, { JSX } from "react";
 import { useNavigate } from "react-router-dom";
 import { use_main_calendar } from "../pages/MainDashBoardFunction";
-
-const ui_tok = {
-  bg_page: "#f5f7fb",
-  surface: "#ffffff",
-  border: "#e5e7eb",
-  header_bg: "#f8fafc",
-  text: "#111827",
-  label: "#6b7280",
-  primary_bg: "#111827",
-  primary_text: "#f9fafb",
-  radius: 18,
-} as const;
+import { ui_tok } from "@/ui/ui_tok";
 
 const card_style: React.CSSProperties = {
   background: ui_tok.surface,

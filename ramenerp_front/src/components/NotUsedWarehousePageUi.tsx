@@ -1,7 +1,10 @@
-// src/pages/NotUsedWarehousePageUi.tsx
+// src/components/NotUsedWarehousePageUi.tsx
 import React, { useEffect, useState } from "react";
 import { fetchNotUsedWarehouses, type ApiWarehouse } from "../pages/WarehouseNotUsedFunction";
 import { markManyWarehousesUsed } from "../pages/WarehouseUsedFunction";
+import { ui_tok } from "@/ui/ui_tok";
+import { SectionCard } from "./common/SectionCard";
+import { UsedIconButton } from "./common/IconButtons";
 
 /** 화면 표시에만 쓰는 행 타입
  *  - id: 내부 DB PK
@@ -15,56 +18,72 @@ type Row = {
   created_at: string;
 };
 
-const ui_tok = {
-  bg_page: "#f6f7f9",
-  surface: "#ffffff",
-  border: "#e6e8ec",
-  header_bg: "#f8fafc",
-  zebra: "#fafafa",
-  text: "#111827",
-  label: "#6b7280",
-  radius: 12,
-} as const;
-
 const page_wrap_style: React.CSSProperties = {
   background: ui_tok.bg_page,
-  minHeight: "100%",
+  minHeight: "100vh",
   padding: "24px 16px",
 };
-const page_style = { padding: 16, maxWidth: 1200, margin: "0 auto" } as const;
+
+const page_inner_style: React.CSSProperties = {
+  maxWidth: 960,
+  margin: "0 auto",
+};
 
 const title_style: React.CSSProperties = {
   fontSize: 20,
   fontWeight: 800,
-  color: ui_tok.text,
-  margin: "0 0 12px 0",
+  marginBottom: 4,
 };
 
-const table_card_style: React.CSSProperties = {
-  border: `1px solid ${ui_tok.border}`,
-  borderRadius: ui_tok.radius,
-  background: ui_tok.surface,
+const description_style: React.CSSProperties = {
+  fontSize: 13,
+  color: ui_tok.label,
+  marginBottom: 12,
+};
+
+const top_bar_style: React.CSSProperties = {
   display: "flex",
-  flexDirection: "column",
-  maxHeight: "60vh",
-  overflow: "hidden",
-  marginTop: 12,
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  marginBottom: 8,
 };
 
-const table_scroll_style = { flex: 1, overflowY: "auto", overflowX: "auto" } as const;
+const select_btn_style: React.CSSProperties = {
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: `1px solid ${ui_tok.border}`,
+  background: ui_tok.surface,
+  fontSize: 12,
+};
 
-const table_style = { width: "100%", borderCollapse: "separate" as const, borderSpacing: 0 } as const;
-const th_style = {
+const table_wrap_style: React.CSSProperties = {
+  width: "100%",
+  overflowX: "auto",
+};
+
+const table_style: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  fontSize: 13,
+};
+
+const thead_style: React.CSSProperties = {
+  background: ui_tok.header_bg,
+};
+
+const th_style: React.CSSProperties = {
+  borderBottom: `1px solid ${ui_tok.border}`,
   padding: "10px 8px",
   textAlign: "left" as const,
-  background: ui_tok.header_bg,
-  borderBottom: `1px solid ${ui_tok.border}`,
+  whiteSpace: "nowrap" as const,
   fontSize: 13,
   fontWeight: 700,
   position: "sticky" as const,
   top: 0,
   zIndex: 1,
-} as const;
+};
+
 const td_style = {
   borderBottom: `1px solid ${ui_tok.border}`,
   padding: "10px 8px",
@@ -75,183 +94,92 @@ const td_style = {
 
 const empty_style = { padding: 24, textAlign: "center", color: ui_tok.label } as const;
 
-const top_bar_style: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "flex-start",
-  gap: 8,
-  marginBottom: 8,
-  transform: "translateY(4px)",
-};
-
-const select_btn_style: React.CSSProperties = {
-  height: 32,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: `1px solid ${ui_tok.border}`,
-  background: "#9ca3af",
-  color: "#fff",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
-
-const use_btn_style: React.CSSProperties = {
-  height: 32,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: `1px solid ${ui_tok.border}`,
-  background: "#111827",
-  color: "#fff",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
+function mapApiWarehouseToRow(list: ApiWarehouse[]): Row[] {
+  return list.map((w) => ({
+    id: w.id,
+    warehouse_id: String(w.warehouse_id), 
+    name: w.name,
+    location: w.location,
+    created_at: w.created_at,
+  }));
+}
 
 const NotUsedWarehousePageUi: React.FC = () => {
   const [rows, set_rows] = useState<Row[]>([]);
   const [loading, set_loading] = useState(false);
-  const [error, set_error] = useState("");
+  const [error, set_error] = useState<string | null>(null);
+
   const [select_mode, set_select_mode] = useState(false);
-
-  /** 체크박스 상태를 'warehouse_id 문자열' 키로 관리 */
-  const [checked, set_checked] = useState<Record<string, boolean>>({});
-
-  // 각 행의 고유 키: 화면용 warehouse_id 그대로 사용
-  const row_key = (r: Row) => r.warehouse_id;
-
-  /** ApiWarehouse → Row 변환 */
-  const to_row = (w: ApiWarehouse): Row => {
-    const anyW = w as any;
-
-    // 내부 PK (있으면 저장)
-    let pk: number | undefined;
-    if (typeof anyW.id === "number") pk = anyW.id;
-    else if (typeof anyW.id === "string" && /^\d+$/.test(anyW.id)) pk = Number(anyW.id);
-
-    const code =
-      (typeof anyW.warehouse_id === "string" && anyW.warehouse_id) ||
-      (typeof anyW.display_warehouse_id === "string" && anyW.display_warehouse_id) ||
-      String(anyW.warehouse_id ?? anyW.id ?? "");
-
-    return {
-      id: pk,
-      warehouse_id: code,
-      name: String(anyW.name ?? "").trim(),
-      location: String(anyW.location ?? "").trim(),
-      created_at: String(anyW.created_at ?? "").trim(),
-    };
-  };
+  const [selected_ids, set_selected_ids] = useState<Set<string>>(new Set());
 
   const load = async () => {
-    set_loading(true);
-    set_error("");
     try {
-      const list = await fetchNotUsedWarehouses();
-      set_rows((Array.isArray(list) ? list : []).map(to_row));
-      set_checked({});
+      set_loading(true);
+      set_error(null);
+      const api_list = await fetchNotUsedWarehouses();
+      const mapped = mapApiWarehouseToRow(api_list);
+      set_rows(mapped);
+      set_selected_ids(new Set());
     } catch (e: any) {
-      set_error(e?.message || "미사용 창고 목록을 불러오지 못했습니다.");
+      set_error(e?.message || "불러오는 중 오류가 발생했습니다.");
     } finally {
       set_loading(false);
     }
   };
 
-  /** warehouse_id(문자열 코드) 배열 → 실제 PK id 배열
-   *    여기서 /api/warehouses/state 를 사용해서 매핑한다.
-   */
-  const resolvePkIds = async (codes: string[]): Promise<number[]> => {
-    const res = await fetch("/api/warehouses/state", {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      throw new Error(text || `HTTP ${res.status}`);
-    }
-    const data = text ? JSON.parse(text) : null;
+  useEffect(() => {
+    void load();
+  }, []);
 
-    const raw: any[] = Array.isArray(data)
-      ? data
-      : data && Array.isArray((data as any).items)
-      ? (data as any).items
-      : [];
-
-    // 코드 → PK(id) 매핑
-    const map: Record<string, number> = {};
-    for (const w of raw) {
-      const anyW = w as any;
-
-      const code =
-        (typeof anyW.warehouse_id === "string" && anyW.warehouse_id) ||
-        (typeof anyW.display_warehouse_id === "string" && anyW.display_warehouse_id) ||
-        String(anyW.warehouse_id ?? anyW.id ?? "");
-
-      let pk: number | null = null;
-      if (typeof anyW.id === "number") pk = anyW.id;
-      else if (typeof anyW.id === "string" && /^\d+$/.test(anyW.id)) pk = Number(anyW.id);
-      else if (typeof anyW.warehouse_id === "number") pk = anyW.warehouse_id;
-      else if (typeof anyW.warehouse_id === "string" && /^\d+$/.test(anyW.warehouse_id)) {
-        pk = Number(anyW.warehouse_id);
-      }
-
-      if (code && pk !== null && Number.isFinite(pk)) {
-        map[code] = pk;
-      }
-    }
-
-    const result: number[] = [];
-    for (const c of codes) {
-      const pk = map[c];
-      if (Number.isFinite(pk)) result.push(pk);
-    }
-    return result;
+  const toggle_select_mode = () => {
+    set_select_mode((prev) => !prev);
+    set_selected_ids(new Set());
   };
 
-  /** 선택된 행들의 warehouse_id(문자열 코드) 배열 */
-  const selected_codes = () =>
-    rows.filter((r) => checked[row_key(r)]).map((r) => r.warehouse_id);
-
-  // “사용” — 낙관적 제거 + 서버 반영 + 재동기화
-  const handle_restore_use = async () => {
-    const codes = selected_codes();
-    if (codes.length === 0) {
-      alert("선택된 창고가 없습니다. 선택을 확인해주세요.");
-      return;
-    }
-
-    // 1) /api/warehouses/state 에서 같은 warehouse_id 가진 레코드의 PK id 찾기
-    let ids: number[];
-    try {
-      ids = await resolvePkIds(codes);
-    } catch (e: any) {
-      alert(e?.message || "창고 ID 해석 중 오류가 발생했습니다.");
-      return;
-    }
-
-    if (ids.length === 0) {
-      alert("숫자형 id 를 찾을 수 없습니다. (state 기준 매핑 실패)");
-      return;
-    }
-
-    const msg =
-      ids.length === 1
-        ? "1개 창고를 사용 등록하시겠습니까?"
-        : `${ids.length}개 창고를 사용 등록하시겠습니까?`;
-    if (!window.confirm(msg)) return;
-
-    // 2) 화면 즉시 제거 — 체크된 행 전부 삭제 (warehouse_id 기준)
-    const remove_keys = new Set<string>(codes);
-    set_rows((prev) => prev.filter((r) => !remove_keys.has(r.warehouse_id)));
-    set_checked((prev) => {
-      const next = { ...prev };
-      remove_keys.forEach((k) => delete next[k]);
+  const handle_toggle_row = (warehouse_id: string) => {
+    set_selected_ids((prev) => {
+      const next = new Set(prev);
+      if (next.has(warehouse_id)) {
+        next.delete(warehouse_id);
+      } else {
+        next.add(warehouse_id);
+      }
       return next;
     });
+  };
+
+  const is_checked = (warehouse_id: string) => {
+    return selected_ids.has(warehouse_id);
+  };
+
+  const handle_restore_use = async () => {
+    if (selected_ids.size === 0) {
+      alert("사용으로 전환할 창고를 선택하세요.");
+      return;
+    }
+
+    const target_ids = Array.from(selected_ids);
+    const id_map: Record<string, number> = {};
+
+    for (const row of rows) {
+      if (!row.id) continue;
+      if (target_ids.includes(row.warehouse_id)) {
+        id_map[row.warehouse_id] = row.id;
+      }
+    }
+
+    const ids = target_ids
+      .map((code) => id_map[code])
+      .filter((pk) => Number.isFinite(pk)) as number[];
+
+    if (ids.length === 0) {
+      alert("유효한 PK를 찾지 못했습니다.");
+      return;
+    }
 
     try {
       set_loading(true);
-      // 3) 서버 반영(USED) — PK id 로만 호출
       await markManyWarehousesUsed(ids);
-      // 4) 재동기화
       await load();
       set_select_mode(false);
       alert("사용으로 전환되었습니다.");
@@ -263,102 +191,79 @@ const NotUsedWarehousePageUi: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    load();
-    const onNotUsed = () => load();
-    const onRestored = () => load();
-    window.addEventListener("warehouse:notused:updated", onNotUsed);
-    window.addEventListener("warehouse:used:restored", onRestored);
-    return () => {
-      window.removeEventListener("warehouse:notused:updated", onNotUsed);
-      window.removeEventListener("warehouse:used:restored", onRestored);
-    };
-  }, []);
-
-  // 선택 모드 토글 시 체크 초기화
-  const toggle_select_mode = () => {
-    set_select_mode((v) => {
-      const next = !v;
-      if (!next) set_checked({});
-      return next;
-    });
-  };
+  const is_empty = rows.length === 0;
 
   return (
     <div style={page_wrap_style}>
-      <div style={page_style}>
-        <div style={title_style}>미사용 창고 조회</div>
+      <div style={page_inner_style}>
+        <h1 style={title_style}>미사용 창고 관리</h1>
+        <p style={description_style}>
+          현재 사용하지 않는 창고 목록입니다. 선택한 창고를 다시 사용 상태로 전환할 수 있습니다.
+        </p>
 
-        <div style={top_bar_style}>
-          <button
-            type="button"
-            style={select_btn_style}
-            onClick={toggle_select_mode}
-            title="선택 모드"
-          >
-            {select_mode ? "선택 해제" : "선택"}
-          </button>
-
-          {select_mode && (
-            <button
-              type="button"
-              style={use_btn_style}
-              onClick={handle_restore_use}
-              title="사용으로 전환"
-            >
-              사용
-            </button>
-          )}
-        </div>
-
-        <div style={table_card_style}>
-          <div style={table_scroll_style}>
+        <SectionCard
+          title="미사용 창고 목록"
+          subtitle={`총 ${rows.length.toLocaleString()}개`}
+          right_slot={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                type="button"
+                style={select_btn_style}
+                onClick={toggle_select_mode}
+                title="선택 모드"
+              >
+                {select_mode ? "선택 해제" : "선택"}
+              </button>
+              {select_mode && (
+                <UsedIconButton
+                  onClick={handle_restore_use}
+                />
+              )}
+            </div>
+          }
+        >
+          <div style={table_wrap_style}>
             <table style={table_style}>
-              <thead>
+              <thead style={thead_style}>
                 <tr>
-                  {select_mode && <th style={th_style} />}
-                  <th style={th_style}>warehouse_id</th>
-                  <th style={th_style}>name</th>
-                  <th style={th_style}>location</th>
-                  <th style={th_style}>created_at</th>
+                  {select_mode && <th style={th_style}>선택</th>}
+                  <th style={th_style}>창고 ID</th>
+                  <th style={th_style}>창고명</th>
+                  <th style={th_style}>위치</th>
+                  <th style={th_style}>생성일</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, idx) => {
-                  const key = row_key(r);
-                  return (
+                {is_empty ? (
+                  <tr>
+                    <td
+                      style={empty_style}
+                      colSpan={select_mode ? 5 : 4}
+                    >
+                      미사용 창고가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((row, idx) => (
                     <tr
-                      key={key}
+                      key={row.warehouse_id}
                       style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
-                      title={`${r.name} · ${r.location}`}
                     >
                       {select_mode && (
-                        <td style={{ ...td_style, position: "relative" }}>
+                        <td style={td_style}>
                           <input
                             type="checkbox"
-                            checked={!!checked[key]}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) =>
-                              set_checked((prev) => ({ ...prev, [key]: e.target.checked }))
-                            }
+                            checked={is_checked(row.warehouse_id)}
+                            onChange={() => handle_toggle_row(row.warehouse_id)}
                           />
                         </td>
                       )}
-                      <td style={td_style}>{r.warehouse_id}</td>
-                      <td style={td_style}>{r.name}</td>
-                      <td style={td_style}>{r.location}</td>
-                      <td style={td_style}>{r.created_at}</td>
+                      <td style={td_style}>{row.warehouse_id}</td>
+                      <td style={td_style}>{row.name}</td>
+                      <td style={td_style}>{row.location}</td>
+                      <td style={td_style}>{row.created_at}</td>
                     </tr>
-                  );
-                })}
-
-                {rows.length === 0 && !loading && !error && (
-                  <tr>
-                    {/* 열 개수: 선택모드 5, 기본 4 */}
-                    <td style={empty_style} colSpan={select_mode ? 5 : 4}>
-                      미사용으로 등록된 창고가 없습니다.
-                    </td>
-                  </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -366,7 +271,7 @@ const NotUsedWarehousePageUi: React.FC = () => {
 
           {loading && <div style={{ padding: 12, color: ui_tok.label }}>불러오는 중…</div>}
           {error && <div style={{ padding: 12, color: "#c62828" }}>{error}</div>}
-        </div>
+        </SectionCard>
       </div>
     </div>
   );

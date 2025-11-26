@@ -8,10 +8,10 @@ import {
   putVendor,
   type VendorEditTarget,
 } from "./VendorEditFunction";
-
 import VendorNotUsedUi from "../components/VendorNotUsedUi";
 import { markVendorNotUsed } from "./VendorNotUsedFunction";
 import VendorRegisterPage from "./VendorRegisterPage";
+import { ui_tok } from "@/ui/ui_tok";
 
 interface ApiVendor {
   vendor_id: number | string;
@@ -39,22 +39,6 @@ interface VendorRow {
 }
 
 type VendorDeleteTarget = { vendor_id: number; name: string };
-
-const ui_tok = {
-  bg_page: "#f6f7f9",
-  surface: "#ffffff",
-  border: "#e6e8ec",
-  header_bg: "#f8fafc",
-  zebra: "#fafafa",
-  text: "#111827",
-  label: "#6b7280",
-  radius: 12,
-  gap: 10,
-  focus: "0 0 0 3px rgba(14,165,233,0.25)",
-  primary_bg: "#0ea5e9",
-  primary_border: "#0284c7",
-  primary_text: "#ffffff",
-} as const;
 
 const page_wrap_style: React.CSSProperties = {
   background: ui_tok.bg_page,
