@@ -29,6 +29,7 @@ import BranchOrderNewPage from "./pages/BranchOrderNewPage";
 import LoginPageUi from "./components/LoginPageUi";
 import MainDashboardPageUi from "./components/MainDashBoardPageUi";
 import LotHistoryListPage from "./pages/LotHistoryListPage";
+import ShipmentListPage from "./pages/ShipmentListPage";
 
 const App: React.FC = () => {
   return (
@@ -63,6 +64,7 @@ const App: React.FC = () => {
         {/* 수주 */}
         <Route path="branch-order" element={<BranchOrderListPage />} />
         <Route path="branch-order/new" element={<BranchOrderNewPage />} />
+        <Route path="branch-order/completed" element={<ShipmentListPage />} />
 
         {/* 카테고리 */}
         <Route path="category/register" element={<CategoryRegisterPage />} />

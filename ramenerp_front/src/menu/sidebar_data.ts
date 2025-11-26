@@ -49,15 +49,11 @@ export const sidebar_menu: MenuGroup[] = [
         label: "거래처 리스트",
         path: "/vendor/list",
       },
-
-      // ✅ 발주 내역 조회 페이지 (목록)
       {
         id: "vendors-orders",
         label: "발주 내역 조회",
         path: "/vendor-order",
       },
-
-      // ✅ (선택사항) 신규 발주 등록 페이지 (풀스크린 작성 화면)
       {
         id: "vendors-orders-new",
         label: "신규 발주 등록",
@@ -97,13 +93,17 @@ export const sidebar_menu: MenuGroup[] = [
     children: [
       { 
         id: "branch-order-list", 
-        label: "수주 내역", 
+        label: "수주 내역 조회", 
         path: "/branch-order" 
       },
        { 
         id: "branch-order-new", 
-        label: "수주 등록",
+        label: "신규 수주 등록",
         path: "/branch-order/new"
+      },
+      { id: "branchs-outbound",
+        label: "출고/배송 내역",  
+        path: "/branch-order/completed",
       },
   ],
   },
