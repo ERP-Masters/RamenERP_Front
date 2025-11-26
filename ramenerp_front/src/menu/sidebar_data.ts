@@ -67,6 +67,10 @@ export const sidebar_menu: MenuGroup[] = [
         label: "입고 내역",  
         path: "/vendor-order/completed",
      },
+     { id: "LOT",
+        label: "LOT 내역",  
+        path: "/lot/list",
+     },
     ],
   },
 

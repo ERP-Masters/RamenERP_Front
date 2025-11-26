@@ -2,28 +2,21 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
-
 import ProductPage from "./pages/ProductPage";
 import ItemListPage from "./pages/ItemListPage";
 import ItemNotUsedListPage from "./pages/ItemNotUsedListPage";
-
 import VendorRegisterPage from "./pages/VendorRegisterPage";
 import VendorListPage from "./pages/VendorListPage";
 import NotUsedVendorPageUi from "./pages/NotUsedVendorPageUi";
-
 import VendorOrderListPage from "./pages/VendorOrderListPage";
 import VendorOrderNewPage from "./pages/VendorOrderNewPage";
 import VendorOrderCompletedPage from "./pages/VendorOrderCompletedPage";
-
 import CategoryRegisterPage from "./pages/CategoryRegisterPage";
 import CategoryListPanel from "./components/CategoryListPanel";
-
 import UnitRegisterPage from "./pages/UnitRegisterPage";
 import UnitListPanel from "./components/UnitListPanel";
-
 import WarehouseRegister from "./pages/WarehouseRegister";
 import WarehouseListPanel from "./components/WarehouseListPanel";
-
 import BranchRegisterPage from "./pages/BranchRegisterPage";
 import BranchListPage from "./pages/BranchListPage";
 import NotUsedBranchUi from "./components/NotUsedBranchPageUi";
@@ -33,9 +26,9 @@ import NotUsedCategoryPageUi from "./components/NotUsedCategoryPageUi";
 import InventoryListUi from "./components/InventoryListUi";
 import BranchOrderListPage from "./pages/BranchOrderListPage";
 import BranchOrderNewPage from "./pages/BranchOrderNewPage";
-
 import LoginPageUi from "./components/LoginPageUi";
 import MainDashboardPageUi from "./components/MainDashBoardPageUi";
+import LotHistoryListPage from "./pages/LotHistoryListPage";
 
 const App: React.FC = () => {
   return (
@@ -65,6 +58,7 @@ const App: React.FC = () => {
         <Route path="vendor-order" element={<VendorOrderListPage />} />
         <Route path="vendor-order/new" element={<VendorOrderNewPage />} />
         <Route path="vendor-order/completed" element={<VendorOrderCompletedPage />} />
+        <Route path="lot/list" element={<LotHistoryListPage />} />
 
         {/* 수주 */}
         <Route path="branch-order" element={<BranchOrderListPage />} />
