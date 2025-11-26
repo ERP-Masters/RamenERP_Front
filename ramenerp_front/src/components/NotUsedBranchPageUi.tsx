@@ -2,63 +2,65 @@
 import React, { useEffect, useState } from "react";
 import { fetchNotUsedBranches, type ApiBranch } from "../pages/BranchNotUsedFunction";
 import { markManyBranchesUsed } from "../pages/BranchUsedFunction";
-import { UsedIconButton } from "./common/IconButtons";
 import { ui_tok } from "@/ui/ui_tok";
-
-/** 화면 표시에만 쓰는 행 타입
- *  - id: 내부 DB PK
- *  - branch_id: 화면에 표시되는 문자열 ID
- */
-type Row = {
-  id?: number;            // 서버 PK (PUT 에 쓸 값은 나중에 branch_id -> id 매핑에서 얻음)
-  branch_id: string;      // 화면 표시용 문자열 ID
-  name: string;
-  location: string;
-  detail_address: string;
-  store_owner: string;
-  contact: string;
-  created_at: string;
-};
+import { SectionCard } from "./common/SectionCard";
+import { UsedIconButton } from "./common/IconButtons";
 
 const page_wrap_style: React.CSSProperties = {
   background: ui_tok.bg_page,
-  minHeight: "100%",
+  minHeight: "100vh",
   padding: "24px 16px",
 };
-const page_style = { padding: 16, maxWidth: 1200, margin: "0 auto" } as const;
+
+const page_inner_style: React.CSSProperties = {
+  maxWidth: 960,
+  margin: "0 auto",
+};
 
 const title_style: React.CSSProperties = {
   fontSize: 20,
   fontWeight: 800,
-  color: ui_tok.text,
-  margin: "0 0 12px 0",
+  marginBottom: 4,
 };
 
-const table_card_style: React.CSSProperties = {
+const description_style: React.CSSProperties = {
+  fontSize: 13,
+  color: ui_tok.label,
+  marginBottom: 12,
+};
+
+const select_btn_style: React.CSSProperties = {
+  padding: "6px 10px",
+  borderRadius: 999,
   border: `1px solid ${ui_tok.border}`,
-  borderRadius: ui_tok.radius,
   background: ui_tok.surface,
-  display: "flex",
-  flexDirection: "column",
-  maxHeight: "60vh",
-  overflow: "hidden",
-  marginTop: 12,
+  fontSize: 12,
 };
 
-const table_scroll_style = { flex: 1, overflowY: "auto", overflowX: "auto" } as const;
+const table_wrap_style: React.CSSProperties = {
+  width: "100%",
+  overflowX: "auto",
+};
 
-const table_style = { width: "100%", borderCollapse: "separate" as const, borderSpacing: 0 } as const;
-const th_style = {
+const table_style: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  fontSize: 13,
+};
+
+const thead_style: React.CSSProperties = {
+  background: ui_tok.header_bg,
+};
+
+const th_style: React.CSSProperties = {
+  borderBottom: `1px solid ${ui_tok.border}`,
   padding: "10px 8px",
   textAlign: "left" as const,
-  background: ui_tok.header_bg,
-  borderBottom: `1px solid ${ui_tok.border}`,
+  whiteSpace: "nowrap" as const,
   fontSize: 13,
   fontWeight: 700,
-  position: "sticky" as const,
-  top: 0,
-  zIndex: 1,
-} as const;
+};
+
 const td_style = {
   borderBottom: `1px solid ${ui_tok.border}`,
   padding: "10px 8px",
@@ -69,189 +71,81 @@ const td_style = {
 
 const empty_style = { padding: 24, textAlign: "center", color: ui_tok.label } as const;
 
-const top_bar_style: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "flex-start",
-  gap: 8,
-  marginBottom: 8,
-  transform: "translateY(4px)",
-};
-
-const select_btn_style: React.CSSProperties = {
-  height: 32,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: `1px solid ${ui_tok.border}`,
-  background: "#9ca3af",
-  color: "#fff",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
-
-const use_btn_style: React.CSSProperties = {
-  height: 32,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: `1px solid ${ui_tok.border}`,
-  background: "#111827",
-  color: "#fff",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
-
 const NotUsedBranchPageUi: React.FC = () => {
-  const [rows, set_rows] = useState<Row[]>([]);
+  const [rows, set_rows] = useState<ApiBranch[]>([]);
   const [loading, set_loading] = useState(false);
-  const [error, set_error] = useState("");
+  const [error, set_error] = useState<string | null>(null);
+
   const [select_mode, set_select_mode] = useState(false);
-
-  /** 체크박스 상태를 'branch_id 문자열' 키로 관리 */
-  const [checked, set_checked] = useState<Record<string, boolean>>({});
-
-  // 각 행의 고유 키: 화면용 branch_id 그대로 사용
-  const row_key = (r: Row) => r.branch_id;
-
-  /** ApiBranch → Row 변환
-   *  - id: 응답 JSON 의 id (PK) 있으면 보관
-   *  - branch_id: 화면에 보이는 문자열 코드
-   */
-  const to_row = (b: ApiBranch): Row => {
-    const anyB = b as any;
-
-    // 내부 PK (있으면 저장)
-    let pk: number | undefined;
-    if (typeof anyB.id === "number") pk = anyB.id;
-    else if (typeof anyB.id === "string" && /^\d+$/.test(anyB.id)) pk = Number(anyB.id);
-
-    const code =
-      (typeof anyB.branch_id === "string" && anyB.branch_id) ||
-      (typeof anyB.display_branch_id === "string" && anyB.display_branch_id) ||
-      String(anyB.branch_id ?? anyB.id ?? "");
-
-    return {
-      id: pk,
-      branch_id: code,
-      name: String(anyB.name ?? "").trim(),
-      location: String(anyB.location ?? "").trim(),
-      detail_address: String(anyB.detail_address ?? "").trim(),
-      store_owner: String(anyB.store_owner ?? "").trim(),
-      contact: String(anyB.contact ?? "").trim(),
-      created_at: String(anyB.created_at ?? "").trim(),
-    };
-  };
+  const [selected_ids, set_selected_ids] = useState<Set<string | number>>(new Set());
 
   const load = async () => {
-    set_loading(true);
-    set_error("");
     try {
+      set_loading(true);
+      set_error(null);
       const list = await fetchNotUsedBranches();
-      set_rows((Array.isArray(list) ? list : []).map(to_row));
-      set_checked({});
+      set_rows(list);
+      set_selected_ids(new Set());
     } catch (e: any) {
-      set_error(e?.message || "미사용 직영점 목록을 불러오지 못했습니다.");
+      set_error(e?.message || "불러오는 중 오류가 발생했습니다.");
     } finally {
       set_loading(false);
     }
   };
 
-  /** ✅ branch_id(문자열 코드) 배열 → 실제 PK id 배열
-   *    여기서 /api/branches/state 를 사용해서 매핑한다.
-   */
-  const resolvePkIds = async (codes: string[]): Promise<number[]> => {
-    const res = await fetch("/api/branches/state", {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      throw new Error(text || `HTTP ${res.status}`);
-    }
-    const data = text ? JSON.parse(text) : null;
+  useEffect(() => {
+    void load();
+  }, []);
 
-    const raw: any[] = Array.isArray(data)
-      ? data
-      : data && Array.isArray((data as any).items)
-      ? (data as any).items
-      : [];
-
-    // 코드 → PK(id) 매핑 (state 에서만 가져옴)
-    const map: Record<string, number> = {};
-    for (const b of raw) {
-      const anyB = b as any;
-
-      const code =
-        (typeof anyB.branch_id === "string" && anyB.branch_id) ||
-        (typeof anyB.display_branch_id === "string" && anyB.display_branch_id) ||
-        String(anyB.branch_id ?? anyB.id ?? "");
-
-      let pk: number | null = null;
-      if (typeof anyB.id === "number") pk = anyB.id;
-      else if (typeof anyB.id === "string" && /^\d+$/.test(anyB.id)) pk = Number(anyB.id);
-      else if (typeof anyB.branch_id === "number") pk = anyB.branch_id;
-      else if (typeof anyB.branch_id === "string" && /^\d+$/.test(anyB.branch_id)) {
-        pk = Number(anyB.branch_id);
-      }
-
-      if (code && pk !== null && Number.isFinite(pk)) {
-        map[code] = pk;
-      }
-    }
-
-    const result: number[] = [];
-    for (const c of codes) {
-      const pk = map[c];
-      if (Number.isFinite(pk)) result.push(pk);
-    }
-    return result;
+  const toggle_select_mode = () => {
+    set_select_mode((prev) => !prev);
+    set_selected_ids(new Set());
   };
 
-  /** 선택된 행들의 branch_id(문자열 코드) 배열 */
-  const selected_codes = () =>
-    rows.filter((r) => checked[row_key(r)]).map((r) => r.branch_id);
-
-  // “사용” — 낙관적 제거 + 서버 반영 + 재동기화
-  const handle_restore_use = async () => {
-    const codes = selected_codes();
-    if (codes.length === 0) {
-      alert("선택된 지점이 없습니다. 선택을 확인해주세요.");
-      return;
-    }
-
-    // 1) /api/branches/state 에서 같은 branch_id 가진 레코드의 PK id 찾기
-    let ids: number[];
-    try {
-      ids = await resolvePkIds(codes);
-    } catch (e: any) {
-      alert(e?.message || "지점 ID 해석 중 오류가 발생했습니다.");
-      return;
-    }
-
-    if (ids.length === 0) {
-      alert("숫자형 id 를 찾을 수 없습니다. (state 기준 매핑 실패)");
-      return;
-    }
-
-    const msg =
-      ids.length === 1
-        ? "1개 지점을 사용 등록하시겠습니까?"
-        : `${ids.length}개 지점을 사용 등록하시겠습니까?`;
-    if (!window.confirm(msg)) return;
-
-    // 2) 화면 즉시 제거 — 체크된 행 전부 삭제 (branch_id 기준)
-    const remove_keys = new Set<string>(codes);
-    set_rows((prev) => prev.filter((r) => !remove_keys.has(r.branch_id)));
-    set_checked((prev) => {
-      const next = { ...prev };
-      remove_keys.forEach((k) => delete next[k]);
+  const handle_toggle_row = (branch_id: string | number) => {
+    set_selected_ids((prev) => {
+      const next = new Set(prev);
+      if (next.has(branch_id)) {
+        next.delete(branch_id);
+      } else {
+        next.add(branch_id);
+      }
       return next;
     });
+  };
+
+  const is_checked = (branch_id: string | number) => {
+    return selected_ids.has(branch_id);
+  };
+
+  const handle_restore_use = async () => {
+    if (selected_ids.size === 0) {
+      alert("사용으로 전환할 지점을 선택하세요.");
+      return;
+    }
+
+    const target_ids = Array.from(selected_ids);
+    const id_map: Record<string | number, number> = {};
+
+    for (const row of rows) {
+      if (!row.id) continue;
+      if (target_ids.includes(row.branch_id)) {
+        id_map[row.branch_id] = row.id;
+      }
+    }
+
+    const ids = target_ids
+      .map((code) => id_map[code])
+      .filter((pk) => Number.isFinite(pk)) as number[];
+
+    if (ids.length === 0) {
+      alert("유효한 PK를 찾지 못했습니다.");
+      return;
+    }
 
     try {
       set_loading(true);
-      // 3) 서버 반영(USED) — PK id 로만 호출 (PUT /api/branches/:id { isused: "USED" })
       await markManyBranchesUsed(ids);
-      // 4) 재동기화
       await load();
       set_select_mode(false);
       alert("사용으로 전환되었습니다.");
@@ -263,90 +157,79 @@ const NotUsedBranchPageUi: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    load();
-    const onNotUsed = () => load();
-    const onRestored = () => load();
-    window.addEventListener("branch:notused:updated", onNotUsed);
-    window.addEventListener("branch:used:restored", onRestored);
-    return () => {
-      window.removeEventListener("branch:notused:updated", onNotUsed);
-      window.removeEventListener("branch:used:restored", onRestored);
-    };
-  }, []);
-
-  // 선택 모드 토글 시 체크 초기화 (UX 개선)
-  const toggle_select_mode = () => {
-    set_select_mode((v) => {
-      const next = !v;
-      if (!next) set_checked({});
-      return next;
-    });
-  };
+  const is_empty = rows.length === 0;
 
   return (
     <div style={page_wrap_style}>
-      <div style={page_style}>
-        <div style={title_style}>미사용 직영점 조회</div>
-        {select_mode && (
-            <UsedIconButton
-              onClick={handle_restore_use}
-            />
-            )}
-        <div style={table_card_style}>
-          <div style={table_scroll_style}>
+      <div style={page_inner_style}>
+        <h1 style={title_style}>미사용 지점 관리</h1>
+        <p style={description_style}>
+          현재 사용하지 않는 지점 목록입니다. 선택한 지점을 다시 사용 상태로 전환할 수 있습니다.
+        </p>
+
+        <SectionCard
+          title="미사용 지점 목록"
+          subtitle={`총 ${rows.length.toLocaleString()}개`}
+          right_slot={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                type="button"
+                style={select_btn_style}
+                onClick={toggle_select_mode}
+                title="선택 모드"
+              >
+                {select_mode ? "선택 해제" : "선택"}
+              </button>
+              {select_mode && (
+                <UsedIconButton
+                  onClick={handle_restore_use}
+                />
+              )}
+            </div>
+          }
+        >
+          <div style={table_wrap_style}>
             <table style={table_style}>
-              <thead>
+              <thead style={thead_style}>
                 <tr>
-                  {select_mode && <th style={th_style} />}
-                  <th style={th_style}>branch_id</th>
-                  <th style={th_style}>name</th>
-                  <th style={th_style}>location</th>
-                  <th style={th_style}>detail_address</th>
-                  <th style={th_style}>store_owner</th>
-                  <th style={th_style}>contact</th>
-                  <th style={th_style}>created_at</th>
+                  {select_mode && <th style={th_style}>선택</th>}
+                  <th style={th_style}>지점 ID</th>
+                  <th style={th_style}>지점명</th>
+                  <th style={th_style}>주소</th>
+                  <th style={th_style}>연락처</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, idx) => {
-                  const key = row_key(r);
-                  return (
+                {is_empty ? (
+                  <tr>
+                    <td
+                      style={empty_style}
+                      colSpan={select_mode ? 5 : 4}
+                    >
+                      미사용 지점이 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((row, idx) => (
                     <tr
-                      key={key}
+                      key={row.branch_id}
                       style={idx % 2 === 1 ? { background: ui_tok.zebra } : undefined}
-                      title={`${r.name} · ${r.location} · ${r.detail_address}`}
                     >
                       {select_mode && (
-                        <td style={{ ...td_style, position: "relative" }}>
+                        <td style={td_style}>
                           <input
                             type="checkbox"
-                            checked={!!checked[key]}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) =>
-                              set_checked((prev) => ({ ...prev, [key]: e.target.checked }))
-                            }
+                            checked={is_checked(row.branch_id)}
+                            onChange={() => handle_toggle_row(row.branch_id)}
                           />
                         </td>
                       )}
-                      <td style={td_style}>{r.branch_id}</td>
-                      <td style={td_style}>{r.name}</td>
-                      <td style={td_style}>{r.location}</td>
-                      <td style={td_style}>{r.detail_address}</td>
-                      <td style={td_style}>{r.store_owner}</td>
-                      <td style={td_style}>{r.contact}</td>
-                      <td style={td_style}>{r.created_at}</td>
+                      <td style={td_style}>{row.branch_id}</td>
+                      <td style={td_style}>{row.name}</td>
+                      <td style={td_style}>{row.address}</td>
+                      <td style={td_style}>{row.contact}</td>
                     </tr>
-                  );
-                })}
-
-                {rows.length === 0 && !loading && !error && (
-                  <tr>
-                    {/* 열 개수: 선택모드 8, 기본 7 */}
-                    <td style={empty_style} colSpan={select_mode ? 8 : 7}>
-                      미사용으로 등록된 지점이 없습니다.
-                    </td>
-                  </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -354,7 +237,7 @@ const NotUsedBranchPageUi: React.FC = () => {
 
           {loading && <div style={{ padding: 12, color: ui_tok.label }}>불러오는 중…</div>}
           {error && <div style={{ padding: 12, color: "#c62828" }}>{error}</div>}
-        </div>
+        </SectionCard>
       </div>
     </div>
   );
