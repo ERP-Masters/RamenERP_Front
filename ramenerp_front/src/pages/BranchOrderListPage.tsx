@@ -19,6 +19,8 @@ import {
 import {
   fetch_branches,
   fetch_items,
+  fetch_item_name_by_id,
+  prime_item_name_cache,
   type BranchOption,
   type ItemOption,
 } from "@/api/master_data";
@@ -302,12 +304,12 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
   >(initialStatus);
   const [start_date, set_start_date] = useState<string>("");
   const [end_date, set_end_date] = useState<string>("");
-  const [order_id_search, set_order_id_search] = useState<string>("");
+  const [order_id_search, set_order_id_search] =
+    useState<string>("");
 
   // 자동완성
-  const [order_id_suggestions, set_order_id_suggestions] = useState<
-    string[]
-  >([]);
+  const [order_id_suggestions, set_order_id_suggestions] =
+    useState<string[]>([]);
   const [is_show_suggest, set_is_show_suggest] =
     useState<boolean>(false);
   const suggest_wrap_ref = useRef<HTMLDivElement | null>(null);
@@ -326,6 +328,10 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
   const [branches, set_branches] = useState<BranchOption[]>([]);
   const [items, set_items] = useState<ItemOption[]>([]);
   const [shipments, set_shipments] = useState<Shipment[]>([]);
+
+  // 아이템 이름 보강용 패치 캐시 (미사용도 표시)
+  const [item_name_patch, set_item_name_patch] =
+    useState<Map<number, string>>(() => new Map());
 
   // 이름 맵
   const branch_name_by_id = useMemo(() => {
@@ -359,7 +365,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
     return m;
   }, [shipments]);
 
-  // 라인뷰 렌더용
+  // 라인뷰 렌더용 (지점/품목 이름 보강)
   const line_rows: BranchOrder[] = useMemo(
     () =>
       orders.map((o: BranchOrder) => ({
@@ -369,9 +375,17 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
           branch_name_by_id.get(o.branch_id) ??
           "",
         item_name:
-          o.item_name ?? item_name_by_id.get(o.item_id) ?? "",
+          o.item_name ??
+          item_name_patch.get(o.item_id) ??
+          item_name_by_id.get(o.item_id) ??
+          "",
       })),
-    [orders, branch_name_by_id, item_name_by_id],
+    [
+      orders,
+      branch_name_by_id,
+      item_name_by_id,
+      item_name_patch,
+    ],
   );
 
   // 헤더뷰
@@ -406,6 +420,8 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
         set_branches(br);
         set_items(its);
         set_shipments(sh);
+        // 품목 마스터를 캐시에 미리 채워두기 (미사용 포함 조회에 도움)
+        prime_item_name_cache(its);
       } catch {
         // ignore
       }
@@ -494,6 +510,45 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
     load_orders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ===== 아이템 이름 보강 (미사용 품목도 내역에 보이게) =====
+  useEffect(() => {
+    // 이름이 비어 있고, 마스터/패치에 둘 다 없는 item_id만 추려서 개별 조회
+    const need_ids = Array.from(
+      new Set(
+        orders
+          .filter((o) => {
+            const in_master = !!item_name_by_id.get(o.item_id);
+            const in_patch = !!item_name_patch.get(o.item_id);
+            const empty =
+              !o.item_name || !String(o.item_name).trim();
+            return empty && !in_master && !in_patch;
+          })
+          .map((o) => o.item_id),
+      ),
+    );
+    if (need_ids.length === 0) return;
+
+    let is_cancelled = false;
+
+    (async () => {
+      for (const id of need_ids) {
+        const nm = await fetch_item_name_by_id(id).catch(
+          () => undefined,
+        );
+        if (is_cancelled || !nm) continue;
+        set_item_name_patch((prev) => {
+          const next = new Map(prev);
+          next.set(id, nm);
+          return next;
+        });
+      }
+    })();
+
+    return () => {
+      is_cancelled = true;
+    };
+  }, [orders, item_name_by_id, item_name_patch]);
 
   // 검색
   const on_click_search = () => {

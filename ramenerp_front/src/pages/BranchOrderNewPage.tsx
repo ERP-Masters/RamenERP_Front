@@ -5,14 +5,15 @@ import { useNavigate } from "react-router-dom";
 import {
   fetch_branches,
   fetch_items,
+  fetch_warehouses,
   type BranchOption,
   type ItemOption,
+  type WarehouseOption,
 } from "@/api/master_data";
 
 import {
   create_branch_order,
   type CreateBranchOrderPayload,
-  type BranchOrderStatus,
 } from "@/api/branch_orders";
 
 /* ================= UI 스타일 공통 ================= */
@@ -45,7 +46,7 @@ const card: React.CSSProperties = {
 
 const row_grid: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
+  gridTemplateColumns: "1fr 1fr 1fr", // 지점 / 창고 / 희망입고일
   gap: 16,
 };
 
@@ -153,12 +154,10 @@ const primary_btn: React.CSSProperties = {
 /* ================= 유틸 ================= */
 
 const money = (n: number) =>
-  new Intl.NumberFormat("ko-KR").format(
-    Number.isFinite(n) ? n : 0,
-  );
+  new Intl.NumberFormat("ko-KR").format(Number.isFinite(n) ? n : 0);
 
 type DraftLine = {
-  item_id: string; // 문자열로 관리 → 나중에 Number 변환
+  item_id: string;
   qty: string;
 };
 
@@ -170,10 +169,12 @@ const empty_line = (): DraftLine => ({
 /** 기본 유효성 검사 */
 function validate_before_submit(
   branch_id: string,
+  warehouse_id: string,
   desired_due_date: string,
   lines: DraftLine[],
 ): string | null {
   if (!branch_id) return "지점을 선택하세요.";
+  if (!warehouse_id) return "출고 창고를 선택하세요.";
   if (!desired_due_date) return "희망 입고일을 선택하세요.";
   if (!lines.length) return "수주 품목을 추가하세요.";
 
@@ -199,21 +200,19 @@ const BranchOrderNewPage: React.FC = () => {
   // 마스터 데이터
   const [branches, set_branches] = useState<BranchOption[]>([]);
   const [items, set_items] = useState<ItemOption[]>([]);
+  const [warehouses, set_warehouses] = useState<WarehouseOption[]>([]);
 
   // 선택 값
   const [branch_id, set_branch_id] = useState<string>("");
-  const [desired_due_date, set_desired_due_date] =
-    useState<string>(""); // "YYYY-MM-DD"
+  const [warehouse_id, set_warehouse_id] = useState<string>("");
+  const [desired_due_date, set_desired_due_date] = useState<string>("");
   const [request_note, set_request_note] = useState<string>("");
 
   // 라인
-  const [lines, set_lines] = useState<DraftLine[]>([
-    empty_line(),
-  ]);
+  const [lines, set_lines] = useState<DraftLine[]>([empty_line()]);
 
   // 상태
-  const [is_submitting, set_is_submitting] =
-    useState<boolean>(false);
+  const [is_submitting, set_is_submitting] = useState<boolean>(false);
   const [load_error, set_load_error] = useState<string>("");
   const [submit_error, set_submit_error] = useState<string>("");
 
@@ -238,9 +237,7 @@ const BranchOrderNewPage: React.FC = () => {
 
       const unit_price = info?.unit_price ?? 0;
       const line_total =
-        Number.isFinite(unit_price) &&
-        Number.isFinite(qty_num) &&
-        qty_num > 0
+        Number.isFinite(unit_price) && Number.isFinite(qty_num) && qty_num > 0
           ? unit_price * qty_num
           : 0;
 
@@ -253,11 +250,7 @@ const BranchOrderNewPage: React.FC = () => {
   }, [lines, item_by_id]);
 
   const total_amount = useMemo(
-    () =>
-      enriched_lines.reduce(
-        (sum, ln) => sum + (ln.line_total ?? 0),
-        0,
-      ),
+    () => enriched_lines.reduce((sum, ln) => sum + (ln.line_total ?? 0), 0),
     [enriched_lines],
   );
 
@@ -268,18 +261,19 @@ const BranchOrderNewPage: React.FC = () => {
     (async () => {
       try {
         set_load_error("");
-        const [br, its] = await Promise.all([
+        const [br, its, whs] = await Promise.all([
           fetch_branches(),
           fetch_items(),
+          fetch_warehouses(),
         ]);
         if (is_cancelled) return;
         set_branches(br);
         set_items(its);
+        set_warehouses(whs);
       } catch (err: any) {
         if (!is_cancelled) {
           set_load_error(
-            err?.message ||
-              "데이터 로딩 중 오류가 발생했습니다.",
+            err?.message || "데이터 로딩 중 오류가 발생했습니다.",
           );
         }
       }
@@ -293,17 +287,13 @@ const BranchOrderNewPage: React.FC = () => {
   // 라인 조작
   const update_line_item = (idx: number, id: string) => {
     set_lines((prev) =>
-      prev.map((ln, i) =>
-        i === idx ? { ...ln, item_id: id } : ln,
-      ),
+      prev.map((ln, i) => (i === idx ? { ...ln, item_id: id } : ln)),
     );
   };
 
   const update_line_qty = (idx: number, qty: string) => {
     set_lines((prev) =>
-      prev.map((ln, i) =>
-        i === idx ? { ...ln, qty } : ln,
-      ),
+      prev.map((ln, i) => (i === idx ? { ...ln, qty } : ln)),
     );
   };
 
@@ -319,6 +309,7 @@ const BranchOrderNewPage: React.FC = () => {
   const on_submit = async () => {
     const err_msg = validate_before_submit(
       branch_id,
+      warehouse_id,
       desired_due_date,
       lines,
     );
@@ -328,30 +319,21 @@ const BranchOrderNewPage: React.FC = () => {
     }
 
     const filtered_lines = enriched_lines.filter(
-      (ln) =>
-        ln.item_id &&
-        Number(ln.qty) > 0,
+      (ln) => ln.item_id && Number(ln.qty) > 0,
     );
     if (filtered_lines.length === 0) {
-      set_submit_error(
-        "유효한 수주 품목이 없습니다.",
-      );
+      set_submit_error("유효한 수주 품목이 없습니다.");
       return;
     }
 
-    const ok = window.confirm(
-      "수주를 등록하시겠습니까?",
-    );
+    const ok = window.confirm("수주를 등록하시겠습니까?");
     if (!ok) return;
 
     const items_payload = filtered_lines.map((ln) => {
       const item_id_num = Number(ln.item_id);
       const qty_num = Number(ln.qty);
-      const unit_price =
-        Number(ln.unit_price) || 0;
-      const amount =
-        Number(ln.line_total) ||
-        unit_price * qty_num;
+      const unit_price = Number(ln.unit_price) || 0;
+      const amount = Number(ln.line_total) || unit_price * qty_num;
 
       return {
         item_id: item_id_num,
@@ -365,8 +347,7 @@ const BranchOrderNewPage: React.FC = () => {
       branch_id: Number(branch_id),
       items: items_payload,
       request_note: request_note.trim(),
-      status: "PENDING", // 처음 등록은 PENDING
-      // 백엔드가 DateTime 이라서, ISO or "YYYY-MM-DD" 둘 다 일반적으로 잘 받음
+      status: "PENDING",
       desired_due_date: `${desired_due_date}T00:00:00.000Z`,
     };
 
@@ -389,11 +370,11 @@ const BranchOrderNewPage: React.FC = () => {
   const cancel_and_back = () => {
     const is_dirty =
       branch_id ||
+      warehouse_id ||
       desired_due_date ||
       request_note.trim() ||
       lines.length > 1 ||
-      (lines.length === 1 &&
-        (lines[0].item_id || lines[0].qty));
+      (lines.length === 1 && (lines[0].item_id || lines[0].qty));
 
     if (is_dirty) {
       const go = window.confirm(
@@ -431,7 +412,7 @@ const BranchOrderNewPage: React.FC = () => {
               color: ui.muted,
             }}
           >
-            지점과 품목, 수량을 입력해 본사 수주 요청을 등록합니다.
+            지점과 출고 창고, 품목, 수량을 입력해 본사 수주 요청을 등록합니다.
           </p>
         </div>
 
@@ -455,59 +436,64 @@ const BranchOrderNewPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 지점/희망입고일/비고 카드 */}
+      {/* 지점 / 창고 / 희망입고일 / 비고 카드 */}
       <div style={card}>
         <div style={row_grid}>
+          {/* 지점 */}
           <div>
-            <label style={label_style}>
-              지점
-            </label>
+            <label style={label_style}>지점</label>
             <select
               style={select_style}
               value={branch_id}
-              onChange={(e) =>
-                set_branch_id(e.target.value)
-              }
+              onChange={(e) => set_branch_id(e.target.value)}
               disabled={is_submitting}
             >
               <option value="">선택하세요</option>
               {branches.map((b) => (
-                <option
-                  key={b.id}
-                  value={String(b.id)}
-                >
+                <option key={b.id} value={String(b.id)}>
                   {b.name}
                 </option>
               ))}
             </select>
           </div>
 
+          {/* 출고 창고 */}
           <div>
-            <label style={label_style}>
-              희망 입고일
-            </label>
+            <label style={label_style}>출고 창고</label>
+            <select
+              style={select_style}
+              value={warehouse_id}
+              onChange={(e) => set_warehouse_id(e.target.value)}
+              disabled={is_submitting}
+            >
+              <option value="">선택하세요</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={String(w.id)}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 희망 입고일 */}
+          <div>
+            <label style={label_style}>희망 입고일</label>
             <input
               type="date"
               style={input_style}
               value={desired_due_date}
-              onChange={(e) =>
-                set_desired_due_date(e.target.value)
-              }
+              onChange={(e) => set_desired_due_date(e.target.value)}
               disabled={is_submitting}
             />
           </div>
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <label style={label_style}>
-            요청 메모
-          </label>
+          <label style={label_style}>요청 메모</label>
           <textarea
             style={textarea_style}
             value={request_note}
-            onChange={(e) =>
-              set_request_note(e.target.value)
-            }
+            onChange={(e) => set_request_note(e.target.value)}
             disabled={is_submitting}
           />
         </div>
@@ -524,6 +510,7 @@ const BranchOrderNewPage: React.FC = () => {
           </div>
         )}
       </div>
+
 
       {/* 품목/수량 테이블 */}
       <div style={card}>
@@ -567,143 +554,95 @@ const BranchOrderNewPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {enriched_lines.map(
-                (ln, idx) => {
-                  const zebra_bg =
-                    idx % 2 === 1
-                      ? { background: ui.zebra }
-                      : undefined;
-                  const item_id_num = Number(
-                    ln.item_id,
-                  );
-                  const item_info =
-                    Number.isFinite(
-                      item_id_num,
-                    )
-                      ? item_by_id.get(
-                          item_id_num,
-                        )
-                      : undefined;
+              {enriched_lines.map((ln, idx) => {
+                const zebra_bg =
+                  idx % 2 === 1 ? { background: ui.zebra } : undefined;
+                const item_id_num = Number(ln.item_id);
+                const item_info = Number.isFinite(item_id_num)
+                  ? item_by_id.get(item_id_num)
+                  : undefined;
 
-                  return (
-                    <tr
-                      key={idx}
-                      style={zebra_bg}
-                    >
-                      {/* 품목 선택 */}
-                      <td style={td_style}>
-                        <select
-                          style={select_style}
-                          value={ln.item_id}
-                          onChange={(e) =>
-                            update_line_item(
-                              idx,
-                              e.target.value,
-                            )
-                          }
-                          disabled={
-                            is_submitting
-                          }
-                        >
-                          <option value="">
-                            품목 선택
+                return (
+                  <tr key={idx} style={zebra_bg}>
+                    {/* 품목 선택 */}
+                    <td style={td_style}>
+                      <select
+                        style={select_style}
+                        value={ln.item_id}
+                        onChange={(e) =>
+                          update_line_item(idx, e.target.value)
+                        }
+                        disabled={is_submitting}
+                      >
+                        <option value="">품목 선택</option>
+                        {items.map((it) => (
+                          <option key={it.id} value={String(it.id)}>
+                            {it.name}
                           </option>
-                          {items.map((it) => (
-                            <option
-                              key={it.id}
-                              value={String(
-                                it.id,
-                              )}
-                            >
-                              {it.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
+                        ))}
+                      </select>
+                    </td>
 
-                      {/* 수량 */}
-                      <td style={td_style}>
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          style={input_style}
-                          value={ln.qty}
-                          onChange={(e) =>
-                            update_line_qty(
-                              idx,
-                              e.target.value,
-                            )
-                          }
-                          disabled={
-                            is_submitting
-                          }
-                        />
-                      </td>
+                    {/* 수량 */}
+                    <td style={td_style}>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        style={input_style}
+                        value={ln.qty}
+                        onChange={(e) =>
+                          update_line_qty(idx, e.target.value)
+                        }
+                        disabled={is_submitting}
+                      />
+                    </td>
 
-                      {/* 단가 */}
-                      <td
-                        style={{
-                          ...td_style,
-                          textAlign:
-                            "right",
-                        }}
-                      >
-                        {money(
-                          item_info
-                            ?.unit_price ??
-                            0,
-                        )}
-                      </td>
+                    {/* 단가 */}
+                    <td
+                      style={{
+                        ...td_style,
+                        textAlign: "right",
+                      }}
+                    >
+                      {money(item_info?.unit_price ?? 0)}
+                    </td>
 
-                      {/* 금액 */}
-                      <td
-                        style={{
-                          ...td_style,
-                          textAlign:
-                            "right",
-                        }}
-                      >
-                        {money(
-                          ln.line_total ??
-                            0,
-                        )}
-                      </td>
+                    {/* 금액 */}
+                    <td
+                      style={{
+                        ...td_style,
+                        textAlign: "right",
+                      }}
+                    >
+                      {money(ln.line_total ?? 0)}
+                    </td>
 
-                      {/* 삭제 */}
-                      <td style={td_style}>
-                        {lines.length > 1 ? (
-                          <button
-                            type="button"
-                            style={
-                              danger_btn
-                            }
-                            disabled={
-                              is_submitting
-                            }
-                            onClick={() =>
-                              remove_line(
-                                idx,
-                              )
-                            }
-                          >
-                            삭제
-                          </button>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: 13,
-                              color: ui.muted,
-                            }}
-                          >
-                            -
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                },
-              )}
+                    {/* 삭제 */}
+                    <td style={td_style}>
+                      {lines.length > 1 ? (
+                        <button
+                          type="button"
+                          style={danger_btn}
+                          disabled={is_submitting}
+                          onClick={() => remove_line(idx)}
+                        >
+                          삭제
+                        </button>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: 13,
+                            color: ui.muted,
+                          }}
+                        >
+                          -
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
 
               {lines.length === 0 && (
                 <tr>
@@ -712,8 +651,7 @@ const BranchOrderNewPage: React.FC = () => {
                       ...td_style,
                       textAlign: "center",
                       color: ui.muted,
-                      fontStyle:
-                        "italic",
+                      fontStyle: "italic",
                     }}
                     colSpan={5}
                   >
@@ -746,56 +684,28 @@ const BranchOrderNewPage: React.FC = () => {
             color: "#111",
           }}
         >
-          {enriched_lines.map(
-            (ln, i) => {
-              if (
-                !ln.item_id ||
-                !ln.qty
-              )
-                return null;
-              const item_id_num = Number(
-                ln.item_id,
-              );
-              const info =
-                Number.isFinite(
-                  item_id_num,
-                )
-                  ? item_by_id.get(
-                      item_id_num,
-                    )
-                  : undefined;
-              const nm =
-                info?.name;
-              const q_num = Number(
-                ln.qty,
-              );
-              if (
-                !nm ||
-                !Number.isFinite(
-                  q_num,
-                ) ||
-                q_num <= 0
-              )
-                return null;
+          {enriched_lines.map((ln, i) => {
+            if (!ln.item_id || !ln.qty) return null;
+            const item_id_num = Number(ln.item_id);
+            const info = Number.isFinite(item_id_num)
+              ? item_by_id.get(item_id_num)
+              : undefined;
+            const nm = info?.name;
+            const q_num = Number(ln.qty);
+            if (!nm || !Number.isFinite(q_num) || q_num <= 0) return null;
 
-              return (
-                <div
-                  key={i}
-                  style={{
-                    fontSize: 13,
-                    color: ui.muted,
-                  }}
-                >
-                  • {nm} × {q_num} →{" "}
-                  {money(
-                    ln.line_total ??
-                      0,
-                  )}
-                  원
-                </div>
-              );
-            },
-          )}
+            return (
+              <div
+                key={i}
+                style={{
+                  fontSize: 13,
+                  color: ui.muted,
+                }}
+              >
+                • {nm} × {q_num} → {money(ln.line_total ?? 0)}원
+              </div>
+            );
+          })}
 
           <div
             style={{
@@ -805,8 +715,7 @@ const BranchOrderNewPage: React.FC = () => {
               textAlign: "right",
             }}
           >
-            총 금액:{" "}
-            {money(total_amount)}원
+            총 금액: {money(total_amount)}원
           </div>
         </div>
       </div>

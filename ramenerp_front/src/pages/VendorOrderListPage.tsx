@@ -17,10 +17,12 @@ import {
   fetch_items,
   fetch_warehouses,
   fetch_item_name_by_id,
+  fetch_item_price_by_id,
+  prime_item_name_cache,
+  prime_item_price_cache,
   type VendorOption,
   type ItemOption,
   type WarehouseOption,
-  prime_item_name_cache,
 } from "@/api/master_data";
 
 /* ===== props ===== */
@@ -203,7 +205,9 @@ const badge_style = (): React.CSSProperties => ({
 
 /* ===== 유틸 ===== */
 function money(n: number) {
-  return new Intl.NumberFormat("ko-KR").format(n);
+  return new Intl.NumberFormat("ko-KR").format(
+    Number.isFinite(n) ? n : 0,
+  );
 }
 
 // "VO_..._YYMMDD_XXX" 에서 날짜 추출 → YYYY-MM-DD
@@ -218,7 +222,10 @@ function infer_date_from_order_id(vendor_order_id?: string): string {
   return `20${yy}-${mm}-${dd}`;
 }
 
-function display_date(o: { created_at?: string; vendor_order_id?: string }): string {
+function display_date(o: {
+  created_at?: string;
+  vendor_order_id?: string;
+}): string {
   if (o.created_at) {
     const d = new Date(o.created_at);
     if (!Number.isNaN(d.getTime())) {
@@ -276,18 +283,23 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
 
   // 필터
   const [vendor_filter, set_vendor_filter] = useState<string>("");
-  const [status_filter, set_status_filter] = useState<string>(initialStatus ?? "");
+  const [status_filter, set_status_filter] =
+    useState<string>(initialStatus ?? "");
   const [start_date, set_start_date] = useState<string>("");
   const [end_date, set_end_date] = useState<string>("");
-  const [order_id_search, set_order_id_search] = useState<string>("");
+  const [order_id_search, set_order_id_search] =
+    useState<string>("");
 
   // 자동완성
-  const [order_id_suggestions, set_order_id_suggestions] = useState<string[]>([]);
-  const [show_suggest, set_show_suggest] = useState<boolean>(false);
+  const [order_id_suggestions, set_order_id_suggestions] =
+    useState<string[]>([]);
+  const [show_suggest, set_show_suggest] =
+    useState<boolean>(false);
   const suggest_wrap_ref = useRef<HTMLDivElement | null>(null);
 
   // 보기
-  const [view_mode, set_view_mode] = useState<"line" | "header">("line");
+  const [view_mode, set_view_mode] =
+    useState<"line" | "header">("line");
 
   // 상태
   const [loading, set_loading] = useState<boolean>(false);
@@ -297,9 +309,10 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
   const [orders, set_orders] = useState<VendorOrder[]>([]);
   const [vendors, set_vendors] = useState<VendorOption[]>([]);
   const [items, set_items] = useState<ItemOption[]>([]);
-  const [warehouses, set_warehouses] = useState<WarehouseOption[]>([]);
+  const [warehouses, set_warehouses] =
+    useState<WarehouseOption[]>([]);
 
-  // 이름 맵
+  // 이름/단가 맵 (마스터에서 오는 것)
   const vendor_name_by_id = useMemo(() => {
     const m = new Map<number, string>();
     vendors.forEach((v) => m.set(v.id, v.name));
@@ -312,30 +325,53 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
     return m;
   }, [items]);
 
+  const item_price_by_id = useMemo(() => {
+    const m = new Map<number, number>();
+    items.forEach((it) => {
+      if (typeof it.unit_price === "number") {
+        m.set(it.id, it.unit_price);
+      }
+    });
+    return m;
+  }, [items]);
+
   const wh_name_by_id = useMemo(() => {
     const m = new Map<number, string>();
     warehouses.forEach((w) => m.set(w.id, w.name));
     return m;
   }, [warehouses]);
 
-  // 아이템명 보강 캐시
-  const [item_name_patch, set_item_name_patch] = useState<Map<number, string>>(
-    () => new Map(),
-  );
+  // 아이템명 / 단가 보강 캐시
+  const [item_name_patch, set_item_name_patch] =
+    useState<Map<number, string>>(() => new Map());
+  const [item_price_patch, set_item_price_patch] =
+    useState<Map<number, number>>(() => new Map());
 
-  // 라인뷰 렌더용
-  const line_rows: VendorOrder[] = useMemo(() => {
-    return orders.map((o) => ({
-      ...o,
-      vendor_name: o.vendor_name ?? vendor_name_by_id.get(o.vendor_id) ?? "",
-      item_name:
-        o.item_name ??
-        item_name_patch.get(o.item_id) ??
-        item_name_by_id.get(o.item_id) ??
-        "",
-      wh_name: o.wh_name ?? wh_name_by_id.get(o.wh_id) ?? "",
-    }));
-  }, [orders, vendor_name_by_id, item_name_by_id, wh_name_by_id, item_name_patch]);
+  // 라인뷰 렌더용 (이름만 보강)
+  const line_rows: VendorOrder[] = useMemo(
+    () =>
+      orders.map((o) => ({
+        ...o,
+        vendor_name:
+          o.vendor_name ??
+          vendor_name_by_id.get(o.vendor_id) ??
+          "",
+        item_name:
+          o.item_name ??
+          item_name_patch.get(o.item_id) ??
+          item_name_by_id.get(o.item_id) ??
+          "",
+        wh_name:
+          o.wh_name ?? wh_name_by_id.get(o.wh_id) ?? "",
+      })),
+    [
+      orders,
+      vendor_name_by_id,
+      item_name_by_id,
+      wh_name_by_id,
+      item_name_patch,
+    ],
+  );
 
   // 헤더뷰
   const header_rows: HeaderRow[] = useMemo(
@@ -343,7 +379,14 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
     [line_rows],
   );
 
-  const status_options = ["", "PENDING", "INPROGRESS", "PARTIALLY", "CANCELED", "COMPLETED"];
+  const status_options = [
+    "",
+    "PENDING",
+    "INPROGRESS",
+    "PARTIALLY",
+    "CANCELED",
+    "COMPLETED",
+  ];
 
   // 마스터 로드
   useEffect(() => {
@@ -360,6 +403,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
         set_items(it);
         set_warehouses(wh);
         prime_item_name_cache(it);
+        prime_item_price_cache(it);
       } catch {
         /* ignore */
       }
@@ -378,22 +422,40 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
 
       // 1) API 호출 (기간 / 거래처 / 상태)
       if (start_date && end_date) {
-        data = await fetch_vendor_orders_by_period(start_date, end_date);
+        data = await fetch_vendor_orders_by_period(
+          start_date,
+          end_date,
+        );
       } else if (fixedStatus) {
         // 상태 고정 모드 (입고 내역 등)
         if (vendor_filter) {
-          const tmp = await fetch_vendor_orders_by_vendor(Number(vendor_filter));
-          data = tmp.filter((r) => r.status === fixedStatus);
+          const tmp = await fetch_vendor_orders_by_vendor(
+            Number(vendor_filter),
+          );
+          data = tmp.filter(
+            (r) => r.status === fixedStatus,
+          );
         } else {
-          data = await fetch_vendor_orders_by_status(fixedStatus);
+          data =
+            await fetch_vendor_orders_by_status(
+              fixedStatus,
+            );
         }
       } else if (vendor_filter && !status_filter) {
-        data = await fetch_vendor_orders_by_vendor(Number(vendor_filter));
+        data = await fetch_vendor_orders_by_vendor(
+          Number(vendor_filter),
+        );
       } else if (!vendor_filter && status_filter) {
-        data = await fetch_vendor_orders_by_status(status_filter);
+        data = await fetch_vendor_orders_by_status(
+          status_filter,
+        );
       } else if (vendor_filter && status_filter) {
-        const tmp = await fetch_vendor_orders_by_vendor(Number(vendor_filter));
-        data = tmp.filter((r) => r.status === status_filter);
+        const tmp = await fetch_vendor_orders_by_vendor(
+          Number(vendor_filter),
+        );
+        data = tmp.filter(
+          (r) => r.status === status_filter,
+        );
       } else {
         data = await fetch_vendor_orders_all();
       }
@@ -401,18 +463,26 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
       // 2) 발주번호 부분검색(프론트 필터)
       if (order_id_search.trim()) {
         const kw = order_id_search.trim().toLowerCase();
-        data = data.filter((r) => r.vendor_order_id.toLowerCase().includes(kw));
+        data = data.filter((r) =>
+          r.vendor_order_id.toLowerCase().includes(kw),
+        );
       }
 
       // 3) 발주 내역 화면에서는 COMPLETED 숨김
       if (hideCompleted && !fixedStatus) {
-        data = data.filter((r) => r.status !== "COMPLETED");
+        data = data.filter(
+          (r) => r.status !== "COMPLETED",
+        );
       }
 
       set_orders(data);
 
       // 자동완성용
-      const uniq = Array.from(new Set(data.map((r) => r.vendor_order_id))).sort();
+      const uniq = Array.from(
+        new Set(
+          data.map((r) => r.vendor_order_id),
+        ),
+      ).sort();
       set_order_id_suggestions(uniq);
     } catch (e: any) {
       set_error_msg(e?.message || "목록 조회 실패");
@@ -427,15 +497,19 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 아이템명 보강
+  // 아이템명 보강 (USED + NOTUSED 둘 다 커버)
   useEffect(() => {
     const need_ids = Array.from(
       new Set(
         orders
           .filter((o) => {
-            const in_master = !!item_name_by_id.get(o.item_id);
-            const in_patch = !!item_name_patch.get(o.item_id);
-            const empty = !o.item_name || !String(o.item_name).trim();
+            const in_master =
+              !!item_name_by_id.get(o.item_id);
+            const in_patch =
+              !!item_name_patch.get(o.item_id);
+            const empty =
+              !o.item_name ||
+              !String(o.item_name).trim();
             return empty && !in_master && !in_patch;
           })
           .map((o) => o.item_id),
@@ -446,7 +520,10 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
     let cancelled = false;
     (async () => {
       for (const id of need_ids) {
-        const nm = await fetch_item_name_by_id(id).catch(() => undefined);
+        const nm =
+          await fetch_item_name_by_id(id).catch(
+            () => undefined,
+          );
         if (cancelled || !nm) continue;
         set_item_name_patch((prev) => {
           const next = new Map(prev);
@@ -461,6 +538,48 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
     };
   }, [orders, item_name_by_id, item_name_patch]);
 
+  // 아이템 단가 보강 (USED + NOTUSED 모두에서 가격 탐색)
+  useEffect(() => {
+    const need_ids = Array.from(
+      new Set(
+        orders
+          .filter((o) => {
+            if (!o.item_id) return false;
+            const in_master =
+              item_price_by_id.has(o.item_id);
+            const in_patch =
+              item_price_patch.has(o.item_id);
+            // 서버에서 unit_price 같은 필드가 아예 없다고 가정하고,
+            // 마스터/패치 둘 다 없을 때만 fetch_item_price_by_id 호출
+            return !in_master && !in_patch;
+          })
+          .map((o) => o.item_id),
+      ),
+    );
+
+    if (need_ids.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const id of need_ids) {
+        const price =
+          await fetch_item_price_by_id(id).catch(
+            () => undefined,
+          );
+        if (cancelled || price === undefined) continue;
+        set_item_price_patch((prev) => {
+          const next = new Map(prev);
+          next.set(id, price);
+          return next;
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orders, item_price_by_id, item_price_patch]);
+
   // 검색
   const on_click_search = () => {
     load_orders();
@@ -468,42 +587,83 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
 
   // CSV
   const on_download_csv = () => {
-    const rows = view_mode === "header" ? header_rows : line_rows;
+    const rows =
+      view_mode === "header" ? header_rows : line_rows;
     if (!rows.length) {
+      // eslint-disable-next-line no-alert
       alert("다운로드할 데이터가 없습니다.");
       return;
     }
 
     const cols_line = isCompletedView
-      ? ["발주번호", "발주일자", "거래처명", "품목명", "창고명", "입고 수량", "상태"]
-      : ["발주번호", "발주일자", "거래처명", "품목명", "창고명", "발주 수량", "잔여 수량", "상태"];
+      ? [
+          "발주번호",
+          "발주일자",
+          "거래처명",
+          "품목명",
+          "창고명",
+          "입고 수량",
+          "단가",
+          "금액",
+          "상태",
+        ]
+      : [
+          "발주번호",
+          "발주일자",
+          "거래처명",
+          "품목명",
+          "창고명",
+          "발주 수량",
+          "잔여 수량",
+          "단가",
+          "금액",
+          "상태",
+        ];
 
-    const cols_header = ["발주번호", "발주일자", "거래처명", "창고명", "총 수량", "상태"];
+    const cols_header = [
+      "발주번호",
+      "발주일자",
+      "거래처명",
+      "창고명",
+      "총 수량",
+      "상태",
+    ];
     let csv = "";
 
     if (view_mode === "header") {
-      csv += cols_header.join(",") + "\n";
+      csv += `${cols_header.join(",")}\n`;
       header_rows.forEach((r) => {
         const line = [
           r.vendor_order_id,
-          display_date({ created_at: r.created_at, vendor_order_id: r.vendor_order_id }),
+          display_date({
+            created_at: r.created_at,
+            vendor_order_id: r.vendor_order_id,
+          }),
           r.vendor_name ?? "",
           r.wh_name ?? "",
           String(r.total_qty),
           r.status ?? "",
         ]
-          .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
+          .map((v) =>
+            `"${String(v ?? "").replace(/"/g, '""')}"`,
+          )
           .join(",");
-        csv += line + "\n";
+        csv += `${line}\n`;
       });
     } else {
-      csv += cols_line.join(",") + "\n";
+      csv += `${cols_line.join(",")}\n`;
       line_rows.forEach((r) => {
         const ordered = r.quantity ?? 0;
         const received = r.received_quantity ?? 0;
         const remaining = Math.max(0, ordered - received);
 
-        const lineValues = isCompletedView
+        const unit_price_local =
+          item_price_patch.get(r.item_id) ??
+          item_price_by_id.get(r.item_id) ??
+          0;
+        const amount_local = unit_price_local * ordered;
+
+        const line_values = isCompletedView
           ? [
               r.vendor_order_id,
               display_date(r),
@@ -511,6 +671,8 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
               r.item_name ?? "",
               r.wh_name ?? "",
               String(received),
+              String(unit_price_local),
+              String(amount_local),
               r.status ?? "",
             ]
           : [
@@ -521,17 +683,23 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
               r.wh_name ?? "",
               String(ordered),
               String(remaining),
+              String(unit_price_local),
+              String(amount_local),
               r.status ?? "",
             ];
 
-        const line = lineValues
-          .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
+        const line = line_values
+          .map((v) =>
+            `"${String(v ?? "").replace(/"/g, '""')}"`,
+          )
           .join(",");
-        csv += line + "\n";
+        csv += `${line}\n`;
       });
     }
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([csv], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -556,35 +724,55 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
   useEffect(() => {
     const on_doc_click = (e: MouseEvent) => {
       if (!suggest_wrap_ref.current) return;
-      if (!suggest_wrap_ref.current.contains(e.target as Node)) {
+      if (
+        !suggest_wrap_ref.current.contains(
+          e.target as Node,
+        )
+      ) {
         set_show_suggest(false);
       }
     };
     document.addEventListener("mousedown", on_doc_click);
-    return () => document.removeEventListener("mousedown", on_doc_click);
+    return () =>
+      document.removeEventListener(
+        "mousedown",
+        on_doc_click,
+      );
   }, []);
 
   // 입고 완료
   const handle_complete = async (row: VendorOrder) => {
     if (!row.id) {
+      // eslint-disable-next-line no-alert
       alert("내부 ID가 없어 입고 처리를 할 수 없습니다.");
       return;
     }
-    if (!window.confirm(`발주 '${row.vendor_order_id}'를 입고 완료 처리할까요?`)) {
+    if (
+      !window.confirm(
+        `발주 '${row.vendor_order_id}'를 입고 완료 처리할까요?`,
+      )
+    ) {
       return;
     }
     try {
       await complete_vendor_order(row.id);
       await load_orders();
     } catch (e: any) {
-      alert(e?.message || "입고 완료 처리 중 오류가 발생했습니다.");
+      // eslint-disable-next-line no-alert
+      alert(
+        e?.message ||
+          "입고 완료 처리 중 오류가 발생했습니다.",
+      );
     }
   };
 
   // 부분 입고
   const handle_partial = async (row: VendorOrder) => {
     if (!row.id) {
-      alert("내부 ID가 없어 부분 입고를 처리할 수 없습니다.");
+      // eslint-disable-next-line no-alert
+      alert(
+        "내부 ID가 없어 부분 입고를 처리할 수 없습니다.",
+      );
       return;
     }
 
@@ -593,6 +781,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
     const remaining = Math.max(0, ordered - received);
 
     if (remaining <= 0) {
+      // eslint-disable-next-line no-alert
       alert("잔여 수량이 없습니다.");
       return;
     }
@@ -605,10 +794,12 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
 
     const qty = Number(input);
     if (!Number.isFinite(qty) || qty <= 0) {
+      // eslint-disable-next-line no-alert
       alert("올바른 수량을 입력하세요.");
       return;
     }
     if (qty > remaining) {
+      // eslint-disable-next-line no-alert
       alert("잔여 수량을 초과할 수 없습니다.");
       return;
     }
@@ -617,9 +808,23 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
       await partial_vendor_order(row.id, qty);
       await load_orders();
     } catch (e: any) {
-      alert(e?.message || "부분 입고 처리 중 오류가 발생했습니다.");
+      // eslint-disable-next-line no-alert
+      alert(
+        e?.message ||
+          "부분 입고 처리 중 오류가 발생했습니다.",
+      );
     }
   };
+
+  // colSpan 계산
+  const line_col_count = isCompletedView
+    ? 9 // 번호,일자,거래처,품목,창고,수량(입고),단가,금액,상태
+    : showCompleteButton
+    ? 11 // + 잔여수량, 관리
+    : 10; // 잔여수량까지
+  const header_col_count = 6;
+  const current_col_span =
+    view_mode === "header" ? header_col_count : line_col_count;
 
   /* ===== 테이블 헤더 ===== */
   const thead =
@@ -642,7 +847,11 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
         <th style={th_style}>
           {isCompletedView ? "수량(입고)" : "발주 수량"}
         </th>
-        {!isCompletedView && <th style={th_style}>잔여 수량</th>}
+        {!isCompletedView && (
+          <th style={th_style}>잔여 수량</th>
+        )}
+        <th style={th_style}>단가</th>
+        <th style={th_style}>금액</th>
         <th style={th_style}>상태</th>
         {showCompleteButton && !isCompletedView && (
           <th style={th_style}>관리</th>
@@ -654,89 +863,168 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
   const tbody =
     view_mode === "header"
       ? header_rows.map((r, idx) => {
-          const bg = idx % 2 === 1 ? { background: ui.zebra } : undefined;
+          const bg =
+            idx % 2 === 1
+              ? { background: ui.zebra }
+              : undefined;
           return (
-            <tr key={r.vendor_order_id} style={bg}>
-              <td style={td_style}>{r.vendor_order_id}</td>
+            <tr
+              key={r.vendor_order_id}
+              style={bg}
+            >
+              <td style={td_style}>
+                {r.vendor_order_id}
+              </td>
               <td style={td_style}>
                 {display_date({
                   created_at: r.created_at,
-                  vendor_order_id: r.vendor_order_id,
+                  vendor_order_id:
+                    r.vendor_order_id,
                 })}
               </td>
-              <td style={td_style}>{r.vendor_name ?? ""}</td>
-              <td style={td_style}>{r.wh_name ?? ""}</td>
-              <td style={td_style}>{money(r.total_qty)}</td>
               <td style={td_style}>
-                <span style={badge_style()}>{r.status}</span>
+                {r.vendor_name ?? ""}
+              </td>
+              <td style={td_style}>
+                {r.wh_name ?? ""}
+              </td>
+              <td style={td_style}>
+                {money(r.total_qty)}
+              </td>
+              <td style={td_style}>
+                <span style={badge_style()}>
+                  {r.status}
+                </span>
               </td>
             </tr>
           );
         })
       : line_rows.map((o, idx) => {
-          const bg = idx % 2 === 1 ? { background: ui.zebra } : undefined;
+          const bg =
+            idx % 2 === 1
+              ? { background: ui.zebra }
+              : undefined;
           const ordered = o.quantity ?? 0;
           const received = o.received_quantity ?? 0;
-          const remaining = Math.max(0, ordered - received);
+          const remaining = Math.max(
+            0,
+            ordered - received,
+          );
+
+          // 여기서 단가/금액 계산 (미사용 품목 포함)
+          const unit_price_local =
+            item_price_patch.get(o.item_id) ??
+            item_price_by_id.get(o.item_id) ??
+            0;
+          const amount_local =
+            unit_price_local * ordered;
 
           return (
-            <tr key={`${o.vendor_order_id}_${idx}`} style={bg}>
-              <td style={td_style}>{o.vendor_order_id}</td>
-              <td style={td_style}>{display_date(o)}</td>
-              <td style={td_style}>{o.vendor_name}</td>
+            <tr
+              key={`${o.vendor_order_id}_${idx}`}
+              style={bg}
+            >
+              <td style={td_style}>
+                {o.vendor_order_id}
+              </td>
+              <td style={td_style}>
+                {display_date(o)}
+              </td>
+              <td style={td_style}>
+                {o.vendor_name}
+              </td>
               <td style={td_style}>{o.item_name}</td>
               <td style={td_style}>{o.wh_name}</td>
 
               {/* 수량 / 잔여 수량 */}
               <td style={td_style}>
-                {money(isCompletedView ? received : ordered)}
+                {money(
+                  isCompletedView
+                    ? received
+                    : ordered,
+                )}
               </td>
               {!isCompletedView && (
-                <td style={td_style}>{money(remaining)}</td>
+                <td style={td_style}>
+                  {money(remaining)}
+                </td>
               )}
+
+              {/* 단가 / 금액 */}
+              <td style={td_style}>
+                {money(unit_price_local)}
+              </td>
+              <td style={td_style}>
+                {money(amount_local)}
+              </td>
 
               {/* 상태 */}
               <td style={td_style}>
-                <span style={badge_style()}>{o.status}</span>
+                <span style={badge_style()}>
+                  {o.status}
+                </span>
               </td>
 
               {/* 관리(발주 내역에서만 노출) */}
-              {showCompleteButton && !isCompletedView && (
-                <td style={td_style}>
-                  {o.status === "COMPLETED" ? (
-                    "-"
-                  ) : (
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button
-                        type="button"
-                        style={small_btn}
-                        onClick={() => handle_partial(o)}
+              {showCompleteButton &&
+                !isCompletedView && (
+                  <td style={td_style}>
+                    {o.status === "COMPLETED" ? (
+                      "-"
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                        }}
                       >
-                        부분 입고
-                      </button>
-                      <button
-                        type="button"
-                        style={small_btn}
-                        onClick={() => handle_complete(o)}
-                      >
-                        입고 완료
-                      </button>
-                    </div>
-                  )}
-                </td>
-              )}
+                        <button
+                          type="button"
+                          style={small_btn}
+                          onClick={() =>
+                            handle_partial(o)
+                          }
+                        >
+                          부분 입고
+                        </button>
+                        <button
+                          type="button"
+                          style={small_btn}
+                          onClick={() =>
+                            handle_complete(o)
+                          }
+                        >
+                          입고 완료
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                )}
             </tr>
           );
         });
 
   return (
     <div style={page_wrap}>
-      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{title}</h1>
+      <h1
+        style={{
+          margin: 0,
+          fontSize: 22,
+          fontWeight: 800,
+        }}
+      >
+        {title}
+      </h1>
 
       {/* 필터 */}
       <div style={header_row}>
         {/* 거래처 */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <label
             style={{
               color: ui.muted,
@@ -750,11 +1038,16 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
           <select
             style={select_style}
             value={vendor_filter}
-            onChange={(e) => set_vendor_filter(e.target.value)}
+            onChange={(e) =>
+              set_vendor_filter(e.target.value)
+            }
           >
             <option value="">전체</option>
             {vendors.map((v) => (
-              <option key={v.id} value={String(v.id)}>
+              <option
+                key={v.id}
+                value={String(v.id)}
+              >
                 {v.name}
               </option>
             ))}
@@ -762,7 +1055,12 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
         </div>
 
         {/* 상태 */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <label
             style={{
               color: ui.muted,
@@ -779,7 +1077,10 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
             onChange={
               fixedStatus
                 ? undefined
-                : (e) => set_status_filter(e.target.value)
+                : (e) =>
+                    set_status_filter(
+                      e.target.value,
+                    )
             }
             disabled={!!fixedStatus}
           >
@@ -795,7 +1096,12 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
         </div>
 
         {/* 기간 시작 */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <label
             style={{
               color: ui.muted,
@@ -810,12 +1116,19 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
             type="date"
             style={input_style}
             value={start_date}
-            onChange={(e) => set_start_date(e.target.value)}
+            onChange={(e) =>
+              set_start_date(e.target.value)
+            }
           />
         </div>
 
         {/* 기간 종료 */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <label
             style={{
               color: ui.muted,
@@ -830,13 +1143,19 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
             type="date"
             style={input_style}
             value={end_date}
-            onChange={(e) => set_end_date(e.target.value)}
+            onChange={(e) =>
+              set_end_date(e.target.value)
+            }
           />
         </div>
 
         {/* 발주번호 + 자동완성 */}
         <div
-          style={{ display: "flex", flexDirection: "column", position: "relative" }}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            position: "relative",
+          }}
           ref={suggest_wrap_ref}
         >
           <label
@@ -851,7 +1170,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
           </label>
           <input
             style={{ ...input_style, width: "100%" }}
-            placeholder={`예: VO_VD_SEOUL`}
+            placeholder="예: VO_VD_SEOUL"
             value={order_id_search}
             onChange={(e) => {
               set_order_id_search(e.target.value);
@@ -859,44 +1178,52 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
             }}
             onFocus={() => set_show_suggest(true)}
           />
-          {show_suggest && filtered_suggests.length > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: 68,
-                left: 0,
-                right: 0,
-                border: `1px solid ${ui.border}`,
-                background: "#fff",
-                borderRadius: 8,
-                boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
-                zIndex: 20,
-                maxHeight: 220,
-                overflowY: "auto",
-              }}
-            >
-              {filtered_suggests.map((s) => (
-                <div
-                  key={s}
-                  onMouseDown={() => {
-                    set_order_id_search(s);
-                    set_show_suggest(false);
-                  }}
-                  style={{
-                    padding: "10px 12px",
-                    cursor: "pointer",
-                    borderBottom: `1px solid ${ui.border}`,
-                  }}
-                >
-                  {s}
-                </div>
-              ))}
-            </div>
-          )}
+          {show_suggest &&
+            filtered_suggests.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 68,
+                  left: 0,
+                  right: 0,
+                  border: `1px solid ${ui.border}`,
+                  background: "#fff",
+                  borderRadius: 8,
+                  boxShadow:
+                    "0 8px 20px rgba(0,0,0,0.08)",
+                  zIndex: 20,
+                  maxHeight: 220,
+                  overflowY: "auto",
+                }}
+              >
+                {filtered_suggests.map((s) => (
+                  <div
+                    key={s}
+                    onMouseDown={() => {
+                      set_order_id_search(s);
+                      set_show_suggest(false);
+                    }}
+                    style={{
+                      padding: "10px 12px",
+                      cursor: "pointer",
+                      borderBottom:
+                        "1px solid " + ui.border,
+                    }}
+                  >
+                    {s}
+                  </div>
+                ))}
+              </div>
+            )}
         </div>
 
         {/* 검색 */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <label
             style={{
               fontSize: 13,
@@ -917,7 +1244,12 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
         </div>
 
         {/* 등록 */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <label
             style={{
               fontSize: 13,
@@ -942,17 +1274,28 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
         {/* 2행: 보기/CSV */}
         <div style={{ gridColumn: "1 / -1" }}>
           <div style={sub_row}>
-            <div style={{ fontWeight: 600, color: "#0f172a" }}>
+            <div
+              style={{
+                fontWeight: 600,
+                color: "#0f172a",
+              }}
+            >
               보기 / 내보내기
             </div>
             <button
               type="button"
               style={small_btn}
               onClick={() =>
-                set_view_mode(view_mode === "line" ? "header" : "line")
+                set_view_mode(
+                  view_mode === "line"
+                    ? "header"
+                    : "line",
+                )
               }
             >
-              {view_mode === "line" ? "헤더 뷰" : "라인 뷰"}
+              {view_mode === "line"
+                ? "헤더 뷰"
+                : "라인 뷰"}
             </button>
             <button
               type="button"
@@ -990,12 +1333,13 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
                       textAlign: "center",
                       color: ui.muted,
                     }}
-                    colSpan={9}
+                    colSpan={current_col_span}
                   >
                     불러오는 중…
                   </td>
                 </tr>
-              ) : view_mode === "header" && header_rows.length === 0 ? (
+              ) : view_mode === "header" &&
+                header_rows.length === 0 ? (
                 <tr>
                   <td
                     style={{
@@ -1003,12 +1347,13 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
                       textAlign: "center",
                       color: ui.muted,
                     }}
-                    colSpan={9}
+                    colSpan={current_col_span}
                   >
                     데이터 없음
                   </td>
                 </tr>
-              ) : view_mode === "line" && line_rows.length === 0 ? (
+              ) : view_mode === "line" &&
+                line_rows.length === 0 ? (
                 <tr>
                   <td
                     style={{
@@ -1016,7 +1361,7 @@ const VendorOrderListPage: React.FC<VendorOrderListPageProps> = ({
                       textAlign: "center",
                       color: ui.muted,
                     }}
-                    colSpan={9}
+                    colSpan={current_col_span}
                   >
                     데이터 없음
                   </td>

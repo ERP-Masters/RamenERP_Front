@@ -65,10 +65,8 @@ const ui = {
     lineHeight: 1,
   } as React.CSSProperties,
 
-  // 🟦 새로 추가: 실제 인풋/셀렉트 박스를 감싸는 래퍼
-  // 각 칸 너비를 2/3 정도로 제한
   ctrlWrap: {
-    width: "66%", // <-- 여기: 각 필드 컨트롤의 가로폭을 컬럼 폭의 약 2/3로
+    width: "66%",
     minWidth: 0,
   } as React.CSSProperties,
 
@@ -93,7 +91,7 @@ const ui = {
     backgroundColor: "#fff",
     display: "flex",
     alignItems: "center",
-    padding: "0 28px 0 8px", // 오른쪽 화살표 자리
+    padding: "0 28px 0 8px",
   } as React.CSSProperties,
 
   arrow: {
@@ -191,12 +189,16 @@ const ui = {
 
 /* fetch utils / option normalize 그대로 */
 async function fetch_json(url: string) {
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+  });
   const text = await res.text().catch(() => "");
   if (!res.ok) {
     try {
       const j = text ? JSON.parse(text) : null;
-      throw new Error(j?.message || j?.error || text || `HTTP ${res.status}`);
+      throw new Error(
+        j?.message || j?.error || text || `HTTP ${res.status}`,
+      );
     } catch {
       throw new Error(text || `HTTP ${res.status}`);
     }
@@ -209,14 +211,26 @@ function normalize_options(
   id_keys: string[],
   name_keys: string[],
   extra_keys?: string[],
-  numeric_id_keys: string[] = ["id", "pk", "vendor_pk", "category_pk", "unit_pk"]
+  numeric_id_keys: string[] = [
+    "id",
+    "pk",
+    "vendor_pk",
+    "category_pk",
+    "unit_pk",
+  ],
 ): Option[] {
   const out: Option[] = [];
   for (const r of raw ?? []) {
-    const id_val = id_keys.map((k) => r?.[k]).find((v) => v !== undefined && v !== null);
-    const name_val = name_keys.map((k) => r?.[k]).find((v) => v !== undefined && v !== null);
+    const id_val = id_keys
+      .map((k) => r?.[k])
+      .find((v) => v !== undefined && v !== null);
+    const name_val = name_keys
+      .map((k) => r?.[k])
+      .find((v) => v !== undefined && v !== null);
     if (id_val === undefined || name_val === undefined) continue;
-    const extra_val = extra_keys?.map((k) => r?.[k]).find((v) => v !== undefined && v !== null);
+    const extra_val = extra_keys
+      ?.map((k) => r?.[k])
+      .find((v) => v !== undefined && v !== null);
     const numeric_raw = numeric_id_keys
       .map((k) => r?.[k])
       .find((v) => typeof v === "number" && Number.isFinite(v));
@@ -224,19 +238,30 @@ function normalize_options(
       id: String(id_val),
       name: String(name_val),
       extra: extra_val != null ? String(extra_val) : undefined,
-      numId: typeof numeric_raw === "number" ? numeric_raw : undefined,
+      numId:
+        typeof numeric_raw === "number"
+          ? numeric_raw
+          : undefined,
     });
   }
   return out;
 }
 
 async function fetch_category_options(): Promise<Option[]> {
-  const candidates = ["/api/category", "/api/categories", "/api/categories/options"];
+  const candidates = [
+    "/api/category",
+    "/api/categories",
+    "/api/categories/options",
+  ];
   for (const url of candidates) {
     try {
       const raw = await fetch_json(url);
       const arr = Array.isArray(raw) ? raw : raw?.items ?? [];
-      const opts = normalize_options(arr, ["id", "category_id"], ["category_name", "name"]);
+      const opts = normalize_options(
+        arr,
+        ["id", "category_id"],
+        ["category_name", "name"],
+      );
       if (opts.length) return opts;
     } catch {}
   }
@@ -244,7 +269,11 @@ async function fetch_category_options(): Promise<Option[]> {
 }
 
 async function fetch_unit_options(): Promise<Option[]> {
-  const candidates = ["/api/units", "/api/unit", "/api/units/options"];
+  const candidates = [
+    "/api/units",
+    "/api/unit",
+    "/api/units/options",
+  ];
   for (const url of candidates) {
     try {
       const raw = await fetch_json(url);
@@ -253,7 +282,7 @@ async function fetch_unit_options(): Promise<Option[]> {
         arr,
         ["id", "unit_id"],
         ["name", "unit_name", "code"],
-        ["code"]
+        ["code"],
       );
       if (opts.length) return opts;
     } catch {}
@@ -262,7 +291,11 @@ async function fetch_unit_options(): Promise<Option[]> {
 }
 
 async function fetch_vendor_options(): Promise<Option[]> {
-  const candidates = ["/api/vendors", "/api/vendors/summary", "/api/vendors/options"];
+  const candidates = [
+    "/api/vendors",
+    "/api/vendors/summary",
+    "/api/vendors/options",
+  ];
   for (const url of candidates) {
     try {
       const raw = await fetch_json(url);
@@ -272,7 +305,7 @@ async function fetch_vendor_options(): Promise<Option[]> {
         ["id", "vendor_id"],
         ["name", "vendor_name"],
         undefined,
-        ["id", "vendor_pk", "pk"]
+        ["id", "vendor_pk", "pk"],
       );
       if (opts.length) return opts;
     } catch {}
@@ -280,25 +313,37 @@ async function fetch_vendor_options(): Promise<Option[]> {
   return [];
 }
 
-const is_digits = (s: unknown) => typeof s === "string" && /^\d+$/.test(s);
-const is_valid_date = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+const is_digits = (s: unknown) =>
+  typeof s === "string" && /^\d+$/.test(s);
 
-const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
-  const [category_id, set_category_id] = React.useState<string>("");
+const ItemRegisterForm: React.FC<Props> = ({
+  on_success,
+  on_cancel,
+}) => {
+  const [category_id, set_category_id] =
+    React.useState<string>("");
   const [name, set_name] = React.useState("");
-  const [unit_id, set_unit_id] = React.useState<string>("");
-  const [unit_price, set_unit_price] = React.useState<string>("");
-  const [expiry_date, set_expiry_date] = React.useState("");
-  const [vendor_id, set_vendor_id] = React.useState<string>("");
+  const [unit_id, set_unit_id] =
+    React.useState<string>("");
+  const [unit_price, set_unit_price] =
+    React.useState<string>("");
+  const [vendor_id, set_vendor_id] =
+    React.useState<string>("");
 
-  const [category_opts, set_category_opts] = React.useState<Option[]>([]);
-  const [unit_opts, set_unit_opts] = React.useState<Option[]>([]);
-  const [vendor_opts, set_vendor_opts] = React.useState<Option[]>([]);
+  const [category_opts, set_category_opts] =
+    React.useState<Option[]>([]);
+  const [unit_opts, set_unit_opts] = React.useState<Option[]>(
+    [],
+  );
+  const [vendor_opts, set_vendor_opts] =
+    React.useState<Option[]>([]);
 
-  const [loading, set_loading] = React.useState(false);
+  const [loading, set_loading] =
+    React.useState(false);
   const [saving, set_saving] = React.useState(false);
   const [error, set_error] = React.useState("");
-  const [field_errors, set_field_errors] = React.useState<string[]>([]);
+  const [field_errors, set_field_errors] =
+    React.useState<string[]>([]);
 
   React.useEffect(() => {
     let alive = true;
@@ -307,17 +352,31 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
       set_error("");
       set_field_errors([]);
       try {
-        const [cats, units, vends] = await Promise.all([
-          fetch_category_options(),
-          fetch_unit_options(),
-          fetch_vendor_options(),
-        ]);
+        const [cats, units, vends] =
+          await Promise.all([
+            fetch_category_options(),
+            fetch_unit_options(),
+            fetch_vendor_options(),
+          ]);
         if (!alive) return;
-        set_category_opts(cats.sort((a, b) => a.name.localeCompare(b.name, "ko")));
-        set_unit_opts(
-          units.sort((a, b) => (a.extra ?? a.name).localeCompare(b.extra ?? b.name, "ko"))
+        set_category_opts(
+          cats.sort((a, b) =>
+            a.name.localeCompare(b.name, "ko"),
+          ),
         );
-        set_vendor_opts(vends.sort((a, b) => a.name.localeCompare(b.name, "ko")));
+        set_unit_opts(
+          units.sort((a, b) =>
+            (a.extra ?? a.name).localeCompare(
+              b.extra ?? b.name,
+              "ko",
+            ),
+          ),
+        );
+        set_vendor_opts(
+          vends.sort((a, b) =>
+            a.name.localeCompare(b.name, "ko"),
+          ),
+        );
       } catch (e: any) {
         if (!alive) return;
         set_error(e?.message || "옵션 로드 실패");
@@ -334,31 +393,47 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
     const errs: string[] = [];
 
     if (category_opts.length === 0)
-      errs.push("카테고리 목록이 비어있습니다. 먼저 카테고리를 등록하세요.");
+      errs.push(
+        "카테고리 목록이 비어있습니다. 먼저 카테고리를 등록하세요.",
+      );
     if (!category_id) errs.push("카테고리를 선택하세요.");
 
     if (!name.trim()) errs.push("품목명을 입력하세요.");
 
     const price_num = Number(unit_price);
-    if (!Number.isFinite(price_num) || price_num < 0)
-      errs.push("단가는 0 이상 숫자로 입력하세요.");
+    if (
+      !Number.isFinite(price_num) ||
+      price_num < 0
+    ) {
+      errs.push(
+        "단가는 0 이상 숫자로 입력하세요.",
+      );
+    }
 
     if (unit_opts.length === 0)
-      errs.push("단위 목록이 비어있습니다. 먼저 단위를 등록하세요.");
+      errs.push(
+        "단위 목록이 비어있습니다. 먼저 단위를 등록하세요.",
+      );
     if (!unit_id) errs.push("단위를 선택하세요.");
 
-    if (!is_valid_date(expiry_date)) errs.push("유통기한을 선택하세요.");
-
     if (vendor_opts.length === 0) {
-      errs.push("거래처 목록이 비어있습니다. 먼저 거래처를 등록하세요.");
+      errs.push(
+        "거래처 목록이 비어있습니다. 먼저 거래처를 등록하세요.",
+      );
     } else if (!vendor_id) {
       errs.push("거래처를 선택하세요.");
     } else {
-      const chosen = vendor_opts.find((v) => v.id === vendor_id);
-      const numeric = chosen?.numId ?? (is_digits(vendor_id) ? Number(vendor_id) : NaN);
+      const chosen = vendor_opts.find(
+        (v) => v.id === vendor_id,
+      );
+      const numeric =
+        chosen?.numId ??
+        (is_digits(vendor_id)
+          ? Number(vendor_id)
+          : NaN);
       if (!Number.isFinite(numeric)) {
         errs.push(
-          "선택한 거래처에 숫자 ID가 없습니다. 백엔드에서 'id(숫자)'를 함께 내려주도록 수정이 필요합니다."
+          "선택한 거래처에 숫자 ID가 없습니다. 백엔드에서 'id(숫자)'를 함께 내려주도록 수정이 필요합니다.",
         );
       }
     }
@@ -378,8 +453,14 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
     set_field_errors([]);
     if (!validate()) return;
 
-    const chosen_vendor = vendor_opts.find((v) => v.id === vendor_id);
-    const vendor_id_num = chosen_vendor?.numId ?? (is_digits(vendor_id) ? Number(vendor_id) : NaN);
+    const chosen_vendor = vendor_opts.find(
+      (v) => v.id === vendor_id,
+    );
+    const vendor_id_num =
+      chosen_vendor?.numId ??
+      (is_digits(vendor_id)
+        ? Number(vendor_id)
+        : NaN);
     if (!Number.isFinite(vendor_id_num)) {
       set_field_errors([
         "선택한 거래처에 숫자 ID가 없습니다. 백엔드가 숫자 id를 함께 내려주거나 /api/vendors 같은 상세 엔드포인트를 사용해주세요.",
@@ -387,37 +468,59 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
       return;
     }
 
-    const chosen_cat = category_opts.find((c) => c.id === category_id);
+    const chosen_cat = category_opts.find(
+      (c) => c.id === category_id,
+    );
     const category_id_num =
-      chosen_cat?.numId ?? (is_digits(category_id) ? Number(category_id) : Number(category_id));
-    const chosen_unit = unit_opts.find((u) => u.id === unit_id);
+      chosen_cat?.numId ??
+      (is_digits(category_id)
+        ? Number(category_id)
+        : Number(category_id));
+    const chosen_unit = unit_opts.find(
+      (u) => u.id === unit_id,
+    );
     const unit_id_num =
-      chosen_unit?.numId ?? (is_digits(unit_id) ? Number(unit_id) : Number(unit_id));
+      chosen_unit?.numId ??
+      (is_digits(unit_id)
+        ? Number(unit_id)
+        : Number(unit_id));
+
+    const DEFAULT_EXPIRY_DATE = "2099-12-31";
 
     const payload = {
       category_id: Number(category_id_num),
       name: String(name.trim()),
       unit_id: Number(unit_id_num),
       unit_price: Number(unit_price),
-      expiry_date: String(expiry_date),
       vendor_id: Number(vendor_id_num),
       isused: "USED" as UseState,
+      expiry_date: DEFAULT_EXPIRY_DATE,
     };
 
     set_saving(true);
     try {
       const res = await fetch("/api/items", {
         method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
       const text = await res.text().catch(() => "");
       if (!res.ok) {
         try {
           const j = text ? JSON.parse(text) : null;
-          throw new Error(j?.message || j?.error || text || `HTTP ${res.status}`);
+          throw new Error(
+            j?.message ||
+              j?.error ||
+              text ||
+              `HTTP ${res.status}`,
+          );
         } catch {
-          throw new Error(text || `HTTP ${res.status}`);
+          throw new Error(
+            text || `HTTP ${res.status}`,
+          );
         }
       }
       on_success?.();
@@ -450,19 +553,34 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
               <div style={ui.ctrlBoxSelect}>
                 <select
                   value={category_id}
-                  onChange={(e) => set_category_id(e.target.value)}
+                  onChange={(e) =>
+                    set_category_id(
+                      e.target.value,
+                    )
+                  }
                   style={ui.ctrlSelectEl}
                   required
-                  disabled={loading || category_opts.length === 0}
+                  disabled={
+                    loading ||
+                    category_opts.length ===
+                      0
+                  }
                 >
-                  <option value="">선택</option>
+                  <option value="">
+                    선택
+                  </option>
                   {category_opts.map((c) => (
-                    <option key={c.id} value={c.id}>
+                    <option
+                      key={c.id}
+                      value={c.id}
+                    >
                       {c.name}
                     </option>
                   ))}
                 </select>
-                <span style={ui.arrow}>▼</span>
+                <span style={ui.arrow}>
+                  ▼
+                </span>
               </div>
             </div>
           </div>
@@ -477,7 +595,11 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
               <div style={ui.ctrlBox}>
                 <input
                   value={name}
-                  onChange={(e) => set_name(e.target.value)}
+                  onChange={(e) =>
+                    set_name(
+                      e.target.value,
+                    )
+                  }
                   style={ui.ctrlInputEl}
                   placeholder="예: 생면"
                   required
@@ -496,19 +618,35 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
               <div style={ui.ctrlBoxSelect}>
                 <select
                   value={unit_id}
-                  onChange={(e) => set_unit_id(e.target.value)}
+                  onChange={(e) =>
+                    set_unit_id(
+                      e.target.value,
+                    )
+                  }
                   style={ui.ctrlSelectEl}
                   required
-                  disabled={loading || unit_opts.length === 0}
+                  disabled={
+                    loading ||
+                    unit_opts.length === 0
+                  }
                 >
-                  <option value="">선택</option>
+                  <option value="">
+                    선택
+                  </option>
                   {unit_opts.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.extra ? `${u.extra} (${u.name})` : u.name}
+                    <option
+                      key={u.id}
+                      value={u.id}
+                    >
+                      {u.extra
+                        ? `${u.extra} (${u.name})`
+                        : u.name}
                     </option>
                   ))}
                 </select>
-                <span style={ui.arrow}>▼</span>
+                <span style={ui.arrow}>
+                  ▼
+                </span>
               </div>
             </div>
           </div>
@@ -525,8 +663,15 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
                   type="number"
                   min={0}
                   value={unit_price}
-                  onChange={(e) => set_unit_price(e.target.value)}
-                  style={{ ...ui.ctrlInputEl, textAlign: "right" }}
+                  onChange={(e) =>
+                    set_unit_price(
+                      e.target.value,
+                    )
+                  }
+                  style={{
+                    ...ui.ctrlInputEl,
+                    textAlign: "right",
+                  }}
                   required
                 />
               </div>
@@ -543,48 +688,48 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
               <div style={ui.ctrlBoxSelect}>
                 <select
                   value={vendor_id}
-                  onChange={(e) => set_vendor_id(e.target.value)}
+                  onChange={(e) =>
+                    set_vendor_id(
+                      e.target.value,
+                    )
+                  }
                   style={ui.ctrlSelectEl}
                   required
-                  disabled={loading || vendor_opts.length === 0}
+                  disabled={
+                    loading ||
+                    vendor_opts.length === 0
+                  }
                 >
-                  <option value="">선택</option>
+                  <option value="">
+                    선택
+                  </option>
                   {vendor_opts.map((v) => (
-                    <option key={v.id} value={v.id}>
+                    <option
+                      key={v.id}
+                      value={v.id}
+                    >
                       {v.name}
                     </option>
                   ))}
                 </select>
-                <span style={ui.arrow}>▼</span>
+                <span style={ui.arrow}>
+                  ▼
+                </span>
               </div>
             </div>
           </div>
 
-          {/* 유통기한 */}
-          <div style={ui.field}>
-            <div style={ui.labelRow}>
-              <span>유통기한</span>
-              <span style={ui.reqMark}>*</span>
-            </div>
-            <div style={ui.ctrlWrap}>
-              <div style={ui.ctrlBox}>
-                <input
-                  type="date"
-                  value={expiry_date}
-                  onChange={(e) => set_expiry_date(e.target.value)}
-                  style={ui.ctrlInputEl}
-                  required
-                />
-              </div>
-            </div>
-          </div>
-
-          {(field_errors.length > 0 || error) && (
+          {(field_errors.length > 0 ||
+            error) && (
             <div style={ui.errorBox}>
               {field_errors.map((m, i) => (
-                <div key={i}>• {m}</div>
+                <div key={i}>
+                  • {m}
+                </div>
               ))}
-              {error && <div>• {error}</div>}
+              {error && (
+                <div>• {error}</div>
+              )}
             </div>
           )}
         </div>
@@ -595,7 +740,9 @@ const ItemRegisterForm: React.FC<Props> = ({ on_success, on_cancel }) => {
             disabled={saving || loading}
             style={ui.btnPrimary}
           >
-            {saving ? "저장 중..." : "등록"}
+            {saving
+              ? "저장 중..."
+              : "등록"}
           </button>
           <button
             type="button"
