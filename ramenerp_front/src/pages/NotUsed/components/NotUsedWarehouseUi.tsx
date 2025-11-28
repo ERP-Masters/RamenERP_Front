@@ -1,6 +1,6 @@
 // src/components/WarehouseNotUsedUi.tsx
 import React from "react";
-import { markWarehouseNotUsed } from "../pages/WarehouseNotUsedFunction";
+import { markWarehouseNotUsed } from "../function/WarehouseNotUsedFunction";
 
 type WarehouseNotUsedTarget = { warehouse_id: number; name: string };
 

@@ -1,18 +1,18 @@
 // src/components/WarehouseListPanel.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 // (기존) 수정 UI & 기능
-import WarehouseEditUi from "../components/WarehouseEditUi";
+import WarehouseEditUi from "./WarehouseEditUi";
 import {
   putWarehouse,
   type WarehouseEditTarget,
   type ApiWarehouse,
-} from "../pages/WarehouseEditFunction";
+} from "../function/WarehouseEditFunction";
 // (추가) 모달로 띄울 등록 폼(프로펠스 없이 사용)
-import WareHouseRegister from "../pages/WarehouseRegister";
+import WareHouseRegister from "./WarehouseRegister";
 // ✅ 창고 ID 상세 검색 모달
-import WarehouseSummarySearch from "../components/WarehouseSummarySearch";
+import WarehouseSummarySearch from "./WarehouseSummarySearch";
 // ✅ 미사용( NOTUSED ) 전환 기능 (실제 PUT은 WarehouseNotUsedUi 안에서 호출)
-import WarehouseNotUsedUi from "../components/NotUsedWarehouseUi";
+import WarehouseNotUsedUi from "../../NotUsed/components/NotUsedWarehouseUi";
 
 type ApiWarehouseListItem = {
   id: number; // ✅ 실제 PK

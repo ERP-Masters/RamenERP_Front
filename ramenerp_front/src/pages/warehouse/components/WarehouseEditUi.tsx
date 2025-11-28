@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import type { WarehouseEditTarget } from "../pages/WarehouseEditFunction";
+import type { WarehouseEditTarget } from "../function/WarehouseEditFunction";
 
 type Props = {
   open: boolean;

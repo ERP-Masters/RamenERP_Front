@@ -1,5 +1,3 @@
-// src/api/branch_orders.ts
-
 /* ================= 타입 정의 ================= */
 
 export type BranchOrderStatus =
@@ -25,6 +23,16 @@ type RawBranchOrder = {
   id: number;
   order_id: string;
   branch_id: number;
+
+  // ✅ 출고 창고 정보(백엔드가 내려주는 경우 사용)
+  warehouse_id?: number | string;
+  warehouse_name?: string;
+  warehouse?: {
+    id?: number | string;
+    warehouse_id?: number | string;
+    name?: string;
+  };
+
   items: RawBranchOrderItem[];
   request_note?: string;
   status: BranchOrderStatus;
@@ -34,13 +42,15 @@ type RawBranchOrder = {
 
 /** 프론트에서 라인 단위로 쓰는 타입 (리스트 페이지에서 사용) */
 export type BranchOrder = {
-  /** 내부 PK (orderRequest.id) */
   id?: number;
-  /** 수주번호 (예: "BR_1_251124_001") */
   order_id: string;
 
   branch_id: number;
   branch_name?: string;
+
+  // ✅ 출고 창고 정보(옵셔널)
+  warehouse_id?: number | string;
+  warehouse_name?: string;
 
   item_id: number;
   item_name?: string;
@@ -98,6 +108,14 @@ function flatten_raw_orders(rows: RawBranchOrder[]): BranchOrder[] {
   const line_rows: BranchOrder[] = [];
 
   rows.forEach((raw) => {
+    const warehouse_id =
+      raw.warehouse_id ??
+      raw.warehouse?.id ??
+      raw.warehouse?.warehouse_id;
+
+    const warehouse_name =
+      raw.warehouse_name ?? raw.warehouse?.name;
+
     const base = {
       id: raw.id,
       order_id: raw.order_id,
@@ -105,6 +123,8 @@ function flatten_raw_orders(rows: RawBranchOrder[]): BranchOrder[] {
       status: raw.status,
       created_at: raw.created_at,
       desired_due_date: raw.desired_due_date,
+      warehouse_id,
+      warehouse_name,
     } as const;
 
     // items 가 아예 없는 경우 방어적으로 한 줄이라도 만들어 줌
@@ -136,9 +156,7 @@ function flatten_raw_orders(rows: RawBranchOrder[]): BranchOrder[] {
 /* ================= 조회 API ================= */
 
 /** 공통: 원본 수주들 가져오기 */
-async function fetch_raw(
-  path: string,
-): Promise<RawBranchOrder[]> {
+async function fetch_raw(path: string): Promise<RawBranchOrder[]> {
   const res = await fetch(`${BRANCH_ORDER_API}${path}`, {
     method: "GET",
     headers: { Accept: "application/json" },

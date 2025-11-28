@@ -1,7 +1,7 @@
 // src/pages/NotUsedWarehousePageUi.tsx
 import React, { useEffect, useState } from "react";
-import { fetchNotUsedWarehouses, type ApiWarehouse } from "../pages/WarehouseNotUsedFunction";
-import { markManyWarehousesUsed } from "../pages/WarehouseUsedFunction";
+import { fetchNotUsedWarehouses, type ApiWarehouse } from "../function/WarehouseNotUsedFunction";
+import { markManyWarehousesUsed } from "../../warehouse/function/WarehouseUsedFunction";
 
 /** 화면 표시에만 쓰는 행 타입
  *  - id: 내부 DB PK

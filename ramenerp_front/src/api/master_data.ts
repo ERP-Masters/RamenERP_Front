@@ -192,6 +192,58 @@ export function prime_item_name_cache(items: ItemOption[]) {
   }
 }
 
+/* ========= 품목 단가 보강/캐시 ========= */
+const __item_price_cache = new Map<number, number>();
+
+function pick_item_price(row: any): number | undefined {
+  const raw =
+    row?.unit_price ??
+    row?.price ??
+    row?.base_price ??
+    row?.cost ??
+    row?.unitPrice;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+export async function fetch_item_price_by_id(id: number): Promise<number | undefined> {
+  if (__item_price_cache.has(id)) return __item_price_cache.get(id);
+
+  const candidates = [
+    "/api/items",
+    "/api/items/state?isused=NOTUSED",
+    "/api/items?state=NOTUSED",
+    "/api/items?isused=NOTUSED",
+  ];
+
+  for (const url of candidates) {
+    const j = await safeFetchJSON(url);
+    if (!j) continue;
+    const arr = toArray(j);
+    for (const row of arr) {
+      const row_id = pick_item_id(row);
+      if (row_id !== id) continue;
+      const price = pick_item_price(row);
+      if (price !== undefined) {
+        __item_price_cache.set(id, price);
+        return price;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function prime_item_price_cache(items: ItemOption[]) {
+  for (const it of items) {
+    if (
+      Number.isFinite(it.id as any) &&
+      typeof it.unit_price === "number"
+    ) {
+      __item_price_cache.set(it.id, it.unit_price);
+    }
+  }
+}
+
 /* ========= 지점(브랜치) 목록 =========
  * /api/branches 또는 /api/branch 둘 중 하나만 있어도 동작
  */
@@ -224,4 +276,3 @@ export async function fetch_branches(): Promise<BranchOption[]> {
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"));
 }
-

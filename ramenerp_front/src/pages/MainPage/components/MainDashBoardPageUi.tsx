@@ -2,7 +2,7 @@
 // 달력 + 공지 + 지점 + 안전재고를 한 화면에 모은 메인 페이지 UI
 
 import React from "react";
-import Sidebar from "@/components/Sidebar";
+import Sidebar from "../../../menu/Sidebar";
 import MainCalendarSection from "../components/MainCalendarSection";
 import NoticeSideSection from "../components/NoticeSideSection";
 import BranchRankSideSection from "../components/BranchRankSideSection";
