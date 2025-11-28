@@ -3,7 +3,7 @@ import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import type { MenuGroup } from "@/menu/sidebar_data";
 import { sidebar_menu } from "@/menu/sidebar_data";
-import { useSidebarHeaderActions } from "../pages/SideabarHeaderActionsFunction";
+import { useSidebarHeaderActions } from "../pages/MainPage/function/SideabarHeaderActionsFunction";
 
 type SidebarMode = "overlay" | "docked";
 
