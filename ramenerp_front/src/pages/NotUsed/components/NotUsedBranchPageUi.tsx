@@ -5,7 +5,7 @@ import { markManyBranchesUsed } from "../../branch/function/BranchUsedFunction";
 
 /** 화면 표시에만 쓰는 행 타입
  *  - id: 내부 DB PK
- *  - branch_id: 화면에 표시되는 문자열 ID
+ *  - branch_id: 화면 표시되는 문자열 ID
  */
 type Row = {
   id?: number;            // 서버 PK (PUT 에 쓸 값은 나중에 branch_id -> id 매핑에서 얻음)
@@ -370,8 +370,14 @@ const NotUsedBranchPageUi: React.FC = () => {
                 {rows.length === 0 && !loading && !error && (
                   <tr>
                     {/* 열 개수: 선택모드 8, 기본 7 */}
-                    <td style={empty_style} colSpan={select_mode ? 8 : 7}>
-                      미사용으로 등록된 지점이 없습니다.
+                    <td
+                      style={{
+                        ...empty_style,
+                        padding: "6px 8px",
+                      }}
+                      colSpan={select_mode ? 8 : 7}
+                    >
+                      현재 사용되지 않는 지점이 없습니다.
                     </td>
                   </tr>
                 )}

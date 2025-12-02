@@ -10,6 +10,8 @@ type Props = {
   onDone: () => void;
 };
 
+/** ====== 스타일: 단위 미사용 모달과 동일 느낌으로 조정 ====== */
+
 const overlay_style: React.CSSProperties = {
   position: "fixed",
   inset: 0,
@@ -17,76 +19,28 @@ const overlay_style: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  zIndex: 9998,
+  zIndex: 1000,
 };
 
 const modal_style: React.CSSProperties = {
-  width: "min(480px, 94vw)",
-  maxWidth: 520,
+  width: 420,
+  maxWidth: "90vw",
   background: "#ffffff",
-  borderRadius: 12,
-  padding: 20,
-  boxShadow: "0 14px 40px rgba(15,23,42,0.35)",
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
+  borderRadius: 8,
+  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+  padding: 16,
+  boxSizing: "border-box",
 };
 
-const title_row_style: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 8,
-};
-
-const title_style: React.CSSProperties = {
-  margin: 0,
-  fontSize: 18,
-  fontWeight: 800,
-  color: "#111827",
-};
-
-const badge_style: React.CSSProperties = {
-  fontSize: 11,
-  padding: "2px 8px",
-  borderRadius: 999,
-  border: "1px solid #f97316",
-  color: "#9a3412",
-  background: "#fffbeb",
-};
-
-const desc_style: React.CSSProperties = {
-  margin: 0,
-  fontSize: 13,
-  color: "#4b5563",
-  lineHeight: 1.6,
-};
-
-const highlight_style: React.CSSProperties = {
-  fontWeight: 700,
-  color: "#111827",
-};
-
-const label_style: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#6b7280",
-  marginBottom: 4,
-};
+const row_style: React.CSSProperties = { marginBottom: 10 };
 
 const input_style: React.CSSProperties = {
   width: "100%",
-  padding: "8px 10px",
-  borderRadius: 8,
+  padding: "6px 8px",
+  boxSizing: "border-box",
+  borderRadius: 6,
   border: "1px solid #d1d5db",
   fontSize: 13,
-  outline: "none",
-};
-
-const input_wrap_style: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
 };
 
 const error_style: React.CSSProperties = {
@@ -95,16 +49,9 @@ const error_style: React.CSSProperties = {
   color: "#dc2626",
 };
 
-const btn_row_style: React.CSSProperties = {
-  marginTop: 14,
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: 8,
-};
-
 const cancel_btn_style: React.CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 999,
+  padding: "6px 12px",
+  borderRadius: 6,
   border: "1px solid #e5e7eb",
   background: "#ffffff",
   cursor: "pointer",
@@ -112,16 +59,16 @@ const cancel_btn_style: React.CSSProperties = {
   color: "#374151",
 };
 
-const delete_btn_style: React.CSSProperties = {
-  padding: "8px 16px",
-  borderRadius: 999,
-  border: "1px solid #b91c1c",
-  background: "#ef4444",
+const delete_btn_base_style: React.CSSProperties = {
+  padding: "6px 12px",
+  borderRadius: 6,
+  border: "none",
   color: "#ffffff",
-  cursor: "pointer",
   fontSize: 13,
-  fontWeight: 700,
+  cursor: "pointer",
 };
+
+/** ======================================================== */
 
 const NotUsedCategoryUi: React.FC<Props> = ({
   open,
@@ -165,39 +112,40 @@ const NotUsedCategoryUi: React.FC<Props> = ({
   const can_confirm =
     !is_saving && input_name.trim() === target.category_name.trim();
 
+  const need = target.category_name;
+
   return (
     <div style={overlay_style} onClick={onClose}>
       <div style={modal_style} onClick={(e) => e.stopPropagation()}>
-        <div style={title_row_style}>
-          <h2 style={title_style}>카테고리 미사용 전환</h2>
-          <span style={badge_style}>주의</span>
+        <h3 style={{ margin: "0 0 10px 0", color: "#b91c1c" }}>
+          카테고리 미사용 등록
+        </h3>
+
+        <div style={row_style}>
+          정말로 <b>{need}</b> 카테고리를 미사용으로 등록하시겠습니까?
         </div>
 
-        <p style={desc_style}>
-          <span style={highlight_style}>{target.category_name}</span> 카테고리를{" "}
-          <span style={highlight_style}>미사용 상태</span>로 전환합니다.
-          <br />
-          이후에는 일반 카테고리 목록에서 보이지 않을 수 있으며,
-          <br />
-          이미 연결된 데이터에는 영향을 줄 수 있습니다.
-        </p>
-
-        <div style={input_wrap_style}>
-          <div style={label_style}>
-            확인을 위해 아래에{" "}
-            <span style={highlight_style}>{target.category_name}</span> 을(를)
-            정확히 입력하세요.
-          </div>
-          <input
-            style={input_style}
-            value={input_name}
-            onChange={(e) => set_input_name(e.target.value)}
-            placeholder={target.category_name}
-          />
-          {error_message && <div style={error_style}>{error_message}</div>}
+        <div style={{ ...row_style, fontSize: 12, color: "#6b7280" }}>
+          계속하려면 아래 입력란에 <b>{need}</b> 을(를) 정확히 입력하세요.
         </div>
 
-        <div style={btn_row_style}>
+        <input
+          style={input_style}
+          value={input_name}
+          onChange={(e) => set_input_name(e.target.value)}
+          placeholder={need}
+        />
+
+        {error_message && <div style={error_style}>{error_message}</div>}
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            justifyContent: "flex-end",
+            marginTop: 12,
+          }}
+        >
           <button
             type="button"
             style={cancel_btn_style}
@@ -208,15 +156,15 @@ const NotUsedCategoryUi: React.FC<Props> = ({
           </button>
           <button
             type="button"
+            onClick={handle_confirm}
+            disabled={!can_confirm}
             style={{
-              ...delete_btn_style,
-              opacity: can_confirm ? 1 : 0.5,
+              ...delete_btn_base_style,
+              background: can_confirm ? "#ef4444" : "#fca5a5",
               cursor: can_confirm ? "pointer" : "not-allowed",
             }}
-            disabled={!can_confirm}
-            onClick={handle_confirm}
           >
-            미사용으로 전환
+            미사용
           </button>
         </div>
       </div>

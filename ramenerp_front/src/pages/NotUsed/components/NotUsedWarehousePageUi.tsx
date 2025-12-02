@@ -355,8 +355,16 @@ const NotUsedWarehousePageUi: React.FC = () => {
                 {rows.length === 0 && !loading && !error && (
                   <tr>
                     {/* 열 개수: 선택모드 5, 기본 4 */}
-                    <td style={empty_style} colSpan={select_mode ? 5 : 4}>
-                      미사용으로 등록된 창고가 없습니다.
+                    <td
+                      style={{
+                        ...empty_style,
+                        padding: "6px 8px",
+                        color: "#b91c1c",
+                        textAlign: "left",
+                      }}
+                      colSpan={select_mode ? 5 : 4}
+                    >
+                      현재 사용되지 않는 창고가 없습니다.
                     </td>
                   </tr>
                 )}
@@ -365,7 +373,7 @@ const NotUsedWarehousePageUi: React.FC = () => {
           </div>
 
           {loading && <div style={{ padding: 12, color: ui_tok.label }}>불러오는 중…</div>}
-          {error && <div style={{ padding: 12, color: "#c62828" }}>{error}</div>}
+          {error && <div style={{ padding: 12, color: "#c62828" }}> {error}</div>}
         </div>
       </div>
     </div>

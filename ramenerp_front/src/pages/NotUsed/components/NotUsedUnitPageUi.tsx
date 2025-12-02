@@ -263,8 +263,16 @@ const NotUsedUnitPageUi: React.FC = () => {
 
                 {rows.length === 0 && !loading && !error && (
                   <tr>
-                    <td style={empty_style} colSpan={select_mode ? 4 : 3}>
-                      미사용으로 등록된 단위가 없습니다.
+                    <td
+                      style={{
+                        ...empty_style,
+                        padding: "6px 8px",
+                        color: "#b91c1c",
+                        textAlign: "left",
+                      }}
+                      colSpan={select_mode ? 4 : 3}
+                    >
+                      현재 사용되지 않는 단위가 없습니다.
                     </td>
                   </tr>
                 )}

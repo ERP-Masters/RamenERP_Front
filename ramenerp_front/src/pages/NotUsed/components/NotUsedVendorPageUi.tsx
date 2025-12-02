@@ -365,8 +365,16 @@ const NotUsedVendorPageUi: React.FC = () => {
                 {rows.length === 0 && !loading && !error && (
                   <tr>
                     {/* 열 개수: 선택모드 7, 기본 6 */}
-                    <td style={empty_style} colSpan={select_mode ? 7 : 6}>
-                      미사용으로 등록된 거래처가 없습니다.
+                    <td
+                      style={{
+                        ...empty_style,
+                        padding: "6px 8px",
+                        color: "#b91c1c",
+                        textAlign: "left",
+                      }}
+                      colSpan={select_mode ? 7 : 6}
+                    >
+                      현재 사용되지 않는 거래처가 없습니다.
                     </td>
                   </tr>
                 )}
