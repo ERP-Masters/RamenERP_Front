@@ -30,6 +30,8 @@ import LoginPageUi from "./pages/login/components/LoginPageUi";
 import MainDashboardPageUi from "./pages/MainPage/components/MainDashBoardPageUi";
 import LotHistoryListPage from "./pages/Lot/components/LotHistoryListPage";
 import ShipmentListPage from "./pages/shipment/components/ShipmentListPage";
+import NoticePageUi from "./pages/Notice/components/NoticePageUi";
+import NoticeRegisterPageUi from "./pages/Notice/components/NoticeRegisterPageUi"; // ✅ 추가
 import SalesDashboardPage from "./pages/SalesDashboardPage";
 
 const App: React.FC = () => {
@@ -41,7 +43,13 @@ const App: React.FC = () => {
       {/* 2) 메인 대시보드: 레이아웃 없이 전체 화면 + 오버레이 사이드바 */}
       <Route path="/dashboard" element={<MainDashboardPageUi />} />
 
-      {/* 3) 나머지는 예전처럼 Layout 아래에서 동작 */}
+      {/* 3) 공지사항 페이지: 레이아웃 없이 단독 사용 */}
+      <Route path="/notice" element={<NoticePageUi />} />
+
+      {/* ✅ 4) 공지 등록 페이지: 공지와 동일하게 레이아웃 없이 단독 사용 */}
+      <Route path="/notice/new" element={<NoticeRegisterPageUi />} />
+
+      {/* 5) 나머지는 예전처럼 Layout 아래에서 동작 */}
       <Route path="/" element={<Layout />}>
         {/* ✅ 프로그램 처음 들어올 때(/)는 무조건 로그인으로 보냄 */}
         <Route index element={<Navigate to="/login" replace />} />
@@ -59,7 +67,10 @@ const App: React.FC = () => {
         {/* 발주 */}
         <Route path="vendor-order" element={<VendorOrderListPage />} />
         <Route path="vendor-order/new" element={<VendorOrderNewPage />} />
-        <Route path="vendor-order/completed" element={<VendorOrderCompletedPage />} />
+        <Route
+          path="vendor-order/completed"
+          element={<VendorOrderCompletedPage />}
+        />
         <Route path="lot/list" element={<LotHistoryListPage />} />
 
         {/* 수주 */}
