@@ -30,6 +30,7 @@ import LoginPageUi from "./pages/login/components/LoginPageUi";
 import MainDashboardPageUi from "./pages/MainPage/components/MainDashBoardPageUi";
 import LotHistoryListPage from "./pages/Lot/components/LotHistoryListPage";
 import ShipmentListPage from "./pages/shipment/components/ShipmentListPage";
+import SalesDashboardPage from "./pages/SalesDashboardPage";
 
 const App: React.FC = () => {
   return (
@@ -65,6 +66,10 @@ const App: React.FC = () => {
         <Route path="branch-order" element={<BranchOrderListPage />} />
         <Route path="branch-order/new" element={<BranchOrderNewPage />} />
         <Route path="branch-order/completed" element={<ShipmentListPage />} />
+
+        {/* 매출 */}
+        <Route path="/sales" element={<SalesDashboardPage/>} />
+
 
         {/* 카테고리 */}
         <Route path="category/register" element={<CategoryRegisterPage />} />
