@@ -1,7 +1,15 @@
 // src/pages/MainDashboardFunction.ts
 // 메인 대시보드(달력/공지/지점/안전재고) 공통 기능 + 더미 데이터
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  fetch_branch_orders_all,
+  type BranchOrder,
+} from "@/api/branch_orders";
+import {
+  fetch_branches,
+  type BranchOption,
+} from "@/api/master_data";
 
 /* ===================== 타입 정의 ===================== */
 
@@ -214,6 +222,7 @@ export type BranchRank = {
   sales_text: string;
 };
 
+/** 🔹 기본 더미 (API 실패하거나 데이터 없을 때 사용) */
 export const branch_rank_list: BranchRank[] = [
   { id: 1, rank_label: "1위", name: "서울 1지점", sales_text: "₩ 38,520,000" },
   { id: 2, rank_label: "2위", name: "부산 센터", sales_text: "₩ 27,430,000" },
@@ -250,6 +259,184 @@ export const stock_alert_list: StockAlert[] = [
   },
 ];
 
+/* ===================== (공통) 매출 계산 유틸 ===================== */
+
+function money(n: number | undefined | null): string {
+  const v = Number(n ?? 0);
+  return new Intl.NumberFormat("ko-KR").format(
+    Number.isFinite(v) ? v : 0,
+  );
+}
+
+/** 금액 결정: amount 우선, 없으면 quantity * unit_price */
+function calc_amount(o: BranchOrder): number {
+  if (typeof o.amount === "number" && Number.isFinite(o.amount)) {
+    return o.amount;
+  }
+  const q = Number(o.quantity ?? 0);
+  const up = Number(o.unit_price ?? 0);
+  const v = q * up;
+  return Number.isFinite(v) ? v : 0;
+}
+
+function get_date_parts(iso?: string | null): {
+  year: number | null;
+  month: number | null;
+} {
+  if (!iso) {
+    return { year: null, month: null };
+  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return { year: null, month: null };
+  }
+  return {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+  };
+}
+
+function to_ym(iso?: string | null): string | null {
+  const { year, month } = get_date_parts(iso);
+  if (!year || !month) return null;
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+/* ===================== 훅: 이 달의 지점 TOP5 (매출 현황 기준) ===================== */
+/**
+ * - /api/branch-order 전체 조회
+ * - status === "COMPLETED" 만 사용
+ * - created_at 기준 YM(YYYY-MM) 계산
+ * - 현재 월에 데이터가 있으면 그 YM, 없으면 가장 최신 YM 기준으로
+ *   지점별 월간 매출 TOP5를 BranchRank 배열로 반환
+ */
+export function use_branch_rank_list(): BranchRank[] {
+  const [state, set_state] =
+    useState<BranchRank[]>(branch_rank_list);
+
+  useEffect(() => {
+    let is_cancelled = false;
+
+    const load = async () => {
+      try {
+        const [orders_res, branches_res] = await Promise.all([
+          fetch_branch_orders_all(),
+          fetch_branches(),
+        ]);
+
+        if (is_cancelled) return;
+
+        const branches = branches_res ?? [];
+        const branch_name_by_id = new Map<number, string>();
+        branches.forEach((b: BranchOption) => {
+          branch_name_by_id.set(b.id, b.name);
+        });
+
+        // COMPLETED 수주만 사용
+        const completed: BranchOrder[] = (orders_res ?? []).filter(
+          (o: BranchOrder) => o.status === "COMPLETED",
+        );
+
+        if (!completed.length) {
+          // 데이터 없으면 기본 더미 유지
+          return;
+        }
+
+        // YM 리스트 만들기
+        const ym_list = Array.from(
+          new Set(
+            completed
+              .map((o) => to_ym(o.created_at))
+              .filter((v): v is string => !!v),
+          ),
+        ).sort();
+
+        if (!ym_list.length) {
+          return;
+        }
+
+        // 오늘 기준 YM
+        const now = new Date();
+        const this_ym = `${now.getFullYear()}-${String(
+          now.getMonth() + 1,
+        ).padStart(2, "0")}`;
+
+        // 이 달 데이터 있으면 그 YM, 없으면 가장 최신 YM
+        const target_ym = ym_list.includes(this_ym)
+          ? this_ym
+          : ym_list[ym_list.length - 1];
+
+        const target_orders = completed.filter(
+          (o) => to_ym(o.created_at) === target_ym,
+        );
+
+        if (!target_orders.length) {
+          return;
+        }
+
+        type BranchAgg = {
+          amount: number;
+          name: string;
+        };
+
+        const agg_map = new Map<number, BranchAgg>();
+
+        target_orders.forEach((o) => {
+          if (!o.branch_id) return;
+          const id = o.branch_id;
+          const base_name =
+            o.branch_name ??
+            branch_name_by_id.get(id) ??
+            `지점 ${id}`;
+          const amt = calc_amount(o);
+
+          const prev = agg_map.get(id);
+          if (!prev) {
+            agg_map.set(id, { amount: amt, name: base_name });
+          } else {
+            prev.amount += amt;
+          }
+        });
+
+        const agg_arr = Array.from(agg_map.entries())
+          .map(([id, v]) => ({
+            id,
+            name: v.name,
+            amount: v.amount,
+          }))
+          .sort((a, b) => b.amount - a.amount);
+
+        if (!agg_arr.length) {
+          return;
+        }
+
+        const next: BranchRank[] = agg_arr
+          .slice(0, 5)
+          .map((row, idx) => ({
+            id: row.id,
+            rank_label: `${idx + 1}위`,
+            name: row.name,
+            sales_text: `₩ ${money(row.amount)}`,
+          }));
+
+        if (!is_cancelled) {
+          set_state(next);
+        }
+      } catch {
+        // 에러 시에는 그냥 기본 더미 유지
+      }
+    };
+
+    load();
+
+    return () => {
+      is_cancelled = true;
+    };
+  }, []);
+
+  return state;
+}
+
 /* ===================== 달력용 유틸 함수 ===================== */
 
 function build_month_cells(
@@ -263,15 +450,18 @@ function build_month_cells(
   const days_in_month = new Date(year, month + 1, 0).getDate();
   const month_str = String(month + 1).padStart(2, "0");
 
-  const cells: CalendarCell[] = Array.from({ length: 42 }, (_, index) => ({
-    key: `empty-${index}`,
-    date_str: null,
-    day_num: null,
-    is_today: false,
-    is_selected: false,
-    purchase_count: 0,
-    sales_count: 0,
-  }));
+  const cells: CalendarCell[] = Array.from(
+    { length: 42 },
+    (_, index) => ({
+      key: `empty-${index}`,
+      date_str: null,
+      day_num: null,
+      is_today: false,
+      is_selected: false,
+      purchase_count: 0,
+      sales_count: 0,
+    }),
+  );
 
   for (let day = 1; day <= days_in_month; day++) {
     const index = first_day + (day - 1);
@@ -279,7 +469,10 @@ function build_month_cells(
 
     const day_str = String(day).padStart(2, "0");
     const date_str = `${year}-${month_str}-${day_str}`;
-    const schedule = schedule_map[date_str] ?? { purchase: [], sales: [] };
+    const schedule = schedule_map[date_str] ?? {
+      purchase: [],
+      sales: [],
+    };
 
     const is_today =
       year === today_date.getFullYear() &&
@@ -322,25 +515,35 @@ export type UseMainCalendarResult = {
   handle_select_date: (date_str: string) => void;
 };
 
-export function use_main_calendar(initial_year = 2025, initial_month = 10): UseMainCalendarResult {
-  const [current_year, set_current_year] = useState(initial_year);
-  const [current_month, set_current_month] = useState(initial_month); // 0-based
-  const [selected_date_str, set_selected_date_str] = useState<string>("2025-11-16");
-  const [active_tab, set_active_tab] = useState<ActiveTab>("purchase");
+export function use_main_calendar(
+  initial_year = 2025,
+  initial_month = 10,
+): UseMainCalendarResult {
+  const [current_year, set_current_year] =
+    useState(initial_year);
+  const [current_month, set_current_month] =
+    useState(initial_month); // 0-based
+  const [selected_date_str, set_selected_date_str] =
+    useState<string>("2025-11-16");
+  const [active_tab, set_active_tab] =
+    useState<ActiveTab>("purchase");
 
   const today = useMemo(() => new Date(), []);
 
   // 월 제목
-  const month_title = `${current_year}년 ${current_month + 1}월`;
+  const month_title = `${current_year}년 ${
+    current_month + 1
+  }월`;
 
   // 요일 레이블
   const weekday_labels = ["일", "월", "화", "수", "목", "금", "토"];
 
   // 선택된 날짜 스케줄
-  const selected_schedule = schedule_data[selected_date_str] ?? {
-    purchase: [],
-    sales: [],
-  };
+  const selected_schedule =
+    schedule_data[selected_date_str] ?? {
+      purchase: [],
+      sales: [],
+    };
 
   const selected_summary_text = `발주 ${selected_schedule.purchase.length}건 · 수주 ${selected_schedule.sales.length}건`;
 
@@ -362,12 +565,18 @@ export function use_main_calendar(initial_year = 2025, initial_month = 10): UseM
       if (prev === 0) {
         set_current_year((y) => y - 1);
         const next_month = 11;
-        set_selected_date_str(`${current_year - 1}-${String(next_month + 1).padStart(2, "0")}-01`);
+        set_selected_date_str(
+          `${current_year - 1}-${String(
+            next_month + 1,
+          ).padStart(2, "0")}-01`,
+        );
         return next_month;
       }
       const next_month = prev - 1;
       set_selected_date_str(
-        `${current_year}-${String(next_month + 1).padStart(2, "0")}-01`,
+        `${current_year}-${String(
+          next_month + 1,
+        ).padStart(2, "0")}-01`,
       );
       return next_month;
     });
@@ -378,12 +587,18 @@ export function use_main_calendar(initial_year = 2025, initial_month = 10): UseM
       if (prev === 11) {
         set_current_year((y) => y + 1);
         const next_month = 0;
-        set_selected_date_str(`${current_year + 1}-${String(next_month + 1).padStart(2, "0")}-01`);
+        set_selected_date_str(
+          `${current_year + 1}-${String(
+            next_month + 1,
+          ).padStart(2, "0")}-01`,
+        );
         return next_month;
       }
       const next_month = prev + 1;
       set_selected_date_str(
-        `${current_year}-${String(next_month + 1).padStart(2, "0")}-01`,
+        `${current_year}-${String(
+          next_month + 1,
+        ).padStart(2, "0")}-01`,
       );
       return next_month;
     });

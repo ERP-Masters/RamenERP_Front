@@ -1,6 +1,7 @@
 // src/components/BranchRankSideSection.tsx
 import React from "react";
-import { branch_rank_list } from "../function/MainDashBoardFunction";
+import { useNavigate } from "react-router-dom";
+import { use_branch_rank_list } from "../function/MainDashBoardFunction";
 
 const ui_tok = {
   surface: "#ffffff",
@@ -33,10 +34,14 @@ const title_style: React.CSSProperties = {
   fontWeight: 600,
 };
 
-const more_link_style: React.CSSProperties = {
+const more_btn_style: React.CSSProperties = {
   fontSize: 11,
   color: ui_tok.label,
   textDecoration: "none",
+  border: "none",
+  background: "transparent",
+  padding: 0,
+  cursor: "pointer",
 };
 
 const list_style: React.CSSProperties = {
@@ -72,13 +77,26 @@ const sales_style: React.CSSProperties = {
 };
 
 const BranchRankSideSection: React.FC = () => {
+  // 🔹 매출 현황에서 계산한 이 달의 지점 TOP5 훅
+  const branch_rank_list = use_branch_rank_list();
+
+  // 🔹 더 보기 클릭 시 매출 현황 대시보드로 이동
+  const navigate = useNavigate();
+  const handle_click_more = () => {
+    navigate("/sales");
+  };
+
   return (
     <div style={card_style}>
       <div style={header_style}>
         <div style={title_style}>이 달의 지점 TOP 5</div>
-        <a href="#" style={more_link_style}>
+        <button
+          type="button"
+          style={more_btn_style}
+          onClick={handle_click_more}
+        >
           더 보기
-        </a>
+        </button>
       </div>
       <ul style={list_style}>
         {branch_rank_list.map((b) => (
