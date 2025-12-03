@@ -1,10 +1,5 @@
 // src/pages/BranchOrderListPage.tsx
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -43,7 +38,7 @@ type BranchOrderListPageProps = {
 /* ===== UI 공통 ===== */
 const ui = {
   border: "#e5e7eb",
-  zebra: "#fafafa",
+  zebra: "#f1f1f1",
   muted: "#6b7280",
   danger: "#dc2626",
   badgeBg: "#fff7ed",
@@ -69,7 +64,8 @@ const page_wrap: React.CSSProperties = {
 const header_row: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns:
-    "minmax(160px,1fr) minmax(140px,1fr) minmax(160px,1fr) minmax(160px,1fr) minmax(240px,2fr) auto auto",
+    // 지점        상태        기간 시작     기간 종료     수주번호+검색      수주 등록 버튼
+    "minmax(160px,1fr) minmax(140px,1fr) minmax(160px,1fr) minmax(160px,1fr) minmax(260px,2fr) auto",
   gap: 12,
   alignItems: "end",
   border: `1px solid ${ui.border}`,
@@ -146,6 +142,13 @@ const input_style: React.CSSProperties = {
   color: "#0f172a",
 };
 
+// 🔹 수주번호 검색창 전용 width (조금만 줄여서 버튼 안 겹치게)
+const order_id_input_style: React.CSSProperties = {
+  ...input_style,
+  width: 220,
+  maxWidth: 220,
+};
+
 const search_btn: React.CSSProperties = {
   border: `1px solid ${ui.border}`,
   borderRadius: 8,
@@ -213,10 +216,7 @@ function infer_date_from_order_id(order_id?: string): string {
   return `20${yy}-${mm}-${dd}`;
 }
 
-function display_date(o: {
-  created_at?: string;
-  order_id?: string;
-}): string {
+function display_date(o: { created_at?: string; order_id?: string }): string {
   if (o.created_at) {
     const d = new Date(o.created_at);
     if (!Number.isNaN(d.getTime())) {
@@ -285,12 +285,17 @@ function build_header_rows(lines: BranchOrder[]): HeaderRow[] {
   return Array.from(map.values());
 }
 
-/* ===== 메인 컴포넌트 ===== */
+/* 그룹 렌더링용 타입 (라인뷰에서 사용) */
+type OrderGroup = {
+  order_id: string;
+  lines: BranchOrder[];
+};
+
 const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
   title = "수주 내역 조회",
   initialStatus = "",
   fixedStatus,
-  hideCompleted = true, // 기본 수주 화면에서는 COMPLETED 숨김
+  hideCompleted = true,
   showShipButton = true,
 }) => {
   const navigate = useNavigate();
@@ -299,25 +304,22 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
 
   // 필터
   const [branch_filter, set_branch_filter] = useState<string>("");
-  const [status_filter, set_status_filter] = useState<
-    BranchOrderStatus | ""
-  >(initialStatus);
+  const [status_filter, set_status_filter] = useState<BranchOrderStatus | "">(
+    initialStatus,
+  );
   const [start_date, set_start_date] = useState<string>("");
   const [end_date, set_end_date] = useState<string>("");
-  const [order_id_search, set_order_id_search] =
-    useState<string>("");
+  const [order_id_search, set_order_id_search] = useState<string>("");
 
   // 자동완성
-  const [order_id_suggestions, set_order_id_suggestions] =
-    useState<string[]>([]);
-  const [is_show_suggest, set_is_show_suggest] =
-    useState<boolean>(false);
+  const [order_id_suggestions, set_order_id_suggestions] = useState<string[]>(
+    [],
+  );
+  const [is_show_suggest, set_is_show_suggest] = useState<boolean>(false);
   const suggest_wrap_ref = useRef<HTMLDivElement | null>(null);
 
   // 보기 모드
-  const [view_mode, set_view_mode] = useState<"line" | "header">(
-    "line",
-  );
+  const [view_mode, set_view_mode] = useState<"line" | "header">("line");
 
   // 상태
   const [is_loading, set_is_loading] = useState<boolean>(false);
@@ -329,9 +331,10 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
   const [items, set_items] = useState<ItemOption[]>([]);
   const [shipments, set_shipments] = useState<Shipment[]>([]);
 
-  // 아이템 이름 보강용 패치 캐시 (미사용도 표시)
-  const [item_name_patch, set_item_name_patch] =
-    useState<Map<number, string>>(() => new Map());
+  // 아이템 이름 보강용 패치 캐시
+  const [item_name_patch, set_item_name_patch] = useState<Map<number, string>>(
+    () => new Map(),
+  );
 
   // 이름 맵
   const branch_name_by_id = useMemo(() => {
@@ -346,7 +349,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
     return m;
   }, [items]);
 
-  // 주문별 출고일 맵 (order header id → shipped_date)
+  // 주문별 출고일 맵
   const shipped_date_by_order_id = useMemo(() => {
     const m = new Map<number, string>();
     shipments.forEach((s) => {
@@ -365,27 +368,19 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
     return m;
   }, [shipments]);
 
-  // 라인뷰 렌더용 (지점/품목 이름 보강)
+  // 라인뷰 렌더용
   const line_rows: BranchOrder[] = useMemo(
     () =>
       orders.map((o: BranchOrder) => ({
         ...o,
-        branch_name:
-          o.branch_name ??
-          branch_name_by_id.get(o.branch_id) ??
-          "",
+        branch_name: o.branch_name ?? branch_name_by_id.get(o.branch_id) ?? "",
         item_name:
           o.item_name ??
           item_name_patch.get(o.item_id) ??
           item_name_by_id.get(o.item_id) ??
           "",
       })),
-    [
-      orders,
-      branch_name_by_id,
-      item_name_by_id,
-      item_name_patch,
-    ],
+    [orders, branch_name_by_id, item_name_by_id, item_name_patch],
   );
 
   // 헤더뷰
@@ -393,6 +388,25 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
     () => build_header_rows(line_rows),
     [line_rows],
   );
+
+  // 라인뷰용 그룹핑
+  const grouped_orders: OrderGroup[] = useMemo(() => {
+    const map = new Map<string, BranchOrder[]>();
+    line_rows.forEach((row) => {
+      const key = row.order_id;
+      const arr = map.get(key);
+      if (arr) {
+        arr.push(row);
+      } else {
+        map.set(key, [row]);
+      }
+    });
+
+    return Array.from(map.entries()).map(([order_id, lines]) => ({
+      order_id,
+      lines,
+    }));
+  }, [line_rows]);
 
   const status_options: BranchOrderStatus[] = [
     "PENDING",
@@ -412,15 +426,12 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
         const [br, its, sh] = await Promise.all([
           fetch_branches(),
           fetch_items(),
-          fetch_shipments_all().catch(
-            () => [] as Shipment[],
-          ),
+          fetch_shipments_all().catch(() => [] as Shipment[]),
         ]);
         if (is_cancelled) return;
         set_branches(br);
         set_items(its);
         set_shipments(sh);
-        // 품목 마스터를 캐시에 미리 채워두기 (미사용 포함 조회에 도움)
         prime_item_name_cache(its);
       } catch {
         // ignore
@@ -441,38 +452,21 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
       let data: BranchOrder[] = [];
 
       if (start_date && end_date) {
-        data = await fetch_branch_orders_by_period(
-          start_date,
-          end_date,
-        );
+        data = await fetch_branch_orders_by_period(start_date, end_date);
       } else if (fixedStatus) {
         if (branch_filter) {
-          const tmp = await fetch_branch_orders_by_branch(
-            Number(branch_filter),
-          );
-          data = tmp.filter(
-            (r: BranchOrder) => r.status === fixedStatus,
-          );
+          const tmp = await fetch_branch_orders_by_branch(Number(branch_filter));
+          data = tmp.filter((r: BranchOrder) => r.status === fixedStatus);
         } else {
-          data = await fetch_branch_orders_by_status(
-            fixedStatus,
-          );
+          data = await fetch_branch_orders_by_status(fixedStatus);
         }
       } else if (branch_filter && !status_filter) {
-        data = await fetch_branch_orders_by_branch(
-          Number(branch_filter),
-        );
+        data = await fetch_branch_orders_by_branch(Number(branch_filter));
       } else if (!branch_filter && status_filter !== "") {
-        data = await fetch_branch_orders_by_status(
-          status_filter,
-        );
+        data = await fetch_branch_orders_by_status(status_filter);
       } else if (branch_filter && status_filter !== "") {
-        const tmp = await fetch_branch_orders_by_branch(
-          Number(branch_filter),
-        );
-        data = tmp.filter(
-          (r: BranchOrder) => r.status === status_filter,
-        );
+        const tmp = await fetch_branch_orders_by_branch(Number(branch_filter));
+        data = tmp.filter((r: BranchOrder) => r.status === status_filter);
       } else {
         data = await fetch_branch_orders_all();
       }
@@ -485,11 +479,9 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
         );
       }
 
-      // 필요하면 COMPLETED 숨기기 (수주 기본 화면)
+      // COMPLETED 숨기기
       if (hideCompleted && !fixedStatus) {
-        data = data.filter(
-          (r: BranchOrder) => r.status !== "COMPLETED",
-        );
+        data = data.filter((r: BranchOrder) => r.status !== "COMPLETED");
       }
 
       set_orders(data);
@@ -511,17 +503,15 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ===== 아이템 이름 보강 (미사용 품목도 내역에 보이게) =====
+  // 아이템 이름 보강
   useEffect(() => {
-    // 이름이 비어 있고, 마스터/패치에 둘 다 없는 item_id만 추려서 개별 조회
     const need_ids = Array.from(
       new Set(
         orders
           .filter((o) => {
             const in_master = !!item_name_by_id.get(o.item_id);
             const in_patch = !!item_name_patch.get(o.item_id);
-            const empty =
-              !o.item_name || !String(o.item_name).trim();
+            const empty = !o.item_name || !String(o.item_name).trim();
             return empty && !in_master && !in_patch;
           })
           .map((o) => o.item_id),
@@ -533,9 +523,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
 
     (async () => {
       for (const id of need_ids) {
-        const nm = await fetch_item_name_by_id(id).catch(
-          () => undefined,
-        );
+        const nm = await fetch_item_name_by_id(id).catch(() => undefined);
         if (is_cancelled || !nm) continue;
         set_item_name_patch((prev) => {
           const next = new Map(prev);
@@ -615,9 +603,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
           display_iso_date(shipped_iso),
           r.status ?? "",
         ]
-          .map((v) =>
-            `"${String(v ?? "").replace(/"/g, '""')}"`,
-          )
+          .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
           .join(",");
         csv += `${line}\n`;
       });
@@ -647,9 +633,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
         ];
 
         const line = line_values
-          .map((v) =>
-            `"${String(v ?? "").replace(/"/g, '""')}"`,
-          )
+          .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
           .join(",");
         csv += `${line}\n`;
       });
@@ -682,20 +666,15 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
   useEffect(() => {
     const on_doc_click = (e: MouseEvent) => {
       if (!suggest_wrap_ref.current) return;
-      if (
-        !suggest_wrap_ref.current.contains(
-          e.target as Node,
-        )
-      ) {
+      if (!suggest_wrap_ref.current.contains(e.target as Node)) {
         set_is_show_suggest(false);
       }
     };
     document.addEventListener("mousedown", on_doc_click);
-    return () =>
-      document.removeEventListener("mousedown", on_doc_click);
+    return () => document.removeEventListener("mousedown", on_doc_click);
   }, []);
 
-  // ===== 배송 처리 =====
+  // 배송 처리
   const handle_ship = async (row: BranchOrder) => {
     if (!row.id) {
       alert("내부 ID가 없어 배송 처리를 할 수 없습니다.");
@@ -722,9 +701,8 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
     }
   };
 
-  // ===== colSpan 계산 =====
-  const line_col_count =
-    10 + (showShipButton && !is_completed_view ? 1 : 0);
+  // colSpan 계산
+  const line_col_count = 10 + (showShipButton && !is_completed_view ? 1 : 0);
   const header_col_count = 8;
   const current_col_span =
     view_mode === "header" ? header_col_count : line_col_count;
@@ -764,10 +742,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
   const tbody =
     view_mode === "header"
       ? header_rows.map((r: HeaderRow, idx: number) => {
-          const bg =
-            idx % 2 === 1
-              ? { background: ui.zebra }
-              : undefined;
+          const bg = idx % 2 === 1 ? { background: ui.zebra } : undefined;
 
           const first_line = line_rows.find(
             (lr: BranchOrder) => lr.order_id === r.order_id,
@@ -787,83 +762,61 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
                 })}
               </td>
               <td style={td_style}>{r.branch_name ?? ""}</td>
-              <td style={td_style}>
-                {money(r.total_qty ?? 0)}
-              </td>
-              <td style={td_style}>
-                {money(r.total_amount ?? 0)}
-              </td>
-              <td style={td_style}>
-                {display_iso_date(r.desired_due_date)}
-              </td>
-              <td style={td_style}>
-                {display_iso_date(shipped_iso)}
-              </td>
+              <td style={td_style}>{money(r.total_qty ?? 0)}</td>
+              <td style={td_style}>{money(r.total_amount ?? 0)}</td>
+              <td style={td_style}>{display_iso_date(r.desired_due_date)}</td>
+              <td style={td_style}>{display_iso_date(shipped_iso)}</td>
               <td style={td_style}>
                 <span style={badge_style()}>{r.status}</span>
               </td>
             </tr>
           );
         })
-      : line_rows.map(
-          (o: BranchOrder, idx: number) => {
-            const bg =
-              idx % 2 === 1
-                ? { background: ui.zebra }
-                : undefined;
+      : grouped_orders.map((group, g_idx) => {
+          const group_bg = g_idx % 2 === 1 ? { background: ui.zebra } : undefined;
+          const lines = group.lines;
+          if (lines.length === 0) return null;
 
+          return lines.map((o, idx) => {
             const shipped_iso = get_shipped_iso_for_line(
               o,
               shipped_date_by_order_id,
             );
 
-            const is_first_for_order =
-              line_rows.findIndex(
-                (r: BranchOrder) =>
-                  r.order_id === o.order_id,
-              ) === idx;
+            const is_first_for_group = idx === 0;
 
             return (
-              <tr
-                key={`${o.order_id}_${idx}`}
-                style={bg}
-              >
-                <td style={td_style}>{o.order_id}</td>
+              <tr key={`${o.order_id}_${idx}`} style={group_bg}>
+                {/* 수주번호 / 수주일자 / 지점명은 그룹의 첫 줄에만 표시 */}
+                <td style={td_style}>{is_first_for_group ? o.order_id : ""}</td>
                 <td style={td_style}>
-                  {display_date({
-                    created_at: o.created_at,
-                    order_id: o.order_id,
-                  })}
+                  {is_first_for_group
+                    ? display_date({
+                        created_at: o.created_at,
+                        order_id: o.order_id,
+                      })
+                    : ""}
                 </td>
-                <td style={td_style}>{o.branch_name}</td>
+                <td style={td_style}>
+                  {is_first_for_group ? o.branch_name : ""}
+                </td>
+
+                {/* 품목명 / 수량 / 단가 / 금액 / 희망입고일 / 출고일 / 상태 */}
                 <td style={td_style}>{o.item_name}</td>
+                <td style={td_style}>{money(o.quantity ?? 0)}</td>
+                <td style={td_style}>{money(o.unit_price ?? 0)}</td>
+                <td style={td_style}>{money(o.amount ?? 0)}</td>
+                <td style={td_style}>{display_iso_date(o.desired_due_date)}</td>
+                <td style={td_style}>{display_iso_date(shipped_iso)}</td>
                 <td style={td_style}>
-                  {money(o.quantity ?? 0)}
-                </td>
-                <td style={td_style}>
-                  {money(o.unit_price ?? 0)}
-                </td>
-                <td style={td_style}>
-                  {money(o.amount ?? 0)}
-                </td>
-                <td style={td_style}>
-                  {display_iso_date(o.desired_due_date)}
-                </td>
-                <td style={td_style}>
-                  {display_iso_date(shipped_iso)}
-                </td>
-                <td style={td_style}>
-                  <span style={badge_style()}>
-                    {o.status}
-                  </span>
+                  <span style={badge_style()}>{o.status}</span>
                 </td>
 
                 {showShipButton && !is_completed_view && (
                   <td style={td_style}>
-                    {o.status === "COMPLETED" ||
-                    o.status === "CANCELED" ? (
+                    {o.status === "COMPLETED" || o.status === "CANCELED" ? (
                       "-"
-                    ) : is_first_for_order ? (
+                    ) : is_first_for_group ? (
                       <button
                         type="button"
                         style={small_btn}
@@ -878,8 +831,8 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
                 )}
               </tr>
             );
-          },
-        );
+          });
+        });
 
   return (
     <div style={page_wrap}>
@@ -910,16 +863,11 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
           <select
             style={select_style}
             value={branch_filter}
-            onChange={(e) =>
-              set_branch_filter(e.target.value)
-            }
+            onChange={(e) => set_branch_filter(e.target.value)}
           >
             <option value="">전체</option>
             {branches.map((b) => (
-              <option
-                key={b.id}
-                value={String(b.id)}
-              >
+              <option key={b.id} value={String(b.id)}>
                 {b.name}
               </option>
             ))}
@@ -946,8 +894,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
                 ? undefined
                 : (e) =>
                     set_status_filter(
-                      (e.target.value ||
-                        "") as BranchOrderStatus | "",
+                      (e.target.value || "") as BranchOrderStatus | "",
                     )
             }
             disabled={!!fixedStatus}
@@ -977,9 +924,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
             type="date"
             style={input_style}
             value={start_date}
-            onChange={(e) =>
-              set_start_date(e.target.value)
-            }
+            onChange={(e) => set_start_date(e.target.value)}
           />
         </div>
 
@@ -999,13 +944,11 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
             type="date"
             style={input_style}
             value={end_date}
-            onChange={(e) =>
-              set_end_date(e.target.value)
-            }
+            onChange={(e) => set_end_date(e.target.value)}
           />
         </div>
 
-        {/* 수주번호 + 자동완성 */}
+        {/* 수주번호 + 자동완성 + 검색 버튼 (한 칸에 묶음) */}
         <div
           style={{
             display: "flex",
@@ -1024,73 +967,68 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
           >
             수주번호
           </label>
-          <input
-            style={{ ...input_style, width: "100%" }}
-            placeholder="예: BR_1_"
-            value={order_id_search}
-            onChange={(e) => {
-              set_order_id_search(e.target.value);
-              set_is_show_suggest(true);
-            }}
-            onFocus={() => set_is_show_suggest(true)}
-          />
-          {is_show_suggest &&
-            filtered_suggests.length > 0 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 68,
-                  left: 0,
-                  right: 0,
-                  border: `1px solid ${ui.border}`,
-                  background: "#fff",
-                  borderRadius: 8,
-                  boxShadow:
-                    "0 8px 20px rgba(0,0,0,0.08)",
-                  zIndex: 20,
-                  maxHeight: 220,
-                  overflowY: "auto",
-                }}
-              >
-                {filtered_suggests.map((s) => (
-                  <div
-                    key={s}
-                    onMouseDown={() => {
-                      set_order_id_search(s);
-                      set_is_show_suggest(false);
-                    }}
-                    style={{
-                      padding: "10px 12px",
-                      cursor: "pointer",
-                      borderBottom: `1px solid ${ui.border}`,
-                    }}
-                  >
-                    {s}
-                  </div>
-                ))}
-              </div>
-            )}
-        </div>
 
-        {/* 검색 버튼 */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <label
+          <div
             style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: "transparent",
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
             }}
           >
-            검색
-          </label>
-          <button
-            type="button"
-            style={search_btn}
-            onClick={on_click_search}
-            disabled={is_loading}
-          >
-            검색
-          </button>
+            <input
+              style={order_id_input_style}
+              placeholder="예: BR_1_"
+              value={order_id_search}
+              onChange={(e) => {
+                set_order_id_search(e.target.value);
+                set_is_show_suggest(true);
+              }}
+              onFocus={() => set_is_show_suggest(true)}
+            />
+            <button
+              type="button"
+              style={search_btn}
+              onClick={on_click_search}
+              disabled={is_loading}
+            >
+              검색
+            </button>
+          </div>
+
+          {is_show_suggest && filtered_suggests.length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: 68,
+                left: 0,
+                right: 0,
+                border: `1px solid ${ui.border}`,
+                background: "#fff",
+                borderRadius: 8,
+                boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+                zIndex: 20,
+                maxHeight: 220,
+                overflowY: "auto",
+              }}
+            >
+              {filtered_suggests.map((s) => (
+                <div
+                  key={s}
+                  onMouseDown={() => {
+                    set_order_id_search(s);
+                    set_is_show_suggest(false);
+                  }}
+                  style={{
+                    padding: "10px 12px",
+                    cursor: "pointer",
+                    borderBottom: `1px solid ${ui.border}`,
+                  }}
+                >
+                  {s}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 수주 등록 버튼 */}
@@ -1110,7 +1048,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
               style={primary_btn}
               onClick={go_new_order}
             >
-              수주 등록
+              신규 수주 등록
             </button>
           )}
         </div>
@@ -1130,16 +1068,10 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
               type="button"
               style={small_btn}
               onClick={() =>
-                set_view_mode(
-                  view_mode === "line"
-                    ? "header"
-                    : "line",
-                )
+                set_view_mode(view_mode === "line" ? "header" : "line")
               }
             >
-              {view_mode === "line"
-                ? "헤더 뷰"
-                : "라인 뷰"}
+              {view_mode === "line" ? "헤더 뷰" : "라인 뷰"}
             </button>
             <button
               type="button"
@@ -1182,8 +1114,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
                     불러오는 중…
                   </td>
                 </tr>
-              ) : view_mode === "header" &&
-                header_rows.length === 0 ? (
+              ) : view_mode === "header" && header_rows.length === 0 ? (
                 <tr>
                   <td
                     style={{
@@ -1196,8 +1127,7 @@ const BranchOrderListPage: React.FC<BranchOrderListPageProps> = ({
                     데이터 없음
                   </td>
                 </tr>
-              ) : view_mode === "line" &&
-                line_rows.length === 0 ? (
+              ) : view_mode === "line" && line_rows.length === 0 ? (
                 <tr>
                   <td
                     style={{

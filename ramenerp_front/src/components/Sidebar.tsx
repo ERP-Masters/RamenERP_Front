@@ -53,10 +53,9 @@ const header_style: React.CSSProperties = {
   fontWeight: 800,
   fontSize: 16,
   color: "#111827",
-  position: "relative", // 아이콘 absolute 배치용
+  position: "relative",
 };
 
-/** 헤더 오른쪽 아이콘들 래핑용 컨테이너 */
 const header_actions_wrap_style: React.CSSProperties = {
   position: "absolute",
   right: 8,
@@ -66,7 +65,6 @@ const header_actions_wrap_style: React.CSSProperties = {
   alignItems: "center",
 };
 
-/** 집 / 전원 공통 버튼 스타일 */
 const header_icon_btn_style: React.CSSProperties = {
   width: 30,
   height: 28,
@@ -115,15 +113,12 @@ const children_wrap_base: React.CSSProperties = {
 
 /**
  * NOTE: padding을 shorthand로 쓰지 않는다.
- * paddingTop / paddingRight / paddingBottom / paddingLeft 를 명시적으로 쓴다.
  */
 const link_style: React.CSSProperties = {
   display: "block",
   textDecoration: "none",
   fontSize: 14,
   color: "#374151",
-
-  // padding: "9px 18px 9px 28px",
   paddingTop: 9,
   paddingRight: 18,
   paddingBottom: 9,
@@ -136,8 +131,6 @@ const link_active_style: React.CSSProperties = {
   color: "#1f2937",
   fontWeight: 700,
   borderLeft: "3px solid #2563eb",
-
-  // override ONLY left padding
   paddingLeft: 25,
 };
 
@@ -186,10 +179,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const { pathname } = useLocation();
   const [expanded_id, set_expanded_id] = React.useState<string>("items");
 
-  // ✅ 헤더 액션 훅 (집 / 로그아웃)
   const { go_home, handle_logout } = useSidebarHeaderActions();
 
-  // ✅ 메인 대쉬보드에서 햄버거로 연 "오버레이" 사이드바인지 여부
   const is_dashboard_overlay = mode === "overlay" && pathname === "/dashboard";
 
   const handle_toggle_group = (id: string) => {
@@ -219,24 +210,21 @@ const Sidebar: React.FC<SidebarProps> = ({
             maxHeight: is_expanded ? 500 : 0,
           }}
         >
-          {group.children.map((item) => {
-            // 현재 경로와 메뉴 path 비교해서 active 여부 판단
-            const is_active =
-              pathname === item.path || pathname.startsWith(item.path + "/");
-
-            return (
-              <NavLink
-                key={item.id}
-                to={item.path}
-                style={is_active ? link_active_style : link_style}
-                onClick={() => {
-                  if (mode === "overlay") set_is_open(false);
-                }}
-              >
-                {item.label}
-              </NavLink>
-            );
-          })}
+          {group.children.map((item) => (
+            <NavLink
+              key={item.id}
+              to={item.path}
+              end
+              style={(nav_state) =>
+                nav_state.isActive ? link_active_style : link_style
+              }
+              onClick={() => {
+                if (mode === "overlay") set_is_open(false);
+              }}
+            >
+              {item.label}
+            </NavLink>
+          ))}
         </div>
 
         <div style={divider_style} aria-hidden />
@@ -246,12 +234,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const panel =
     mode === "docked" ? (
-      // ✅ 데스크톱: 항상 열려 있는 사이드바
       <nav style={docked_panel} aria-label="sidebar">
         <div style={header_style}>
           라멘 ERP
           <div style={header_actions_wrap_style}>
-            {/* 집 아이콘 → 메인 대시보드 */}
             <button
               type="button"
               style={header_icon_btn_style}
@@ -260,7 +246,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <IconHomeLine size={14} />
             </button>
-            {/* 전원 아이콘 → 로그아웃 */}
             <button
               type="button"
               style={header_icon_btn_style}
@@ -274,7 +259,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div>{sidebar_menu.map(render_group)}</div>
       </nav>
     ) : (
-      // ✅ 모바일 / 메인 대쉬보드에서 쓰는 오버레이 사이드바
       <>
         <div onClick={() => set_is_open(false)} style={backdrop_style(is_open)} />
         <nav
@@ -284,7 +268,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div style={header_style}>
             라멘 ERP
             <div style={header_actions_wrap_style}>
-              {/* ✅ 대시보드 오버레이일 때는 집 아이콘 숨기기 */}
               {!is_dashboard_overlay && (
                 <button
                   type="button"
@@ -310,7 +293,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 ⏻
               </button>
-              {/* 기존 닫기 버튼도 유지 */}
               <button
                 type="button"
                 onClick={() => set_is_open(false)}
