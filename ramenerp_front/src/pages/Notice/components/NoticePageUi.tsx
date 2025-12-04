@@ -1,10 +1,13 @@
 // src/pages/Notice/components/NoticePageUi.tsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom"; // ✅ 메인으로 이동용
 import Sidebar from "@/menu/Sidebar";
 import { useNoticeForm } from "../function/NoticeRegisterPageFunction";
 import NoticeEditModalUi from "./NoticeEditModalUi"; // 수정 모달
 import type { NoticeForEdit } from "../function/NoticeEditModalFunction";
-import NoticeDeleteModalUi from "./NoticeDeleteModalUi"; // ✅ 삭제 모달 추가
+import NoticeDeleteModalUi from "./NoticeDeleteModalUi"; // 삭제 모달
+import NoticeContentPreviewUi from "./NoticeContentPreviewUi"; // 내용 미리보기 UI
+import { useNoticeContentPreview } from "../function/NoticeContentPreviewFunction";
 
 type Notice = {
   id: number;
@@ -62,6 +65,21 @@ const title_style: React.CSSProperties = {
 const subtitle_style: React.CSSProperties = {
   fontSize: 12,
   color: "#6b7280",
+};
+
+/* ✅ 상단 우측 홈 버튼 스타일 */
+const home_btn_style: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 999,
+  border: "1px solid #e5e7eb",
+  background: "#ffffff",
+  boxShadow: "0 6px 16px rgba(15,23,42,0.18)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  padding: 0,
 };
 
 /* 필터 바: 좌측 필터 / 우측 버튼 */
@@ -137,7 +155,7 @@ const btn_notice_style: React.CSSProperties = {
   padding: "0 16px",
   borderRadius: 999,
   border: "1px solid #fb923c",
-  background: "#fed7aa", // 연한 주황
+  background: "#fed7aa",
   color: "#9a3412",
   fontSize: 13,
   fontWeight: 600,
@@ -193,7 +211,7 @@ const empty_row_style: React.CSSProperties = {
   padding: 14,
   textAlign: "left",
   color: "#b91c1c",
-  fontSize: 12, // 작게 + 빨간색
+  fontSize: 12,
 };
 
 const pagination_bar_style: React.CSSProperties = {
@@ -257,7 +275,7 @@ const page_btn_side_style: React.CSSProperties = {
 const hamburger_btn_style: React.CSSProperties = {
   position: "fixed",
   top: 14,
-  left: 60, // 기존보다 살짝 오른쪽
+  left: 60,
   width: 44,
   height: 44,
   borderRadius: 14,
@@ -268,7 +286,7 @@ const hamburger_btn_style: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   cursor: "pointer",
-  zIndex: 998, // 내용 위, 사이드바(backdrop 1000, panel 1001)보다 아래
+  zIndex: 998,
 };
 
 const hamburger_stack_style: React.CSSProperties = {
@@ -293,7 +311,7 @@ const modal_backdrop_style: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  zIndex: 1200, // 사이드바보다 위
+  zIndex: 1200,
 };
 
 const modal_card_style: React.CSSProperties = {
@@ -590,6 +608,8 @@ const NoticeRegisterModal: React.FC<NoticeRegisterModalProps> = ({
 /* ===== 공지 리스트 페이지 ===== */
 
 const NoticePageUi: React.FC = () => {
+  const navigate = useNavigate(); // ✅ 메인 화면 이동용
+
   const [notices, set_notices] = useState<Notice[]>([]);
   const [current_page, set_current_page] = useState(1);
   const [loading, set_loading] = useState(false);
@@ -612,6 +632,16 @@ const NoticePageUi: React.FC = () => {
     id: number;
     title: string;
   } | null>(null);
+
+  // 📝 내용 미리보기 상태 (제목 hover 전용)
+  const {
+    is_open: is_preview_open,
+    preview_content,
+    position: preview_position,
+    open_preview,
+    move_preview,
+    close_preview,
+  } = useNoticeContentPreview();
 
   // 🔄 공지 데이터 불러오기
   useEffect(() => {
@@ -644,7 +674,6 @@ const NoticePageUi: React.FC = () => {
             created_at: String(n.created_at ?? "").trim(),
             updated_at: String(n.updated_at ?? "").trim(),
           }))
-          // 최신(created_at) → 오래된 순
           .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
         set_notices(normalized);
@@ -740,7 +769,7 @@ const NoticePageUi: React.FC = () => {
         mode="overlay"
       />
 
-      {/* 본문: 사이드바 열릴 때만 살짝 어둡고 비활성화 */}
+      {/* 본문 */}
       <div
         style={{
           ...page_wrap_style,
@@ -758,9 +787,29 @@ const NoticePageUi: React.FC = () => {
                 지점별 · 날짜별 공지사항 기록을 조회하고 신규 공지를 등록합니다.
               </div>
             </div>
+
+            {/* ✅ 상단 우측 홈 버튼 */}
+            <button
+              type="button"
+              style={home_btn_style}
+              onClick={() => navigate("/dashboard")} // 메인 화면 경로
+              aria-label="메인 화면으로 이동"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-5.5h-5V21H5a1 1 0 0 1-1-1v-9.5z"
+                  fill="#111827"
+                />
+              </svg>
+            </button>
           </div>
 
-          {/* 필터 바: 좌측 필터 / 우측 버튼 */}
+          {/* 필터 바 */}
           <div style={filter_bar_style}>
             <div style={filter_fields_row_style}>
               {/* 1. 제목 */}
@@ -857,11 +906,30 @@ const NoticePageUi: React.FC = () => {
                       row_no % 2 === 0 ? { background: "#fafafa" } : {};
 
                     return (
-                      <tr key={n.id} style={row_style} title={n.content}>
+                      // 🔹 title 속성 제거해서 브라우저 기본 툴팁 없앰
+                      <tr key={n.id} style={row_style}>
                         <td style={td_style}>{row_no}</td>
+
+                        {/* 제목 셀: 여기에서만 미리보기 동작 */}
                         <td style={{ ...td_style, whiteSpace: "normal" }}>
-                          {n.title}
+                          <span
+                            onMouseEnter={(e) =>
+                              open_preview(
+                                n.content,
+                                e.clientX,
+                                e.clientY,
+                              )
+                            }
+                            onMouseMove={(e) =>
+                              move_preview(e.clientX, e.clientY)
+                            }
+                            onMouseLeave={close_preview}
+                            style={{ cursor: "default" }}
+                          >
+                            {n.title}
+                          </span>
                         </td>
+
                         <td style={td_style}>{n.author_id}</td>
                         <td style={td_style}>{n.created_at}</td>
                         <td style={actions_cell_style}>
@@ -1019,6 +1087,13 @@ const NoticePageUi: React.FC = () => {
           }}
         />
       )}
+
+      {/* 🔹 내용 미리보기 툴팁 (제목 hover 전용) */}
+      <NoticeContentPreviewUi
+        open={is_preview_open}
+        content={preview_content}
+        position={preview_position}
+      />
     </div>
   );
 };
