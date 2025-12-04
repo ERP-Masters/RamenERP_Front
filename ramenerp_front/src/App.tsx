@@ -32,7 +32,7 @@ import LotHistoryListPage from "./pages/Lot/components/LotHistoryListPage";
 import ShipmentListPage from "./pages/shipment/components/ShipmentListPage";
 import NoticePageUi from "./pages/Notice/components/NoticePageUi";
 import NoticeRegisterPageUi from "./pages/Notice/components/NoticeRegisterPageUi"; // ✅ 추가
-import SalesDashboardPage from "./pages/SalesDashboardPage";
+import SalesDashboardPage from "./pages/sales/components/SalesDashboardPage";
 
 const App: React.FC = () => {
   return (
