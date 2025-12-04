@@ -376,7 +376,7 @@ const VendorOrderNewPage: React.FC = () => {
       >
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>
-            발주서 작성
+            신규 발주 등록
           </h1>
           <p style={{ margin: "4px 0 0", fontSize: 13, color: ui.muted }}>
             거래처와 창고를 선택하고, 발주할 품목과 수량을 입력하세요.

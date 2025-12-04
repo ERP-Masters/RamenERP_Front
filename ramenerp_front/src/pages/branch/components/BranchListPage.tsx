@@ -458,7 +458,7 @@ const BranchListPage: React.FC = () => {
       <div style={page_style}>
         {/* 상단 타이틀/버튼 */}
         <div style={controls_block_style}>
-          <div style={controls_title_style}>지점 조회</div>
+          <div style={controls_title_style}>지점 리스트</div>
           <div style={top_row_style}>
             <div style={top_controls_style}>
               <input
@@ -513,14 +513,14 @@ const BranchListPage: React.FC = () => {
             <table style={table_style}>
               <thead>
                 <tr>
-                  <th style={th_style}>branch_id</th>
-                  <th style={th_style}>name</th>
-                  <th style={th_style}>location</th>
-                  <th style={th_style}>detail_address</th>
-                  <th style={th_style}>store_owner</th>
-                  <th style={th_style}>contact</th>
-                  <th style={th_style}>created_at</th>
-                  <th style={th_style}>actions</th>
+                  <th style={th_style}>지점 ID</th>
+                  <th style={th_style}>지점명</th>
+                  <th style={th_style}>위치</th>
+                  <th style={th_style}>상세주소</th>
+                  <th style={th_style}>지점장</th>
+                  <th style={th_style}>연락처</th>
+                  <th style={th_style}>개점 일시</th>
+                  <th style={th_style}></th>
                 </tr>
               </thead>
               <tbody>

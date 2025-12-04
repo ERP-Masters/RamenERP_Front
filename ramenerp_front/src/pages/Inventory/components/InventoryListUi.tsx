@@ -191,7 +191,7 @@ const InventoryListUi: React.FC = () => {
   return (
     <div style={page_wrap}>
       <div style={page_inner}>
-        <div style={title_style}>인벤토리 조회</div>
+        <div style={title_style}>재고 관리</div>
 
         <div style={card}>
           <div style={card_head}>

@@ -579,7 +579,7 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
   return (
     <div style={page}>
       {!hide_title && (
-        <h1 style={title}>품목 조회</h1>
+        <h1 style={title}>품목 리스트</h1>
       )}
 
       {/* 상단 필터/액션 바 */}

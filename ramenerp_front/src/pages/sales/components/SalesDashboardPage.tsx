@@ -1075,7 +1075,7 @@ const SalesDashboardPage: React.FC = () => {
           fontWeight: 800,
         }}
       >
-        매출 현황 대시보드
+        매출 현황
       </h1>
 
       {/* 상단 필터: 연도만 사용 */}
