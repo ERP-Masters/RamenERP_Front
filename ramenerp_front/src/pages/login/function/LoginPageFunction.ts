@@ -1,11 +1,16 @@
 // src/pages/LoginPageFunction.ts
-// 로그인 로직 & 더미 계정 검증 전용 훅
+// 로그인 로직 훅 - 백엔드 연동 버전
 
 import { useState, type ChangeEvent } from "react";
-import { useNavigate } from "react-router-dom";  // ✅ 추가
+import { useNavigate } from "react-router-dom";
+import { set_auth_session, type AuthUser } from "@/auth/auth_session";
 
-const DUMMY_USER_ID = "admin";       // 임시 더미 아이디
-const DUMMY_PASSWORD = "ramen1234";  // 임시 더미 비밀번호
+const api_base_url = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+type LoginResponse = {
+  accessToken: string;
+  user: AuthUser;
+};
 
 export type UseLoginFormReturn = {
   user_id: string;
@@ -14,7 +19,7 @@ export type UseLoginFormReturn = {
   error_msg: string;
   handle_change_id: (e: ChangeEvent<HTMLInputElement>) => void;
   handle_change_password: (e: ChangeEvent<HTMLInputElement>) => void;
-  handle_submit: (opts?: { on_success?: () => void }) => Promise<void>;
+  handle_submit: () => Promise<void>;
 };
 
 /** ✅ LoginPageUi 에서 사용하는 훅 (named export 필수) */
@@ -24,7 +29,7 @@ export function useLoginForm(): UseLoginFormReturn {
   const [is_submitting, set_is_submitting] = useState(false);
   const [error_msg, set_error_msg] = useState("");
 
-  const navigate = useNavigate();  // ✅ 추가
+  const navigate = useNavigate();
 
   const handle_change_id = (e: ChangeEvent<HTMLInputElement>) => {
     set_user_id(e.target.value);
@@ -34,7 +39,18 @@ export function useLoginForm(): UseLoginFormReturn {
     set_password(e.target.value);
   };
 
-  const handle_submit = async (opts: { on_success?: () => void } = {}) => {
+  const extract_error_message = async (res: Response) => {
+    try {
+      const data = (await res.json()) as any;
+      if (typeof data?.message === "string") return data.message;
+      if (Array.isArray(data?.message)) return data.message[0] ?? "로그인에 실패했습니다.";
+      return "로그인에 실패했습니다.";
+    } catch {
+      return "로그인에 실패했습니다.";
+    }
+  };
+
+  const handle_submit = async () => {
     set_error_msg("");
 
     if (!user_id || !password) {
@@ -43,22 +59,36 @@ export function useLoginForm(): UseLoginFormReturn {
     }
 
     set_is_submitting(true);
+
     try {
-      // 🔐 백엔드 연동 전까지는 더미 계정으로만 체크
-      if (user_id === DUMMY_USER_ID && password === DUMMY_PASSWORD) {
-        // 간단 세션 플래그 (필요하면 나중에 교체)
-        sessionStorage.setItem("ramenerp_login_ok", "1");
+      const res = await fetch(`${api_base_url}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user_id,
+          userPw: password,
+        }),
+      });
 
-        // ✅ 여기서 바로 대시보드로 이동
-        navigate("/dashboard", { replace: true });
-
-        // 필요하면 추가 콜백도 그대로 호출
-        if (opts.on_success) {
-          opts.on_success();
-        }
-      } else {
-        set_error_msg("아이디 또는 비밀번호가 올바르지 않습니다.");
+      if (!res.ok) {
+        const msg = await extract_error_message(res);
+        set_error_msg(msg);
+        return;
       }
+
+      const data = (await res.json()) as LoginResponse;
+
+      if (!data?.accessToken || !data?.user) {
+        set_error_msg("로그인 응답 형식이 올바르지 않습니다.");
+        return;
+      }
+
+      set_auth_session(data.accessToken, data.user);
+
+      // ✅ 성공 시 이동은 훅에서만 책임
+      navigate("/dashboard", { replace: true });
+    } catch {
+      set_error_msg("서버와 통신 중 오류가 발생했습니다.");
     } finally {
       set_is_submitting(false);
     }
