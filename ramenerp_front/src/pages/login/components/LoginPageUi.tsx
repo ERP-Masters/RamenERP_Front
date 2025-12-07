@@ -1,6 +1,5 @@
 // src/pages/LoginPageUi.tsx
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import { useLoginForm } from "../function/LoginPageFunction";
 
 const ui_tok = {
@@ -16,14 +15,13 @@ const ui_tok = {
   radius: 16,
 } as const;
 
-// ✅ 화면 정중앙보다 살짝 위에 오도록 수정
 const page_wrap_style: React.CSSProperties = {
   minHeight: "120vh",
   background: ui_tok.bg_page,
   display: "flex",
   justifyContent: "center",
-  alignItems: "flex-start",        // center → flex-start
-  padding: "170px 16px 32px",      // 위쪽 여백을 넉넉하게
+  alignItems: "flex-start",
+  padding: "170px 16px 32px",
 };
 
 const card_style: React.CSSProperties = {
@@ -32,7 +30,7 @@ const card_style: React.CSSProperties = {
   borderRadius: ui_tok.radius,
   border: `1px solid ${ui_tok.border}`,
   boxShadow: "0 18px 40px rgba(15,23,42,0.18)",
-  padding: "28px 28px 24px",      // 좌우 여백 조금 더 넓게
+  padding: "28px 28px 24px",
   display: "grid",
   rowGap: 18,
 };
@@ -48,7 +46,6 @@ const form_style: React.CSSProperties = {
   rowGap: 14,
 };
 
-// ✅ 폼 전체를 카드 안에서 살짝 더 안쪽으로 좁게 배치
 const form_inner_style: React.CSSProperties = {
   width: "100%",
   maxWidth: 360,
@@ -94,7 +91,6 @@ const error_style: React.CSSProperties = {
 };
 
 const LoginPageUi: React.FC = () => {
-  const navigate = useNavigate();
   const {
     user_id,
     password,
@@ -107,22 +103,16 @@ const LoginPageUi: React.FC = () => {
 
   const handle_form_submit: React.FormEventHandler = (e) => {
     e.preventDefault();
-    void handle_submit({
-      on_success: () => {
-        navigate("/dashboard", { replace: true });
-      },
-    });
+    void handle_submit();
   };
 
   return (
     <div style={page_wrap_style}>
       <div style={card_style}>
-        {/* 헤더 */}
         <div>
           <div style={title_style}>Ramen ERP</div>
         </div>
 
-        {/* 로그인 폼 */}
         <form
           style={{ ...form_style, ...form_inner_style }}
           onSubmit={handle_form_submit}
