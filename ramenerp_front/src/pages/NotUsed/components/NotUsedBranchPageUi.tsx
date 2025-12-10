@@ -296,7 +296,7 @@ const NotUsedBranchPageUi: React.FC = () => {
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        <div style={title_style}>미사용 직영점 조회</div>
+        <div style={title_style}>미사용 직영점 리스트</div>
 
         <div style={top_bar_style}>
           <button
@@ -326,13 +326,13 @@ const NotUsedBranchPageUi: React.FC = () => {
               <thead>
                 <tr>
                   {select_mode && <th style={th_style} />}
-                  <th style={th_style}>branch_id</th>
-                  <th style={th_style}>name</th>
-                  <th style={th_style}>location</th>
-                  <th style={th_style}>detail_address</th>
-                  <th style={th_style}>store_owner</th>
-                  <th style={th_style}>contact</th>
-                  <th style={th_style}>created_at</th>
+                  <th style={th_style}>지점 ID</th>
+                  <th style={th_style}>지점명</th>
+                  <th style={th_style}>위치</th>
+                  <th style={th_style}>상세주소</th>
+                  <th style={th_style}>지점장</th>
+                  <th style={th_style}>연락처</th>
+                  <th style={th_style}>개점 일시</th>
                 </tr>
               </thead>
               <tbody>

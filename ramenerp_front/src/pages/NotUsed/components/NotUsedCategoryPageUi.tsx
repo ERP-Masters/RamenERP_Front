@@ -211,7 +211,7 @@ const NotUsedCategoryPageUi: React.FC = () => {
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        <div style={title_style}>미사용 카테고리 조회</div>
+        <div style={title_style}>미사용 카테고리 리스트</div>
 
         <div style={top_bar_style}>
           <button
@@ -241,9 +241,9 @@ const NotUsedCategoryPageUi: React.FC = () => {
               <thead>
                 <tr>
                   {select_mode && <th style={th_style} />}
-                  <th style={th_style}>category_id</th>
-                  <th style={th_style}>group</th>
-                  <th style={th_style}>category_name</th>
+                  <th style={th_style}>카테고리 ID</th>
+                  <th style={th_style}>카테고리 대분류</th>
+                  <th style={th_style}>카테고리 명</th>
                 </tr>
               </thead>
               <tbody>
