@@ -155,7 +155,7 @@ const UnitRegisterPage: React.FC = () => {
       <form onSubmit={handle_submit}>
         <div style={row_style}>
           <div style={group_style}>
-            <label htmlFor="unit_code" style={label_style}>code</label>
+            <label htmlFor="unit_code" style={label_style}>단위 분류</label>
             <input
               id="unit_code"
               type="text"
@@ -169,7 +169,7 @@ const UnitRegisterPage: React.FC = () => {
           </div>
 
           <div style={group_style}>
-            <label htmlFor="unit_name" style={label_style}>name</label>
+            <label htmlFor="unit_name" style={label_style}>단위명</label>
             <input
               id="unit_name"
               type="text"

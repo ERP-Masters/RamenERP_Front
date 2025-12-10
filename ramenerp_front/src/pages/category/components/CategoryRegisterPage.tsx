@@ -140,7 +140,7 @@ const CategoryRegisterPage: React.FC = () => {
     <form onSubmit={handle_submit} style={form_wrap_style}>
       <div style={row_style}>
         <div style={group_style}>
-          <label style={label_style}>group</label>
+          <label style={label_style}>카테고리 대분류</label>
           <select
             value={major_category}
             onChange={(e) => set_major_category(e.target.value as MajorCategory)}
@@ -153,7 +153,7 @@ const CategoryRegisterPage: React.FC = () => {
         </div>
 
         <div style={group_style}>
-          <label style={label_style}>category_name</label>
+          <label style={label_style}>카테고리 명</label>
           <input
             type="text"
             value={category_name}

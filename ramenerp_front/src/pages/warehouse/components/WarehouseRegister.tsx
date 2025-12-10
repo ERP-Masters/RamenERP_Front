@@ -125,7 +125,7 @@ const WareHouseRegister: React.FC = () => {
     <form onSubmit={handle_submit} style={form_wrap_style}>
       <div style={row_style}>
         <div style={group_style}>
-          <label style={label_style}>name</label>
+          <label style={label_style}>창고명</label>
           <input
             type="text"
             value={name}
@@ -137,7 +137,7 @@ const WareHouseRegister: React.FC = () => {
         </div>
 
         <div style={group_style}>
-          <label style={label_style}>location</label>
+          <label style={label_style}>창고 위치</label>
           <input
             type="text"
             value={location}

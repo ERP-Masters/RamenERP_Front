@@ -134,7 +134,7 @@ const BranchRegisterPage: React.FC = () => {
       <div style={row_style}>
         <div style={field_style}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <label style={label_style}>name</label>
+            <label style={label_style}>지점명</label>
           </div>
           <input
             name="name"
@@ -149,7 +149,7 @@ const BranchRegisterPage: React.FC = () => {
         <div style={field_style}>
           {/* ⬇ 라벨 오른쪽에 작은 버튼을 ‘살짝’ 띄워 배치 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <label style={label_style}>location</label>
+            <label style={label_style}>지점 위치</label>
             <button type="button" style={tiny_btn_style} onClick={openAddressSearch} title="도로명 주소 검색">
               도로명 주소 검색
             </button>
@@ -166,7 +166,7 @@ const BranchRegisterPage: React.FC = () => {
 
         <div style={field_style}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <label style={label_style}>detail_address</label>
+            <label style={label_style}>상세 주소</label>
           </div>
           <input
             ref={detailRef}
@@ -182,7 +182,7 @@ const BranchRegisterPage: React.FC = () => {
       <div style={row_style}>
         <div style={field_style}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <label style={label_style}>store_owner</label>
+            <label style={label_style}>지점장</label>
           </div>
           <input
             name="store_owner"
@@ -195,7 +195,7 @@ const BranchRegisterPage: React.FC = () => {
 
         <div style={field_style}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <label style={label_style}>contact</label>
+            <label style={label_style}>연락처</label>
           </div>
           <input
             name="contact"
