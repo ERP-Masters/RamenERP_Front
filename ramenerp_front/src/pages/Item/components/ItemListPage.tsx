@@ -6,8 +6,8 @@ import { fetch_vendors, type VendorOption } from "@/api/master_data";
 
 /* ===================== 타입 ===================== */
 export interface ProductRow {
-  id?: number;          // 내부 PK
-  item_id: string;      // 품목 코드
+  id?: number; // 내부 PK
+  item_id: string; // 품목 코드
   category_id: string;
   category_name?: string;
   name: string;
@@ -175,10 +175,135 @@ const by_name_cat = (a: CategoryOpt, b: CategoryOpt) =>
 const by_name_vendor = (a: VendorOpt, b: VendorOpt) =>
   a.name.localeCompare(b.name, "ko");
 
-/* ===================== 페이지 컴포넌트 ===================== */
-const ItemListPage: React.FC<ItemListPageProps> = ({
-  hide_title = false,
+/* ===================== 미사용 확인 UI (아이템 전용) ===================== */
+
+type ItemNotUsedTarget = {
+  id: number;
+  item_id: string;
+  name: string;
+};
+
+type NotUsedItemUiProps = {
+  open: boolean;
+  target: ItemNotUsedTarget | null;
+  onClose: () => void;
+  onDone: (target: ItemNotUsedTarget) => void;
+};
+
+const overlay_style: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.35)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
+};
+
+const modal_style: React.CSSProperties = {
+  width: 420,
+  maxWidth: "90vw",
+  background: "#fff",
+  borderRadius: 8,
+  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+  padding: 16,
+  boxSizing: "border-box",
+};
+
+const row_style: React.CSSProperties = { marginBottom: 10 };
+const input_style: React.CSSProperties = {
+  width: "100%",
+  padding: "6px 8px",
+  boxSizing: "border-box",
+};
+
+const NotUsedItemUi: React.FC<NotUsedItemUiProps> = ({
+  open,
+  target,
+  onClose,
+  onDone,
 }) => {
+  const [typing, set_typing] = React.useState("");
+  const [is_working, set_is_working] = React.useState(false);
+
+  React.useEffect(() => {
+    if (open) set_typing("");
+  }, [open]);
+
+  if (!open || !target) return null;
+
+  const need = (target.name || "").trim();
+  const can = typing.trim() === need && !is_working;
+
+  const handleConfirm = async () => {
+    if (!can) return;
+    set_is_working(true);
+    try {
+      await change_item_use_state(Number(target.id), "NOTUSED");
+      alert("품목이 미사용으로 등록되었습니다.");
+      onDone(target);
+      onClose();
+    } catch (e: any) {
+      alert(e?.message || "미사용 처리 중 오류가 발생했습니다.");
+    } finally {
+      set_is_working(false);
+    }
+  };
+
+  return (
+    <div style={overlay_style} onClick={onClose}>
+      <div style={modal_style} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ margin: "0 0 10px 0", color: "#b91c1c" }}>
+          품목 미사용 등록
+        </h3>
+        <div style={row_style}>
+          정말로 <b>{need}</b> 품목을 미사용으로 등록하시겠습니까?
+        </div>
+        <div style={{ ...row_style, fontSize: 12, color: "#6b7280" }}>
+          계속하려면 아래 입력란에 <b>{need}</b> 을(를) 정확히 입력하세요.
+        </div>
+        <input
+          type="text"
+          value={typing}
+          onChange={(e) => set_typing(e.target.value)}
+          placeholder={need}
+          style={input_style}
+          disabled={is_working}
+        />
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            justifyContent: "flex-end",
+            marginTop: 12,
+          }}
+        >
+          <button type="button" onClick={onClose} disabled={is_working}>
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleConfirm()}
+            disabled={!can}
+            style={{
+              background: can ? "#ef4444" : "#fca5a5",
+              color: "#fff",
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "none",
+              cursor: can ? "pointer" : "not-allowed",
+            }}
+          >
+            {is_working ? "처리 중..." : "미사용"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ===================== 페이지 컴포넌트 ===================== */
+const ItemListPage: React.FC<ItemListPageProps> = ({ hide_title = false }) => {
   const [rows, set_rows] = useState<ProductRow[]>([]);
   const [loading, set_loading] = useState(false);
   const [error, set_error] = useState("");
@@ -194,21 +319,23 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
   const [name_f, set_name_f] = useState<string>(""); // 품목명 검색
 
   // 편집 상태
-  const [editing_id, set_editing_id] = useState<string | null>(null);   // 품목 코드
-  const [editing_pk, set_editing_pk] = useState<number | null>(null);   // 내부 PK
+  const [editing_id, set_editing_id] = useState<string | null>(null); // 품목 코드
+  const [editing_pk, set_editing_pk] = useState<number | null>(null); // 내부 PK
   const [acting_id, set_acting_id] = useState<string | null>(null);
   const [is_saving, set_is_saving] = useState(false);
 
   // 수정용 임시 데이터
-  const [draft, set_draft] = useState<
-    Partial<ProductRow> & { unit_code?: string }
-  >({});
+  const [draft, set_draft] = useState<Partial<ProductRow> & { unit_code?: string }>({});
 
   // 신규 등록 모달
   const [open, set_open] = useState(false);
 
   // reload trigger
   const [reload, set_reload] = useState(0);
+
+  // ✅ 아이템 미사용 확인 모달 상태
+  const [not_used_open, set_not_used_open] = useState(false);
+  const [not_used_target, set_not_used_target] = useState<ItemNotUsedTarget | null>(null);
 
   // select/표시에 필요한 맵
   const unit_code_by_id = useMemo(() => {
@@ -257,40 +384,28 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
 
         // 카테고리 옵션 가공
         const catsArr: CategoryOpt[] = (
-          Array.isArray(catsRes)
-            ? catsRes
-            : (catsRes as any)?.items ?? []
+          Array.isArray(catsRes) ? catsRes : (catsRes as any)?.items ?? []
         )
           .map(
             (c: any): CategoryOpt => ({
               id: norm_id(c?.id ?? c?.category_id ?? ""),
-              code: String(
-                c?.code ?? c?.category_code ?? c?.group ?? "",
-              ).trim(),
-              name: String(
-                c?.name ?? c?.category_name ?? c?.title ?? "",
-              ).trim(),
-            }),
+              code: String(c?.code ?? c?.category_code ?? c?.group ?? "").trim(),
+              name: String(c?.name ?? c?.category_name ?? c?.title ?? "").trim(),
+            })
           )
           .filter((c: CategoryOpt) => c.id && c.name)
           .sort(by_name_cat);
 
         // 단위 옵션 가공
         const unitsArr: UnitOpt[] = (
-          Array.isArray(unitsRes)
-            ? unitsRes
-            : (unitsRes as any)?.items ?? []
+          Array.isArray(unitsRes) ? unitsRes : (unitsRes as any)?.items ?? []
         )
           .map(
             (u: any): UnitOpt => ({
               id: norm_id(u?.id ?? u?.unit_id ?? ""),
-              code: String(
-                u?.code ?? u?.unit_code ?? u?.name ?? "",
-              ).trim(),
-              name: String(
-                u?.name ?? u?.unit_name ?? u?.code ?? "",
-              ).trim(),
-            }),
+              code: String(u?.code ?? u?.unit_code ?? u?.name ?? "").trim(),
+              name: String(u?.name ?? u?.unit_name ?? u?.code ?? "").trim(),
+            })
           )
           .filter((u: UnitOpt) => u.id && u.code);
 
@@ -299,16 +414,16 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
           (v: VendorOption): VendorOpt => ({
             id: String(v.id),
             name: v.name ?? `거래처#${v.id}`,
-          }),
+          })
         );
         vendorOpts.sort(by_name_vendor);
 
         // 맵
         const cat_map = new Map<string, string>(
-          catsArr.map((c: CategoryOpt) => [c.id, c.name]),
+          catsArr.map((c: CategoryOpt) => [c.id, c.name])
         );
         const ven_map = new Map<string, string>(
-          vendorOpts.map((v: VendorOpt) => [v.id, v.name]),
+          vendorOpts.map((v: VendorOpt) => [v.id, v.name])
         );
 
         // 품목 목록 조회
@@ -317,36 +432,24 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
           {
             signal: controller.signal,
             headers: { Accept: "application/json" },
-          },
+          }
         );
         if (!listRes.ok) {
           throw new Error(
-            `HTTP ${listRes.status}: ${await listRes
-              .text()
-              .catch(() => "")}`,
+            `HTTP ${listRes.status}: ${await listRes.text().catch(() => "")}`
           );
         }
         const raw = await listRes.json();
         const arr: any[] = Array.isArray(raw) ? raw : raw?.items ?? [];
-        const normalized: ProductRow[] = arr.map((r: any) =>
-          normalize_item(r),
-        );
+        const normalized: ProductRow[] = arr.map((r: any) => normalize_item(r));
 
-        const hydrated: ProductRow[] = normalized.map(
-          (it: ProductRow) => ({
-            ...it,
-            category_name:
-              it.category_name ??
-              (it.category_id
-                ? cat_map.get(it.category_id)
-                : undefined),
-            vendor_name:
-              it.vendor_name ??
-              (it.vendor_id
-                ? ven_map.get(it.vendor_id)
-                : undefined),
-          }),
-        );
+        const hydrated: ProductRow[] = normalized.map((it: ProductRow) => ({
+          ...it,
+          category_name:
+            it.category_name ?? (it.category_id ? cat_map.get(it.category_id) : undefined),
+          vendor_name:
+            it.vendor_name ?? (it.vendor_id ? ven_map.get(it.vendor_id) : undefined),
+        }));
 
         set_rows(hydrated);
         set_cat_opt(catsArr);
@@ -354,9 +457,7 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
         set_unit_opt(unitsArr);
       } catch (e: any) {
         if (e?.name !== "AbortError") {
-          set_error(
-            e?.message || "목록 조회 중 오류가 발생했습니다.",
-          );
+          set_error(e?.message || "목록 조회 중 오류가 발생했습니다.");
         }
       } finally {
         set_loading(false);
@@ -370,35 +471,26 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
   const visible = useMemo(() => {
     const idq = id_f.trim().toLowerCase();
     const nameq = name_f.trim().toLowerCase();
-    const selectedVendorName = ven_f
-      ? ven_name_by_id.get(ven_f) ?? ""
-      : "";
+    const selectedVendorName = ven_f ? ven_name_by_id.get(ven_f) ?? "" : "";
 
     return rows.filter((r: ProductRow) => {
       // 거래처 필터
       if (ven_f) {
         const rowVendorName =
-          r.vendor_name ??
-          (r.vendor_id
-            ? ven_name_by_id.get(r.vendor_id)
-            : "");
+          r.vendor_name ?? (r.vendor_id ? ven_name_by_id.get(r.vendor_id) : "");
         const idMatches = r.vendor_id === ven_f;
-        const nameMatches =
-          selectedVendorName &&
-          rowVendorName === selectedVendorName;
+        const nameMatches = selectedVendorName && rowVendorName === selectedVendorName;
         if (!idMatches && !nameMatches) return false;
       }
 
       // ID 부분일치
       if (idq) {
-        if (!String(r.item_id).toLowerCase().includes(idq))
-          return false;
+        if (!String(r.item_id).toLowerCase().includes(idq)) return false;
       }
 
       // 이름 부분일치
       if (nameq) {
-        if (!String(r.name).toLowerCase().includes(nameq))
-          return false;
+        if (!String(r.name).toLowerCase().includes(nameq)) return false;
       }
 
       return true;
@@ -407,9 +499,7 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
 
   /* 편집 관련 */
   const start_edit = (r: ProductRow) => {
-    const code = r.unit_id
-      ? unit_code_by_id.get(r.unit_id) ?? ""
-      : "";
+    const code = r.unit_id ? unit_code_by_id.get(r.unit_id) ?? "" : "";
     set_editing_id(r.item_id);
     set_editing_pk(r.id ?? null);
     set_draft({
@@ -429,19 +519,14 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
     set_draft({});
   };
 
-  const on_change = (
-    k: keyof typeof draft,
-    v: string | number,
-  ) =>
+  const on_change = (k: keyof typeof draft, v: string | number) =>
     set_draft((prev) => ({
       ...prev,
       [k]: v,
     }));
 
   const on_change_unit_code = (code: string) => {
-    const found = unit_opt.find(
-      (u: UnitOpt) => u.code === code,
-    );
+    const found = unit_opt.find((u: UnitOpt) => u.code === code);
     set_draft((prev) => ({
       ...prev,
       unit_code: code,
@@ -458,19 +543,13 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
     const payload: Record<string, unknown> = {
       // item_id는 보내지 않는다 (백엔드 UpdateItemDto에 없음)
       name: String(draft.name ?? ""),
-      category_id: draft.category_id
-        ? Number(draft.category_id)
-        : undefined,
-      unit_id: draft.unit_id
-        ? Number(draft.unit_id)
-        : undefined,
+      category_id: draft.category_id ? Number(draft.category_id) : undefined,
+      unit_id: draft.unit_id ? Number(draft.unit_id) : undefined,
       unit_price:
         typeof draft.unit_price === "number"
           ? draft.unit_price
           : Number(draft.unit_price ?? 0),
-      vendor_id: draft.vendor_id
-        ? Number(draft.vendor_id)
-        : undefined,
+      vendor_id: draft.vendor_id ? Number(draft.vendor_id) : undefined,
     };
 
     set_is_saving(true);
@@ -485,9 +564,7 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
       });
       if (!res.ok)
         throw new Error(
-          `수정 실패 (HTTP ${res.status}) ${await res
-            .text()
-            .catch(() => "")}`,
+          `수정 실패 (HTTP ${res.status}) ${await res.text().catch(() => "")}`
         );
       await res.json().catch(() => null);
 
@@ -505,9 +582,7 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
               payload.unit_id !== undefined
                 ? String(payload.unit_id as number)
                 : p.unit_id,
-            unit_price: Number.isFinite(
-              payload.unit_price as number,
-            )
+            unit_price: Number.isFinite(payload.unit_price as number)
               ? (payload.unit_price as number)
               : p.unit_price,
             vendor_id:
@@ -517,17 +592,15 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
           };
 
           next.category_name = next.category_id
-            ? cat_name_by_id.get(next.category_id) ??
-              p.category_name
+            ? cat_name_by_id.get(next.category_id) ?? p.category_name
             : p.category_name;
 
           next.vendor_name = next.vendor_id
-            ? ven_name_by_id.get(next.vendor_id!) ??
-              p.vendor_name
+            ? ven_name_by_id.get(next.vendor_id!) ?? p.vendor_name
             : p.vendor_name;
 
           return next;
-        }),
+        })
       );
 
       set_editing_id(null);
@@ -540,142 +613,90 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
     }
   };
 
-  const mark_notused = async (r: ProductRow) => {
+  /* ✅ 아이템 미사용 모달 오픈 */
+  const open_notused = (r: ProductRow) => {
     if (!r?.id) {
       alert("내부 ID가 없어 처리할 수 없습니다.");
       return;
     }
-    if (
-      !window.confirm(
-        `품목 '${r.name}'을(를) 미사용 처리할까요?`,
-      )
-    )
-      return;
+    set_not_used_target({
+      id: Number(r.id),
+      item_id: r.item_id,
+      name: r.name,
+    });
+    set_not_used_open(true);
+  };
 
-    set_acting_id(r.item_id);
-    try {
-      await change_item_use_state(Number(r.id), "NOTUSED");
-      set_rows((prev: ProductRow[]) =>
-        prev.filter(
-          (x: ProductRow) => x.item_id !== r.item_id,
-        ),
-      );
-      if (editing_id === r.item_id) {
-        set_editing_id(null);
-        set_editing_pk(null);
-        set_draft({});
-      }
-    } catch (e: any) {
-      alert(
-        e?.message ||
-          "미사용 처리 중 오류가 발생했습니다.",
-      );
-    } finally {
-      set_acting_id(null);
+  /* ✅ 미사용 처리 완료 후 기존 로직과 동일한 상태 정리 */
+  const handle_notused_done = (target: ItemNotUsedTarget) => {
+    set_acting_id(target.item_id);
+
+    set_rows((prev: ProductRow[]) =>
+      prev.filter((x: ProductRow) => x.item_id !== target.item_id)
+    );
+
+    if (editing_id === target.item_id) {
+      set_editing_id(null);
+      set_editing_pk(null);
+      set_draft({});
     }
+
+    set_acting_id(null);
   };
 
   /* ===================== 렌더 ===================== */
   return (
     <div style={page}>
-      {!hide_title && (
-        <h1 style={title}>품목 조회</h1>
-      )}
+      {!hide_title && <h1 style={title}>품목 리스트</h1>}
 
       {/* 상단 필터/액션 바 */}
       <div style={bar}>
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span style={{ color: ui.muted }}>
-            품목ID
-          </span>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: ui.muted }}>품목ID</span>
           <input
             value={id_f}
-            onChange={(e) =>
-              set_id_f(e.target.value)
-            }
+            onChange={(e) => set_id_f(e.target.value)}
             style={ipt}
             placeholder="예: IT_..."
           />
         </label>
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span style={{ color: ui.muted }}>
-            품목명
-          </span>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: ui.muted }}>품목명</span>
           <input
             value={name_f}
-            onChange={(e) =>
-              set_name_f(e.target.value)
-            }
+            onChange={(e) => set_name_f(e.target.value)}
             style={ipt}
             placeholder="예: 생면"
           />
         </label>
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span style={{ color: ui.muted }}>
-            카테고리
-          </span>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: ui.muted }}>카테고리</span>
           <select
             value={cat_f}
-            onChange={(e) =>
-              set_cat_f(e.target.value)
-            }
+            onChange={(e) => set_cat_f(e.target.value)}
             style={sel}
           >
             <option value="">전체</option>
             {cat_opt.map((c: CategoryOpt) => (
-              <option
-                key={c.id}
-                value={c.id}
-              >
+              <option key={c.id} value={c.id}>
                 {c.code ? `${c.code}` : c.id}
               </option>
             ))}
           </select>
         </label>
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span style={{ color: ui.muted }}>
-            거래처
-          </span>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: ui.muted }}>거래처</span>
           <select
             value={ven_f}
-            onChange={(e) =>
-              set_ven_f(e.target.value)
-            }
+            onChange={(e) => set_ven_f(e.target.value)}
             style={sel}
           >
             <option value="">전체</option>
             {ven_opt.map((v: VendorOpt) => (
-              <option
-                key={v.id}
-                value={v.id}
-              >
+              <option key={v.id} value={v.id}>
                 {v.name}
               </option>
             ))}
@@ -713,24 +734,10 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
       </div>
 
       {loading && (
-        <div
-          style={{
-            color: ui.muted,
-            marginBottom: 8,
-          }}
-        >
-          불러오는 중…
-        </div>
+        <div style={{ color: ui.muted, marginBottom: 8 }}>불러오는 중…</div>
       )}
       {error && (
-        <div
-          style={{
-            color: ui.danger,
-            marginBottom: 8,
-          }}
-        >
-          {error}
-        </div>
+        <div style={{ color: ui.danger, marginBottom: 8 }}>{error}</div>
       )}
 
       {/* 목록 테이블 */}
@@ -748,377 +755,240 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
             </tr>
           </thead>
           <tbody>
-            {visible.map(
-              (r: ProductRow, idx: number) => {
-                const is_edit =
-                  editing_id === r.item_id;
-                const bg =
-                  idx % 2 === 1
-                    ? { background: ui.zebra }
-                    : undefined;
+            {visible.map((r: ProductRow, idx: number) => {
+              const is_edit = editing_id === r.item_id;
+              const bg = idx % 2 === 1 ? { background: ui.zebra } : undefined;
 
-                if (!is_edit) {
-                  return (
-                    <tr
-                      key={r.id ?? r.item_id}
-                      style={bg}
-                    >
-                      <td style={td}>
-                        {r.item_id}
-                      </td>
-                      <td style={td}>
-                        {r.name}
-                      </td>
-                      <td style={td}>
-                        {r.category_name ??
-                          (r.category_id
-                            ? cat_name_by_id.get(
-                                r.category_id,
-                              )
-                            : "")}
-                      </td>
-                      <td style={td}>
-                        {(r.unit_id &&
-                          unit_code_by_id.get(
-                            r.unit_id,
-                          )) ??
-                          r.unit_name ??
-                          r.unit_id}
-                      </td>
-                      <td style={td}>
-                        {money(
-                          r.unit_price,
-                        )}
-                      </td>
-                      <td style={td}>
-                        {r.vendor_name ??
-                          (r.vendor_id
-                            ? ven_name_by_id.get(
-                                r.vendor_id,
-                              )
-                            : "")}
-                      </td>
-                      <td style={td}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
-                          {/* ✏️ 수정 아이콘 버튼 */}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              start_edit(
-                                r,
-                              )
-                            }
-                            disabled={Boolean(
-                              acting_id,
-                            )}
-                            style={icon_btn}
-                            title="수정"
-                            aria-label="수정"
-                          >
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 20 20"
-                              fill="none"
-                              aria-hidden="true"
-                            >
-                              <path
-                                d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z"
-                                stroke="#374151"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <path
-                                d="M12 5l3 3"
-                                stroke="#374151"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                              />
-                            </svg>
-                          </button>
-
-                          {/* 🗑 미사용(휴지통) 아이콘 버튼 */}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void mark_notused(
-                                r,
-                              )
-                            }
-                            disabled={
-                              acting_id ===
-                              r.item_id
-                            }
-                            style={icon_btn}
-                            title="미사용으로 전환"
-                            aria-label="미사용으로 전환"
-                          >
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 20 20"
-                              fill="none"
-                              aria-hidden="true"
-                            >
-                              <path
-                                d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z"
-                                stroke="#ef4444"
-                                strokeWidth="1.5"
-                              />
-                              <path
-                                d="M4 7h12M8 7V4h4v3"
-                                stroke="#ef4444"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                // 편집 중 행
+              if (!is_edit) {
                 return (
-                  <tr
-                    key={r.id ?? r.item_id}
-                    style={bg}
-                  >
+                  <tr key={r.id ?? r.item_id} style={bg}>
+                    <td style={td}>{r.item_id}</td>
+                    <td style={td}>{r.name}</td>
                     <td style={td}>
-                      {r.item_id}
+                      {r.category_name ??
+                        (r.category_id ? cat_name_by_id.get(r.category_id) : "")}
                     </td>
-
-                    {/* 품목명 */}
                     <td style={td}>
-                      <input
-                        type="text"
-                        value={String(
-                          draft.name ??
-                            "",
-                        )}
-                        onChange={(e) =>
-                          on_change(
-                            "name",
-                            e.target.value,
-                          )
-                        }
-                        style={{
-                          padding: 6,
-                          minWidth: 160,
-                          width: 220,
-                          borderRadius: 8,
-                          border: `1px solid ${ui.border}`,
-                        }}
-                      />
+                      {(r.unit_id && unit_code_by_id.get(r.unit_id)) ??
+                        r.unit_name ??
+                        r.unit_id}
                     </td>
-
-                    {/* 카테고리 */}
+                    <td style={td}>{money(r.unit_price)}</td>
                     <td style={td}>
-                      <select
-                        value={String(
-                          draft.category_id ??
-                            "",
-                        )}
-                        onChange={(e) =>
-                          on_change(
-                            "category_id",
-                            e.target.value,
-                          )
-                        }
-                        style={{
-                          padding: 6,
-                          minWidth: 160,
-                          borderRadius: 8,
-                          border: `1px solid ${ui.border}`,
-                        }}
-                      >
-                        <option value="">
-                          선택
-                        </option>
-                        {cat_opt
-                          .sort(by_name_cat)
-                          .map(
-                            (
-                              c: CategoryOpt,
-                            ) => (
-                              <option
-                                key={c.id}
-                                value={c.id}
-                              >
-                                {c.code
-                                  ? `${c.code} · ${c.name}`
-                                  : c.name}
-                              </option>
-                            ),
-                          )}
-                      </select>
+                      {r.vendor_name ??
+                        (r.vendor_id ? ven_name_by_id.get(r.vendor_id) : "")}
                     </td>
-
-                    {/* 단위 */}
                     <td style={td}>
-                      <select
-                        value={String(
-                          draft.unit_code ??
-                            "",
-                        )}
-                        onChange={(e) =>
-                          on_change_unit_code(
-                            e.target.value,
-                          )
-                        }
-                        style={{
-                          padding: 6,
-                          minWidth: 120,
-                          borderRadius: 8,
-                          border: `1px solid ${ui.border}`,
-                        }}
-                      >
-                        <option value="">
-                          선택
-                        </option>
-                        {unit_opt.map(
-                          (u: UnitOpt) => (
-                            <option
-                              key={u.id}
-                              value={u.code}
-                            >
-                              {u.code} (
-                              {u.name})
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {/* ✏️ 수정 아이콘 버튼 */}
+                        <button
+                          type="button"
+                          onClick={() => start_edit(r)}
+                          disabled={Boolean(acting_id)}
+                          style={icon_btn}
+                          title="수정"
+                          aria-label="수정"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M13.585 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486-3.414.586.586-3.414 8.486-8.486Z"
+                              stroke="#374151"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M12 5l3 3"
+                              stroke="#374151"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </button>
 
-                    {/* 단가 */}
-                    <td style={td}>
-                      <input
-                        type="number"
-                        value={String(
-                          draft.unit_price ??
-                            0,
-                        )}
-                        onChange={(e) =>
-                          on_change(
-                            "unit_price",
-                            e.target.value,
-                          )
-                        }
-                        style={{
-                          padding: 6,
-                          width: 120,
-                          textAlign:
-                            "right",
-                          borderRadius: 8,
-                          border: `1px solid ${ui.border}`,
-                        }}
-                        min={0}
-                      />
-                    </td>
-
-                    {/* 거래처 */}
-                    <td style={td}>
-                      <select
-                        value={String(
-                          draft.vendor_id ??
-                            "",
-                        )}
-                        onChange={(e) =>
-                          on_change(
-                            "vendor_id",
-                            e.target.value,
-                          )
-                        }
-                        style={{
-                          padding: 6,
-                          minWidth: 140,
-                          borderRadius: 8,
-                          border: `1px solid ${ui.border}`,
-                        }}
-                      >
-                        <option value="">
-                          선택
-                        </option>
-                        {ven_opt
-                          .sort(
-                            by_name_vendor,
-                          )
-                          .map(
-                            (
-                              v: VendorOpt,
-                            ) => (
-                              <option
-                                key={v.id}
-                                value={v.id}
-                              >
-                                {v.name}
-                              </option>
-                            ),
-                          )}
-                      </select>
-                    </td>
-
-                    <td style={td}>
-                      <button
-                        onClick={save_edit}
-                        disabled={
-                          is_saving
-                        }
-                        style={{
-                          ...act,
-                          marginRight: 6,
-                        }}
-                      >
-                        {is_saving
-                          ? "저장 중..."
-                          : "저장"}
-                      </button>
-                      <button
-                        onClick={
-                          cancel_edit
-                        }
-                        disabled={
-                          is_saving
-                        }
-                        style={act}
-                      >
-                        취소
-                      </button>
+                        {/* 🗑 미사용(휴지통) 아이콘 버튼 */}
+                        <button
+                          type="button"
+                          onClick={() => open_notused(r)}
+                          disabled={acting_id === r.item_id}
+                          style={icon_btn}
+                          title="미사용으로 전환"
+                          aria-label="미사용으로 전환"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M6 7h8l-.7 9.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9L6 7Z"
+                              stroke="#ef4444"
+                              strokeWidth="1.5"
+                            />
+                            <path
+                              d="M4 7h12M8 7V4h4v3"
+                              stroke="#ef4444"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
-              },
-            )}
+              }
 
-            {visible.length === 0 &&
-              !loading &&
-              !error && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    style={{
-                      textAlign:
-                        "center",
-                      padding: 18,
-                      color: ui.muted,
-                    }}
-                  >
-                    등록된 품목이
-                    없습니다.
+              // 편집 중 행
+              return (
+                <tr key={r.id ?? r.item_id} style={bg}>
+                  <td style={td}>{r.item_id}</td>
+
+                  {/* 품목명 */}
+                  <td style={td}>
+                    <input
+                      type="text"
+                      value={String(draft.name ?? "")}
+                      onChange={(e) => on_change("name", e.target.value)}
+                      style={{
+                        padding: 6,
+                        minWidth: 160,
+                        width: 220,
+                        borderRadius: 8,
+                        border: `1px solid ${ui.border}`,
+                      }}
+                    />
+                  </td>
+
+                  {/* 카테고리 */}
+                  <td style={td}>
+                    <select
+                      value={String(draft.category_id ?? "")}
+                      onChange={(e) => on_change("category_id", e.target.value)}
+                      style={{
+                        padding: 6,
+                        minWidth: 160,
+                        borderRadius: 8,
+                        border: `1px solid ${ui.border}`,
+                      }}
+                    >
+                      <option value="">선택</option>
+                      {cat_opt
+                        .sort(by_name_cat)
+                        .map((c: CategoryOpt) => (
+                          <option key={c.id} value={c.id}>
+                            {c.code ? `${c.code} · ${c.name}` : c.name}
+                          </option>
+                        ))}
+                    </select>
+                  </td>
+
+                  {/* 단위 */}
+                  <td style={td}>
+                    <select
+                      value={String(draft.unit_code ?? "")}
+                      onChange={(e) => on_change_unit_code(e.target.value)}
+                      style={{
+                        padding: 6,
+                        minWidth: 120,
+                        borderRadius: 8,
+                        border: `1px solid ${ui.border}`,
+                      }}
+                    >
+                      <option value="">선택</option>
+                      {unit_opt.map((u: UnitOpt) => (
+                        <option key={u.id} value={u.code}>
+                          {u.code} ({u.name})
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+
+                  {/* 단가 */}
+                  <td style={td}>
+                    <input
+                      type="number"
+                      value={String(draft.unit_price ?? 0)}
+                      onChange={(e) => on_change("unit_price", e.target.value)}
+                      style={{
+                        padding: 6,
+                        width: 120,
+                        textAlign: "right",
+                        borderRadius: 8,
+                        border: `1px solid ${ui.border}`,
+                      }}
+                      min={0}
+                    />
+                  </td>
+
+                  {/* 거래처 */}
+                  <td style={td}>
+                    <select
+                      value={String(draft.vendor_id ?? "")}
+                      onChange={(e) => on_change("vendor_id", e.target.value)}
+                      style={{
+                        padding: 6,
+                        minWidth: 140,
+                        borderRadius: 8,
+                        border: `1px solid ${ui.border}`,
+                      }}
+                    >
+                      <option value="">선택</option>
+                      {ven_opt
+                        .sort(by_name_vendor)
+                        .map((v: VendorOpt) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                    </select>
+                  </td>
+
+                  <td style={td}>
+                    <button
+                      onClick={save_edit}
+                      disabled={is_saving}
+                      style={{ ...act, marginRight: 6 }}
+                    >
+                      {is_saving ? "저장 중..." : "저장"}
+                    </button>
+                    <button onClick={cancel_edit} disabled={is_saving} style={act}>
+                      취소
+                    </button>
                   </td>
                 </tr>
-              )}
+              );
+            })}
+
+            {visible.length === 0 && !loading && !error && (
+              <tr>
+                <td
+                  colSpan={7}
+                  style={{ textAlign: "center", padding: 18, color: ui.muted }}
+                >
+                  등록된 품목이 없습니다.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* ✅ 아이템 미사용 확인 모달 */}
+      <NotUsedItemUi
+        open={not_used_open}
+        target={not_used_target}
+        onClose={() => set_not_used_open(false)}
+        onDone={handle_notused_done}
+      />
 
       {/* 신규 품목 등록 모달 */}
       {open && (
@@ -1142,37 +1012,25 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
               background: "#fff",
               border: `1px solid ${ui.border}`,
               borderRadius: 12,
-              boxShadow:
-                "0 10px 30px rgba(0,0,0,0.2)",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
               padding: 16,
             }}
-            onClick={(e) =>
-              e.stopPropagation()
-            }
+            onClick={(e) => e.stopPropagation()}
           >
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent:
-                  "space-between",
+                justifyContent: "space-between",
                 marginBottom: 8,
               }}
             >
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: 18,
-                  fontWeight: 800,
-                }}
-              >
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>
                 품목 등록
               </h2>
               <button
                 type="button"
-                onClick={() =>
-                  set_open(false)
-                }
+                onClick={() => set_open(false)}
                 style={ghost}
                 aria-label="close"
               >
@@ -1183,13 +1041,9 @@ const ItemListPage: React.FC<ItemListPageProps> = ({
             <ItemRegisterForm
               on_success={() => {
                 set_open(false);
-                set_reload(
-                  (k) => k + 1,
-                );
+                set_reload((k) => k + 1);
               }}
-              on_cancel={() =>
-                set_open(false)
-              }
+              on_cancel={() => set_open(false)}
             />
           </div>
         </div>

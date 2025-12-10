@@ -347,7 +347,7 @@ const VendorListPage: React.FC = () => {
     <div style={page_wrap_style}>
       <div style={page_style}>
         <div style={controls_block_style}>
-          <div style={controls_title_style}>거래처 조회</div>
+          <div style={controls_title_style}>거래처 리스트</div>
 
           <div style={top_row_style}>
             <div style={top_controls_style}>

@@ -42,7 +42,9 @@ import LoginPageUi from "./pages/login/components/LoginPageUi";
 import MainDashboardPageUi from "./pages/MainPage/components/MainDashBoardPageUi";
 import LotHistoryListPage from "./pages/Lot/components/LotHistoryListPage";
 import ShipmentListPage from "./pages/shipment/components/ShipmentListPage";
-import SalesDashboardPage from "./pages/SalesDashboardPage";
+import NoticePageUi from "./pages/Notice/components/NoticePageUi";
+import NoticeRegisterPageUi from "./pages/Notice/components/NoticeRegisterPageUi"; // ✅ 추가
+import SalesDashboardPage from "./pages/sales/components/SalesDashboardPage";
 
 import RequireAuth from "@/auth/RequireAuth";
 import { is_logged_in } from "@/auth/auth_session";

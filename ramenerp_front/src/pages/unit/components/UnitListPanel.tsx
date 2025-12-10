@@ -302,7 +302,7 @@ const UnitListPanel: React.FC = () => {
       <div style={page_style}>
         {/* 상단 타이틀 & 우측 버튼들(같은 줄) */}
         <div style={controls_block_style}>
-          <div style={controls_title_style}>단위 조회</div>
+          <div style={controls_title_style}>단위 관리</div>
           <div style={top_row_style}>
             {/* 왼쪽은 비워두고, 오른쪽에 두 버튼을 붙여 배치 */}
             <div />
@@ -342,9 +342,9 @@ const UnitListPanel: React.FC = () => {
             <table style={table_style}>
               <thead>
                 <tr>
-                  <th style={th_style}>unit_id</th>
-                  <th style={th_style}>code</th>
-                  <th style={th_style}>name</th>
+                  <th style={th_style}>단위 ID</th>
+                  <th style={th_style}>단위 분류</th>
+                  <th style={th_style}>단위명</th>
                 </tr>
               </thead>
               <tbody>

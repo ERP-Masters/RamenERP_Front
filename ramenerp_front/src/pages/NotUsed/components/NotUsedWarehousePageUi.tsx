@@ -287,7 +287,7 @@ const NotUsedWarehousePageUi: React.FC = () => {
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        <div style={title_style}>미사용 창고 조회</div>
+        <div style={title_style}>미사용 창고 리스트</div>
 
         <div style={top_bar_style}>
           <button
@@ -317,10 +317,10 @@ const NotUsedWarehousePageUi: React.FC = () => {
               <thead>
                 <tr>
                   {select_mode && <th style={th_style} />}
-                  <th style={th_style}>warehouse_id</th>
-                  <th style={th_style}>name</th>
-                  <th style={th_style}>location</th>
-                  <th style={th_style}>created_at</th>
+                  <th style={th_style}>창고 ID</th>
+                  <th style={th_style}>창고 이름</th>
+                  <th style={th_style}>위치</th>
+                  <th style={th_style}>창고 생성 일자</th>
                 </tr>
               </thead>
               <tbody>

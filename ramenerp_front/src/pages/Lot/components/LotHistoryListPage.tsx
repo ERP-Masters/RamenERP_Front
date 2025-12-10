@@ -510,7 +510,7 @@ const LotHistoryListPage: React.FC = () => {
   return (
     <div style={page_wrap_style}>
       <div style={page_inner_style}>
-        <div style={title_style}>LOT 내역 조회</div>
+        <div style={title_style}>LOT 내역</div>
 
         <div style={card_style}>
           {/* 🔹 필터 영역 */}
@@ -530,7 +530,7 @@ const LotHistoryListPage: React.FC = () => {
 
               {/* Item ID */}
               <div style={filter_field_wrap_style}>
-                <div style={filter_field_label_style}>Item ID</div>
+                <div style={filter_field_label_style}>품목 ID</div>
                 <input
                   style={input_style}
                   placeholder="숫자형 Item ID"
@@ -554,7 +554,7 @@ const LotHistoryListPage: React.FC = () => {
 
               {/* 기간 시작 */}
               <div style={filter_field_wrap_style}>
-                <div style={filter_field_label_style}>기간 시작</div>
+                <div style={filter_field_label_style}>시작 일자</div>
                 <input
                   type="date"
                   style={date_input_style}
@@ -565,7 +565,7 @@ const LotHistoryListPage: React.FC = () => {
 
               {/* 기간 종료 */}
               <div style={filter_field_wrap_style}>
-                <div style={filter_field_label_style}>기간 종료</div>
+                <div style={filter_field_label_style}>마감 일자</div>
                 <input
                   type="date"
                   style={date_input_style}
@@ -669,13 +669,13 @@ const LotHistoryListPage: React.FC = () => {
               <thead>
                 <tr>
                   <th style={th_style}>LOT 코드</th>
-                  <th style={th_style}>Item ID</th>
+                  <th style={th_style}>품목 ID</th>
                   <th style={th_style}>창고 ID</th>
                   <th style={th_style}>제조 일시</th>
                   <th style={th_style}>입고 일시</th>
                   <th style={th_style}>유통기한</th>
-                  <th style={th_style}>Inventory ID</th>
-                  <th style={th_style}>Shipment ID</th>
+                  <th style={th_style}>재고 ID</th>
+                  <th style={th_style}>출고 ID</th>
                   <th style={th_style}>구분</th>
                 </tr>
               </thead>

@@ -394,7 +394,7 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({
       <div style={page_style}>
         {/* ===== 제목/컨트롤(박스 밖) ===== */}
         <div style={controls_block_style}>
-          <div style={controls_title_style}>창고 조회</div>
+          <div style={controls_title_style}>창고 리스트</div>
 
           <div style={top_row_style}>
             <div style={top_controls_style}>
@@ -460,10 +460,10 @@ const WarehouseListPanel: React.FC<WarehouseListPanelProps> = ({
             <table style={table_style}>
               <thead>
                 <tr>
-                  <th style={th_style}>warehouse_id</th>
-                  <th style={th_style}>name</th>
-                  <th style={th_style}>location</th>
-                  <th style={th_style}>created_at</th>
+                  <th style={th_style}>창고 ID</th>
+                  <th style={th_style}>창고 이름</th>
+                  <th style={th_style}>위치</th>
+                  <th style={th_style}>창고 생성 일자</th>
                 </tr>
               </thead>
               <tbody>

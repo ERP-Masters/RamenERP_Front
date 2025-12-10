@@ -315,7 +315,7 @@ const CategoryListPanel: React.FC = () => {
       <div style={page_style}>
         {/* 상단 타이틀 & 우측 버튼들 */}
         <div style={controls_block_style}>
-          <div style={controls_title_style}>카테고리 조회</div>
+          <div style={controls_title_style}>카테고리 관리</div>
           <div style={top_row_style}>
             <div style={top_controls_style} />
             <div style={right_actions_style}>
@@ -354,9 +354,9 @@ const CategoryListPanel: React.FC = () => {
             <table style={table_style}>
               <thead>
                 <tr>
-                  <th style={th_style}>category_id</th>
-                  <th style={th_style}>group</th>
-                  <th style={th_style}>category_name</th>
+                  <th style={th_style}>카테고리 ID</th>
+                  <th style={th_style}>카테고리 대분류</th>
+                  <th style={th_style}>카테고리 명</th>
                 </tr>
               </thead>
               <tbody>

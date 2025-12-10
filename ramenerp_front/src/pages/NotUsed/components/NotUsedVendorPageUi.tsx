@@ -293,7 +293,7 @@ const NotUsedVendorPageUi: React.FC = () => {
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        <div style={title_style}>미사용 거래처 조회</div>
+        <div style={title_style}>미사용 거래처 리스트</div>
 
         <div style={top_bar_style}>
           <button
@@ -323,12 +323,12 @@ const NotUsedVendorPageUi: React.FC = () => {
               <thead>
                 <tr>
                   {select_mode && <th style={th_style} />}
-                  <th style={th_style}>vendor_id</th>
-                  <th style={th_style}>name</th>
-                  <th style={th_style}>manager</th>
-                  <th style={th_style}>contact</th>
-                  <th style={th_style}>address</th>
-                  <th style={th_style}>created_at</th>
+                  <th style={th_style}>거래처 ID</th>
+                  <th style={th_style}>거래처명</th>
+                  <th style={th_style}>담당자명</th>
+                  <th style={th_style}>연락처</th>
+                  <th style={th_style}>주소</th>
+                  <th style={th_style}>거래처 생성 일자</th>
                 </tr>
               </thead>
               <tbody>

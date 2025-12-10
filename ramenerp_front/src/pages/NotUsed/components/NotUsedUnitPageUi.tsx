@@ -196,7 +196,7 @@ const NotUsedUnitPageUi: React.FC = () => {
   return (
     <div style={page_wrap_style}>
       <div style={page_style}>
-        <div style={title_style}>미사용 단위 조회</div>
+        <div style={title_style}>미사용 단위 리스트</div>
 
         <div style={top_bar_style}>
           <button
@@ -226,9 +226,9 @@ const NotUsedUnitPageUi: React.FC = () => {
               <thead>
                 <tr>
                   {select_mode && <th style={th_style} />}
-                  <th style={th_style}>unit_id</th>
-                  <th style={th_style}>code</th>
-                  <th style={th_style}>name</th>
+                  <th style={th_style}>단위 ID</th>
+                  <th style={th_style}>단위 분류</th>
+                  <th style={th_style}>단위명</th>
                 </tr>
               </thead>
               <tbody>
