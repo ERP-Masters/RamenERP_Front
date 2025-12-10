@@ -38,3 +38,14 @@ export function get_auth_user(): AuthUser | null {
 export function is_logged_in(): boolean {
   return Boolean(get_access_token());
 }
+
+/** ✅ 현재 로그인된 계정의 userId 반환 */
+export function get_current_user_id(): string | null {
+  const user = get_auth_user();
+  return user?.userId ?? null;
+}
+
+/** ✅ 로그아웃 버튼에서 호출할 세션 종료 헬퍼 */
+export function logout() {
+  clear_auth_session();
+}
