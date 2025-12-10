@@ -9,6 +9,7 @@ import BranchRankSideSection from "../components/BranchRankSideSection";
 import StockDangerSideSection from "../components/StockDangerSideSection";
 // ✅ 사이드바에서 사용 중인 액션 훅 재사용 (로그아웃용)
 import { useSidebarHeaderActions } from "../function/SideabarHeaderActionsFunction";
+import { get_current_user_id } from "@/auth/auth_session";
 
 const ui_tok = {
   bg_page: "#f5f7fb",
@@ -71,6 +72,22 @@ const logout_btn_style: React.CSSProperties = {
   padding: 0,
 };
 
+// ✅ 우측 상단 영역(아이디 + 전원 버튼) 래퍼
+const header_right_wrap_style: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+
+// ✅ 현재 로그인 아이디 표시 스타일
+const current_user_badge_style: React.CSSProperties = {
+  fontSize: 18,          // 약간 크게
+  fontWeight: 700,       // 또렷하게
+  color: "#111111",      // 진한 검정
+  lineHeight: 1,
+};
+
+
 const layout_style: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "3fr 1.35fr",
@@ -99,6 +116,9 @@ const MainDashboardPageUi: React.FC = () => {
 
   // ✅ 사이드바에서 쓰는 것과 동일한 로그아웃 로직 재사용
   const { handle_logout } = useSidebarHeaderActions();
+
+  // ✅ 현재 로그인한 아이디
+  const current_user_id = React.useMemo(() => get_current_user_id(), []);
 
   // ✅ 이 페이지에 있는 동안만 전역 스크롤 막기
   React.useEffect(() => {
@@ -139,15 +159,22 @@ const MainDashboardPageUi: React.FC = () => {
             <div style={page_title_style}>라멘 ERP</div>
           </div>
 
-          {/* 🔹 메인 대시보드 상단 오른쪽 로그아웃 버튼 */}
-          <button
-            type="button"
-            style={logout_btn_style}
-            onClick={handle_logout}
-            title="로그아웃"
-          >
-            ⏻
-          </button>
+          {/* ✅ 우측 상단: 로그인 아이디 + 로그아웃 버튼 */}
+          <div style={header_right_wrap_style}>
+            {current_user_id ? (
+              <span style={current_user_badge_style}>{current_user_id}님</span>
+            ) : null}
+
+            {/* 🔹 메인 대시보드 상단 오른쪽 로그아웃 버튼 */}
+            <button
+              type="button"
+              style={logout_btn_style}
+              onClick={handle_logout}
+              title="로그아웃"
+            >
+              ⏻
+            </button>
+          </div>
         </div>
 
         <div style={layout_style}>
