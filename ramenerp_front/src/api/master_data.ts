@@ -1,30 +1,37 @@
 // src/api/master_data.ts
 
+import {
+  fetch_vendors_options,
+  fetch_items_summary,
+  fetch_warehouses_summary,
+} from "@/api/lookups";
+
 /* ========= 타입 ========= */
 export type VendorOption = {
-  id: number;          // 숫자 PK
-  name: string;        // 표시용 이름
+  id: number; // 숫자 PK
+  name: string;
+  code?: string; // 표시용 코드가 필요할 때 대비
 };
 
 export type WarehouseOption = {
-  id: number;          // 숫자 PK
-  name: string;        // 표시용 이름
+  id: number;
+  name: string;
 };
 
 export type ItemOption = {
-  id: number;          // 숫자 PK
-  name: string;        // 품목명
-  unit_price?: number; // 단가(원)
-  vendor_id?: number;  // 이 품목의 거래처(숫자 PK)
+  id: number;
+  name: string;
+  unit_price?: number; // 단가(원) - 백엔드가 주면 그대로, 없으면 0 처리
+  vendor_id?: number;
 };
 
 export type BranchOption = {
-  id: number;          // 숫자 PK
-  name: string;        // 지점명
+  id: number;
+  name: string;
 };
 
 /* ========= 공통 유틸 ========= */
-async function safeFetchJSON(url: string): Promise<any | null> {
+async function safe_fetch_json(url: string): Promise<any | null> {
   try {
     const res = await fetch(url, {
       method: "GET",
@@ -37,22 +44,19 @@ async function safeFetchJSON(url: string): Promise<any | null> {
   }
 }
 
-/** 응답이 배열/단일/래핑일 수 있어 통일해 배열로 변환 */
-function toArray(j: any): any[] {
+function to_array(j: any): any[] {
   if (Array.isArray(j)) return j;
   if (Array.isArray(j?.items)) return j.items;
   if (Array.isArray(j?.data)) return j.data;
   return j ? [j] : [];
 }
 
-/** 숫자 변환 */
-function asNum(v: any): number {
+function as_num(v: any): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
 }
 
-/** 여러 후보 중 첫 유효 문자열 */
-function asName(...cands: any[]): string {
+function as_name(...cands: any[]): string {
   for (const c of cands) {
     if (c === undefined || c === null) continue;
     const s = String(c).trim();
@@ -62,82 +66,80 @@ function asName(...cands: any[]): string {
 }
 
 /* ========= 거래처 목록 =========
- * 1) /api/vendors/summary 로 코드/이름을 받고
- * 2) /api/vendors/:vendor_code 상세로 숫자 PK 매핑
+ * ✅ 이제 /api/vendors 기반 단일 소스
  */
 export async function fetch_vendors(): Promise<VendorOption[]> {
-  const summary_json = await safeFetchJSON("/api/vendors/summary");
-  const summary_arr = toArray(summary_json);
-  if (!summary_arr.length) return [];
+  const rows = await fetch_vendors_options();
 
-  const detail_promises = summary_arr.map(async (row: any) => {
-    const code_id =
-      row.vendor_id ?? row.vendorId ?? row.code ?? row.id;
-    const readable = asName(row.name, row.vendor_name, row.vendorName);
-    if (!code_id || !readable) return null;
-
-    const d = await safeFetchJSON(`/api/vendors/${encodeURIComponent(String(code_id))}`);
-    if (!d) return null;
-
-    const num_raw =
-      d.id ?? d.pk ?? d.vendor_pk ?? d.vendor_pk_id ??
-      d.vendorIdNumeric ?? d.vendor_db_id ?? d.vendorId;
-    const num_id = asNum(num_raw);
-    if (!Number.isFinite(num_id)) return null;
-
-    return { id: num_id, name: readable } as VendorOption;
-  });
-
-  const detailed = await Promise.all(detail_promises);
-  const dedup = new Map<number, string>();
-  for (const v of detailed) {
-    if (!v) continue;
-    if (!dedup.has(v.id)) dedup.set(v.id, v.name);
-  }
-  return Array.from(dedup.entries()).map(([id, name]) => ({ id, name }));
+  return rows
+    .map((v) => ({
+      id: v.id,
+      name: v.name,
+      code: v.code,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"));
 }
 
-/* ========= 창고 목록 ========= */
+/* ========= 창고 목록 =========
+ * ✅ /api/warehouses 단일 소스
+ */
 export async function fetch_warehouses(): Promise<WarehouseOption[]> {
-  const j = await safeFetchJSON("/api/warehouses");
-  const arr = toArray(j);
+  const rows = await fetch_warehouses_summary();
 
-  return arr
-    .map((row: any) => {
-      const id_num = asNum(row.id ?? row.wh_id ?? row.warehouse_id ?? row.warehouseId);
-      const nm = asName(row.name, row.wh_name, row.warehouse_name, row.whName, row.title);
-      if (!Number.isFinite(id_num) || !nm) return null;
-      return { id: id_num, name: nm } as WarehouseOption;
-    })
-    .filter((w): w is WarehouseOption => !!w);
+  return rows
+    .map((w) => ({ id: w.id, name: w.name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"));
 }
 
-/* ========= 품목 목록 (단가 포함) ========= */
+/* ========= 품목 목록 =========
+ * ✅ /api/items 단일 소스
+ * - 단가는 백엔드가 내려주는 경우만 반영
+ */
 export async function fetch_items(): Promise<ItemOption[]> {
-  const j = await safeFetchJSON("/api/items");
-  const arr = toArray(j);
+  const summary = await fetch_items_summary();
 
-  return arr
-    .map((row: any) => {
-      const id_num = asNum(row.id ?? row.item_pk ?? row.itemId ?? row.item_pk_id);
-      const nm = asName(row.name, row.item_name, row.itemName, row.title);
+  // items_summary는 unit_price, vendor_id를 보장하지 않으므로
+  // 필요 시 원본 /api/items에서 보강 시도
+  const raw_json = await safe_fetch_json("/api/items");
+  const raw_arr = to_array(raw_json);
+
+  const raw_map = new Map<number, any>();
+  for (const r of raw_arr) {
+    const id_num = as_num(r?.id ?? r?.item_pk ?? r?.itemId);
+    if (Number.isFinite(id_num)) raw_map.set(id_num, r);
+  }
+
+  const rows: ItemOption[] = summary
+    .map((s) => {
+      const id = as_num(s.id);
+      if (!Number.isFinite(id)) return null;
+
+      const raw = raw_map.get(id);
+
+      const name =
+        as_name(s.name, raw?.name, raw?.item_name, raw?.itemName) || "";
+
+      if (!name) return null;
 
       const unit_price_raw =
-        row.unit_price ?? row.price ?? row.base_price ?? row.cost ?? row.unitPrice;
+        raw?.unit_price ?? raw?.price ?? raw?.base_price ?? raw?.cost ?? raw?.unitPrice;
       const unit_price_num = Number(unit_price_raw);
       const unit_price = Number.isFinite(unit_price_num) ? unit_price_num : 0;
 
-      const vend_raw =
-        row.vendor_id ?? row.vendorId ?? row.vendor_id_pk ?? row.vendor_pk ??
-        row.vendor?.id ?? row.vendor?.vendor_pk ?? row.vendor?.vendor_pk_id ??
-        row.vendor?.vendorIdNumeric ?? row.vendor?.vendor_db_id;
-      const vendor_id = asNum(vend_raw);
-      const safe_vendor_id = Number.isFinite(vendor_id) ? vendor_id : undefined;
+      const vendor_raw =
+        raw?.vendor_id ??
+        raw?.vendorId ??
+        raw?.vendor?.id ??
+        raw?.vendor_pk ??
+        raw?.vendor?.vendor_pk;
+      const vendor_id_num = as_num(vendor_raw);
+      const vendor_id = Number.isFinite(vendor_id_num) ? vendor_id_num : undefined;
 
-      if (!Number.isFinite(id_num) || !nm) return null;
-      return { id: id_num, name: nm, unit_price, vendor_id: safe_vendor_id } as ItemOption;
+      return { id, name, unit_price, vendor_id } as ItemOption;
     })
-    .filter((it): it is ItemOption => !!it);
+    .filter((x): x is ItemOption => !!x);
+
+  return rows.sort((a, b) => a.name.localeCompare(b.name, "ko-KR"));
 }
 
 /* ========= 품목명 보강/캐시 ========= */
@@ -151,8 +153,12 @@ function pick_item_id(row: any): number | undefined {
 
 function pick_item_name(row: any): string | undefined {
   const name =
-    row?.name ?? row?.item_name ?? row?.itemName ?? row?.title ??
-    row?.data?.name ?? row?.data?.item_name;
+    row?.name ??
+    row?.item_name ??
+    row?.itemName ??
+    row?.title ??
+    row?.data?.name ??
+    row?.data?.item_name;
   const s = name && String(name).trim();
   return s ? String(s) : undefined;
 }
@@ -162,15 +168,16 @@ export async function fetch_item_name_by_id(id: number): Promise<string | undefi
 
   const candidates = [
     "/api/items",
+    "/api/items/state?state=NOTUSED",
     "/api/items/state?isused=NOTUSED",
     "/api/items?state=NOTUSED",
     "/api/items?isused=NOTUSED",
   ];
 
   for (const url of candidates) {
-    const j = await safeFetchJSON(url);
+    const j = await safe_fetch_json(url);
     if (!j) continue;
-    const arr = toArray(j);
+    const arr = to_array(j);
     for (const row of arr) {
       const row_id = pick_item_id(row);
       if (row_id !== id) continue;
@@ -181,12 +188,13 @@ export async function fetch_item_name_by_id(id: number): Promise<string | undefi
       }
     }
   }
+
   return undefined;
 }
 
 export function prime_item_name_cache(items: ItemOption[]) {
   for (const it of items) {
-    if (Number.isFinite(it.id as any) && it.name) {
+    if (Number.isFinite(it.id) && it.name) {
       __item_name_cache.set(it.id, it.name);
     }
   }
@@ -211,15 +219,16 @@ export async function fetch_item_price_by_id(id: number): Promise<number | undef
 
   const candidates = [
     "/api/items",
+    "/api/items/state?state=NOTUSED",
     "/api/items/state?isused=NOTUSED",
     "/api/items?state=NOTUSED",
     "/api/items?isused=NOTUSED",
   ];
 
   for (const url of candidates) {
-    const j = await safeFetchJSON(url);
+    const j = await safe_fetch_json(url);
     if (!j) continue;
-    const arr = toArray(j);
+    const arr = to_array(j);
     for (const row of arr) {
       const row_id = pick_item_id(row);
       if (row_id !== id) continue;
@@ -230,46 +239,38 @@ export async function fetch_item_price_by_id(id: number): Promise<number | undef
       }
     }
   }
+
   return undefined;
 }
 
 export function prime_item_price_cache(items: ItemOption[]) {
   for (const it of items) {
-    if (
-      Number.isFinite(it.id as any) &&
-      typeof it.unit_price === "number"
-    ) {
+    if (Number.isFinite(it.id) && typeof it.unit_price === "number") {
       __item_price_cache.set(it.id, it.unit_price);
     }
   }
 }
 
-/* ========= 지점(브랜치) 목록 =========
- * /api/branches 또는 /api/branch 둘 중 하나만 있어도 동작
+/* ========= 지점 목록 =========
+ * 기존 방식 유지 (백엔드 라우트 변동 대비)
  */
 export async function fetch_branches(): Promise<BranchOption[]> {
-  // 1순위: /api/branches, 실패 시 /api/branch 사용
-  const primary_json = await safeFetchJSON("/api/branches");
-  const fallback_json = primary_json ?? (await safeFetchJSON("/api/branch"));
-  const arr = toArray(fallback_json);
+  const primary_json = await safe_fetch_json("/api/branches");
+  const fallback_json = primary_json ?? (await safe_fetch_json("/api/branch"));
+  const arr = to_array(fallback_json);
 
   const temp: BranchOption[] = [];
 
   for (const row of arr) {
-    const id_num = asNum(row.id ?? row.branch_id ?? row.branchId);
-    const nm = asName(row.name, row.branch_name, row.branchName, row.title);
-
+    const id_num = as_num(row.id ?? row.branch_id ?? row.branchId);
+    const nm = as_name(row.name, row.branch_name, row.branchName, row.title);
     if (!Number.isFinite(id_num) || !nm) continue;
-
     temp.push({ id: id_num, name: nm });
   }
 
-  // id 중복 제거 + 이름순 정렬
   const dedup = new Map<number, string>();
   for (const b of temp) {
-    if (!dedup.has(b.id)) {
-      dedup.set(b.id, b.name);
-    }
+    if (!dedup.has(b.id)) dedup.set(b.id, b.name);
   }
 
   return Array.from(dedup.entries())

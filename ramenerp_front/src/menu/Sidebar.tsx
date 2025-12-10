@@ -4,6 +4,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import type { MenuGroup } from "@/menu/sidebar_data";
 import { sidebar_menu } from "@/menu/sidebar_data";
 import { useSidebarHeaderActions } from "../pages/MainPage/function/SideabarHeaderActionsFunction";
+import { logout_and_move } from "@/auth/auth_actions";
 
 type SidebarMode = "overlay" | "docked";
 
@@ -152,13 +153,7 @@ const backdrop_style = (is_open: boolean): React.CSSProperties => ({
 
 /* ====== 선으로만 그린 집 아이콘 ====== */
 const IconHomeLine: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    aria-hidden="true"
-    focusable="false"
-  >
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
     <path
       d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"
       fill="none"
@@ -168,7 +163,7 @@ const IconHomeLine: React.FC<{ size?: number }> = ({ size = 14 }) => (
       strokeLinejoin="round"
     />
   </svg>
-);
+  );
 /* ================================= */
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -179,12 +174,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   const { pathname } = useLocation();
   const [expanded_id, set_expanded_id] = React.useState<string>("items");
 
-  const { go_home, handle_logout } = useSidebarHeaderActions();
+  const { go_home } = useSidebarHeaderActions();
 
   const is_dashboard_overlay = mode === "overlay" && pathname === "/dashboard";
 
   const handle_toggle_group = (id: string) => {
     set_expanded_id((prev) => (prev === id ? "" : id));
+  };
+
+  const handle_logout = () => {
+    logout_and_move();
   };
 
   const render_group = (group: MenuGroup) => {

@@ -8,6 +8,7 @@ export const auth_key = {
 export type AuthUser = {
   id: number;
   userId: string;
+  role?: "ADMIN" | "CEO" | "STAFF";
 };
 
 export function set_auth_session(access_token: string, user: AuthUser) {
@@ -38,3 +39,6 @@ export function get_auth_user(): AuthUser | null {
 export function is_logged_in(): boolean {
   return Boolean(get_access_token());
 }
+
+// ✅ 구버전 함수명 호환용 alias
+export const save_auth_session = set_auth_session;
