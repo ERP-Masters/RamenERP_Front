@@ -24,6 +24,7 @@ import NotUsedWarehousePageUi from "./pages/NotUsed/components/NotUsedWarehouseP
 import NotUsedUnitPageUi from "./pages/NotUsed/components/NotUsedUnitPageUi";
 import NotUsedCategoryPageUi from "./pages/NotUsed/components/NotUsedCategoryPageUi";
 import InventoryListUi from "./pages/Inventory/components/InventoryListUi";
+import StockAlertListPage from "./pages/MainPage/components/StockAlertListPage"; // ✅ 재고 알림 리스트 페이지 import 추가
 import BranchOrderListPage from "./pages/branchOrder/components/BranchOrderListPage";
 import BranchOrderNewPage from "./pages/branchOrder/components/BranchOrderNewPage";
 import LoginPageUi from "./pages/login/components/LoginPageUi";
@@ -79,8 +80,7 @@ const App: React.FC = () => {
         <Route path="branch-order/completed" element={<ShipmentListPage />} />
 
         {/* 매출 */}
-        <Route path="/sales" element={<SalesDashboardPage/>} />
-
+        <Route path="/sales" element={<SalesDashboardPage />} />
 
         {/* 카테고리 */}
         <Route path="category/register" element={<CategoryRegisterPage />} />
@@ -97,6 +97,8 @@ const App: React.FC = () => {
         <Route path="warehouse/list" element={<WarehouseListPanel />} />
         <Route path="warehouse/state" element={<NotUsedWarehousePageUi />} />
         <Route path="inventory/list" element={<InventoryListUi />} />
+        <Route
+          path="inventory/stock-alerts" element={<StockAlertListPage />} />{/* ✅ 재고 알림 리스트 페이지 라우트 추가 */}
 
         {/* 지점 */}
         <Route path="branch/register" element={<BranchRegisterPage />} />
